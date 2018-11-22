@@ -10,12 +10,10 @@
 // permissions and limitations under the License.
 
 // client is the integration of N1ql with FTs Yndexing.
+// It implements backfill for slow N1QL readers.
 
 package client
 
-// TODO: GSI has a feature to spill out resultsets to disk, perhaps
-// when the n1ql entryChannel consumer is too slow.  Need to see if we
-// need something similar one day.
 
 import (
 	"context"
