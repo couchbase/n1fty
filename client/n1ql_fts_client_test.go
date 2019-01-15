@@ -266,7 +266,7 @@ func cleanbackfillFiles() {
 		return
 	}
 	for _, file := range files {
-		if strings.HasPrefix(file.Name(), N1FTYBACKFILLPREFIX) {
+		if strings.HasPrefix(file.Name(), N1ftyBackfillPrefix) {
 			log.Printf("cleaning files %s", file.Name())
 			os.Remove(dir + "/" + file.Name())
 		}
@@ -274,7 +274,7 @@ func cleanbackfillFiles() {
 }
 
 func backfillDir() string {
-	file, err := ioutil.TempFile("" /*dir*/, N1FTYBACKFILLPREFIX)
+	file, err := ioutil.TempFile("" /*dir*/, N1ftyBackfillPrefix)
 	if err != nil {
 		//.HandleError(err, "Error in getting backfill dir")
 	}
@@ -292,7 +292,7 @@ func getbackfillFiles(dir string) []string {
 	rv := make([]string, 0)
 	for _, file := range files {
 		fname := path.Join(dir, file.Name())
-		if strings.Contains(fname, N1FTYBACKFILLPREFIX) {
+		if strings.Contains(fname, N1ftyBackfillPrefix) {
 			rv = append(rv, fname)
 		}
 	}

@@ -10,19 +10,17 @@
 // permissions and limitations under the License.
 
 // client is the integration of N1ql with FTs Yndexing.
-// It implements backfill for slow N1QL readers.
 
 package client
 
-
 import (
 	"context"
+	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"path"
@@ -33,6 +31,7 @@ import (
 	"time"
 
 	"github.com/blevesearch/bleve/mapping"
+	"github.com/blevesearch/bleve/search"
 	"google.golang.org/grpc"
 
 	"github.com/couchbase/cbft"
@@ -48,16 +47,18 @@ import (
 	"github.com/couchbase/query/logging"
 	"github.com/couchbase/query/timestamp"
 	"github.com/couchbase/query/value"
-
+	"google.golang.org/grpc/keepalive"
+	log "github.com/couchbase/clog"
 	pb "github.com/couchbase/cbft/protobuf"
 )
 
-// How long in msecs to cache a previous metadata refresh.
-var REFRESH_DURATION_MSEC = 5
+// MetaDataRefreshDurationMsec is the default time in
+// msecs to cache a previous metadata refresh.
+var MetaDataRefreshDurationMsec = 5
 
-var INDEXER_PROVIDER_NAME = "fts"
+var IndexerProviderName = "fts"
 
-const N1FTYBACKFILLPREFIX = "search-results"
+const N1ftyBackfillPrefix = "search-results"
 
 var HttpGet func(url string) (resp *http.Response, err error) = http.Get
 
@@ -147,34 +148,31 @@ type indexField struct {
 
 // ----------------------------------------------------
 
+// NewFTSIndexer manage a set of indexes under namespace->keyspace,
+// also called as, pool->bucket. It will return an error when,
+// - FTS cluster is not available.
+// - network partitions / errors.
 func NewFTSIndexer(clusterURL, namespace, keyspace string) (
 	datastore.Indexer, errors.Error) {
-	logging.Infof("NewFTSIndexer clusterURL: %s, namespace: %s, keyspace: %s",
+	log.Printf("n1fty: clusterURL: %s, namespace: %s, keyspace: %s",
 		clusterURL, namespace, keyspace)
 	cluster, err := gocb.Connect(clusterURL)
 	if err != nil {
-		logging.Infof("NewFTSIndexer clusterURL: %s, namespace: %s, keyspace: %s, err: %v",
+		log.Printf("n1fty: clusterURL: %s, namespace: %s, keyspace: %s, err: %v",
 			clusterURL, namespace, keyspace, err)
-		return nil, errors.NewError(err, "NewFTSIndexer gocb.Connect")
+		return nil, errors.NewError(err, "n1fty: gocb.Connect")
 	}
 
-	bucketMap := make(map[string]gocb.BucketAuthenticator, 1)
-	bucketMap["travel-sample"] = gocb.BucketAuthenticator{Password: "asdasd"}
-
-	/*cluster.Authenticate(gocb.ClusterAuthenticator{ // TODO.
-		Buckets:  bucketMap,
-		Username: "Administrator",
-		Password: "asdasd",
-	})*/
+	// TODO: Need to configure cluster authenticator?
+	//bucketMap := make(map[string]gocb.BucketAuthenticator, 1)
+	//bucketMap["travel-sample"] = gocb.BucketAuthenticator{Password: "asdasd"}
 
 	cluster.Authenticate(gocb.PasswordAuthenticator{ // TODO.
 		Username: "Administrator",
 		Password: "asdasd",
 	})
 
-	// TODO: Need to configure cluster authenticator?
-
-	ks := &indexer{
+	indexer := &indexer{
 		clusterURL: clusterURL,
 		namespace:  namespace,
 		keyspace:   keyspace,
@@ -183,20 +181,20 @@ func NewFTSIndexer(clusterURL, namespace, keyspace string) (
 		stats:      &n1ftyStats{},
 	}
 
-	err = ks.Refresh()
+	err = indexer.Refresh()
 	if err != nil {
-		log.Printf("NewFTSIndexer, Refresh err: %v", err)
+		return nil, errors.NewError(err, "n1fty: refresh err")
 	}
 
-	go backfillMonitor(2*time.Second, ks)
+	go backfillMonitor(2*time.Second, indexer)
 
-	return ks, nil
+	return indexer, nil
 }
 
 // ----------------------------------------------------
 
 func (indexer *indexer) MetadataVersion() uint64 {
-	return 0 // TODO.
+	return 0 // placeholder
 }
 
 func (indexer *indexer) KeyspaceId() string {
@@ -204,10 +202,10 @@ func (indexer *indexer) KeyspaceId() string {
 }
 
 func (indexer *indexer) Name() datastore.IndexType {
-	return datastore.IndexType(INDEXER_PROVIDER_NAME)
+	return datastore.IndexType(IndexerProviderName)
 }
 
-// Ids of the current set of FTS indexes.
+// IndexIds returns the Ids of the current set of FTS indexes.
 func (indexer *indexer) IndexIds() ([]string, errors.Error) {
 	if err := indexer.maybeRefresh(false); err != nil {
 		return nil, err
@@ -220,7 +218,7 @@ func (indexer *indexer) IndexIds() ([]string, errors.Error) {
 	return indexIds, nil
 }
 
-// Names of the current set of FTS indexes.
+// IndexNames returns the names of the current set of FTS indexes.
 func (indexer *indexer) IndexNames() ([]string, errors.Error) {
 	if err := indexer.maybeRefresh(false); err != nil {
 		return nil, err
@@ -233,7 +231,7 @@ func (indexer *indexer) IndexNames() ([]string, errors.Error) {
 	return indexNames, nil
 }
 
-// Find an index by id.
+// IndexById finds an index by id.
 func (indexer *indexer) IndexById(id string) (datastore.Index, errors.Error) {
 	var index datastore.Index
 	var ok bool
@@ -246,13 +244,13 @@ func (indexer *indexer) IndexById(id string) (datastore.Index, errors.Error) {
 
 	if !ok {
 		return nil, errors.NewError(nil,
-			fmt.Sprintf("FTS index with id %v not found", id))
+			fmt.Sprintf("fts index with id %v not found", id))
 	}
 
 	return index, nil
 }
 
-// Find an index by name.
+// IndexByName finds an index by name.
 func (indexer *indexer) IndexByName(name string) (datastore.Index, errors.Error) {
 	var index datastore.Index
 	var ok bool
@@ -265,13 +263,13 @@ func (indexer *indexer) IndexByName(name string) (datastore.Index, errors.Error)
 
 	if !ok {
 		return nil, errors.NewError(nil,
-			fmt.Sprintf("FTS index named %v not found", name))
+			fmt.Sprintf("fts index named %v not found", name))
 	}
 
 	return index, nil
 }
 
-// Return the latest set of all FTS indexes.
+// Indexes returns the latest set of all fts indexes.
 func (indexer *indexer) Indexes() ([]datastore.Index, errors.Error) {
 	if err := indexer.maybeRefresh(false); err != nil {
 		return nil, err
@@ -284,28 +282,21 @@ func (indexer *indexer) Indexes() ([]datastore.Index, errors.Error) {
 	return allIndexes, nil
 }
 
-// Returns the latest set of FTS primary indexes.
+// PrimaryIndexes returns the latest set of fts primary indexes.
 func (indexer *indexer) PrimaryIndexes() ([]datastore.PrimaryIndex, errors.Error) {
-	if err := indexer.maybeRefresh(false); err != nil {
-		return nil, err
-	}
-
-	indexer.rw.RLock()
-	priIndexes := indexer.priIndexes
-	indexer.rw.RUnlock()
-
-	return priIndexes, nil
+	// placeholder
+	return nil, errors.NewError(nil, "unimplemented")
 }
 
 // ----------------------------------------------------
 
-// Create or return a primary index on this keyspace.
+// CreatePrimaryIndex create or return a primary index on this keyspace.
 func (indexer *indexer) CreatePrimaryIndex(requestId, name string,
 	with value.Value) (datastore.PrimaryIndex, errors.Error) {
 	return nil, errors.NewError(nil, "unimplemented")
 }
 
-// Create or return an index on this keyspace.
+// CreateIndex create or return an index on this keyspace.
 func (indexer *indexer) CreateIndex(
 	requestId, name string, seekKey, rangeKey expression.Expressions,
 	where expression.Expression, with value.Value) (
@@ -313,29 +304,26 @@ func (indexer *indexer) CreateIndex(
 	return nil, errors.NewError(nil, "unimplemented")
 }
 
-// Build indexes that were deferred at creation.
+// BuildIndexes build indexes that were deferred at creation.
 func (indexer *indexer) BuildIndexes(
 	requestId string,
 	name ...string) errors.Error {
-	return nil // TODO - anything to do here / return unimplemented?
+	return errors.NewError(nil, "unimplemented") 
 }
-
-// ------------------------------------------------
 
 // Refresh list of indexes from metadata.
 func (indexer *indexer) Refresh() errors.Error {
 	return indexer.maybeRefresh(true)
 }
 
-// Refresh list of indexes from metadata if REFRESH_DURATION_MSEC was
+// Refresh list of indexes from metadata if MetaDataRefreshDurationMsec was
 // reached or if force'd.
 func (indexer *indexer) maybeRefresh(force bool) (err errors.Error) {
-	dur := time.Duration(REFRESH_DURATION_MSEC) * time.Millisecond
-	now := time.Now()
-
-	logging.Infof("fts indexer.maybeRefresh indexer: %+v, force: %v",
+	dur := time.Duration(MetaDataRefreshDurationMsec) * time.Millisecond
+	log.Printf("n1fty: maybeRefresh indexer: %+v, force: %v",
 		indexer, force)
-
+	
+	now := time.Now()
 	indexer.rw.Lock()
 	if force || indexer.lastRefreshStartTime.IsZero() ||
 		now.Sub(indexer.lastRefreshStartTime) > dur {
@@ -354,7 +342,7 @@ func (indexer *indexer) maybeRefresh(force bool) (err errors.Error) {
 		return err
 	}
 
-	// Process the mapIndexesById into read-friendly format.
+	// process the mapIndexesById into read-friendly format.
 
 	indexNum := len(mapIndexesById)
 
@@ -372,7 +360,7 @@ func (indexer *indexer) maybeRefresh(force bool) (err errors.Error) {
 
 		allIndexes = append(allIndexes, index)
 
-		// if index.isPrimary {
+		// if index.isPrimary { 
 		//     priIndexes = append(priIndexes, index)
 		// }
 
@@ -394,37 +382,30 @@ func (indexer *indexer) maybeRefresh(force bool) (err errors.Error) {
 
 func (indexer *indexer) refresh() (map[string]*index, errors.Error) {
 	ftsEndpoints, err := indexer.ftsEndpoints()
-
-	log.Printf("refresh: %+v", ftsEndpoints)
-
 	if err != nil {
-		logging.Warnf("indexer.refresh ftsEndpoints, err: %v", err)
-
-		return nil, errors.NewError(err, "indexer.refresh ftsEndpoints")
+		log.Printf("n1fty: refresh ftsEndpoints, err: %v", err)
+		return nil, errors.NewError(err, "refresh ftsEndpoints")
 	}
 
 	if len(ftsEndpoints) <= 0 {
-		return nil, nil
+		return nil, errors.NewError(err, "no fts nodes found")
 	}
 
+	var errSummary string
 	for i := 0; i < len(ftsEndpoints); i++ {
 		x := (int(indexer.startTime.UnixNano()) + i) % len(ftsEndpoints)
 
 		indexDefs, err := indexer.retrieveIndexDefs(ftsEndpoints[x])
 		if err == nil {
 			return indexer.convertIndexDefs(indexDefs), nil
-		} else {
-			logging.Warnf("indexer.refresh retrieveIndexDefs, ftsEndpoints: %s,"+
-				" indexer: %v, err: %v", ftsEndpoints[x], indexer, err)
-		}
+		} 
+		errSummary += "\t"+ err.Error()
+		log.Printf("n1fty: retrieveIndexDefs, ftsEndpoints: %s,"+
+			" indexer: %v, err: %v", ftsEndpoints[x], indexer, err)	
 	}
 
-	// TODO: If all ftsEndpoints error'ed, then log / propagate error?
-
-	return nil, nil
+	return nil, errors.NewError(fmt.Errorf("fts service error"), errSummary)
 }
-
-// ------------------------------------------------
 
 // Returns array of FTS endpoint strings that look like
 // "http(s)://HOST:PORT".
@@ -434,17 +415,16 @@ func (indexer *indexer) ftsEndpoints() (rv []string, err error) {
 
 	buckets, err := indexer.cluster.Manager(user, pswd).GetBuckets()
 	if err != nil {
-
 		return nil, err
 	}
-	log.Printf("buckets %+v", buckets)
+
 	if len(buckets) <= 0 {
 		return nil, nil
 	}
 
 	bucket, err := indexer.cluster.OpenBucket(buckets[0].Name, "")
 	if err != nil {
-		log.Printf("OpenBucket err %v", err)
+		log.Printf("n1fty: openBucket err: %v", err)
 		return nil, err
 	}
 
@@ -452,19 +432,16 @@ func (indexer *indexer) ftsEndpoints() (rv []string, err error) {
 	if ioRouter != nil {
 		rv = ioRouter.FtsEps()
 	}
-
 	bucket.Close()
 
 	return rv, nil
 }
 
-// ------------------------------------------------
-
 // Retrieve the index definitions from an FTS endpoint.
 func (indexer *indexer) retrieveIndexDefs(ftsEndpoint string) (
 	*cbgt.IndexDefs, error) {
 	ftsEndpoint = strings.Replace(ftsEndpoint,
-		"http://", "http://Administrator:asdasd@", 1) // TODO.
+		"http://", "http://Administrator:asdasd@", 1) // TODO. cbauth for default auths
 
 	resp, err := HttpGet(ftsEndpoint + "/api/index") // TODO: Auth.
 	if err != nil {
@@ -476,7 +453,6 @@ func (indexer *indexer) retrieveIndexDefs(ftsEndpoint string) (
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("retrieveIndexDefs resp: %#v", resp)
 	}
-	log.Printf("resp.Status %s", resp.Status)
 
 	bodyBuf, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -497,127 +473,113 @@ func (indexer *indexer) retrieveIndexDefs(ftsEndpoint string) (
 		return nil, fmt.Errorf("retrieveIndexDefs status error,"+
 			" body: %+v, bodyBuf: %s", body, bodyBuf)
 	}
-	log.Printf("body.IndexDefs %+v", body.IndexDefs)
+	
 	return body.IndexDefs, nil
 }
-
-// ------------------------------------------------
 
 // Convert an FTS index definitions into a map[n1qlIndexId]*index.
 func (indexer *indexer) convertIndexDefs(
 	indexDefs *cbgt.IndexDefs) map[string]*index {
-	logging.Infof("FTS convertIndexDefs indexDefs: %+v", indexDefs)
 
 	rv := map[string]*index{}
-
-	defer logging.Infof("FTS convertIndexDefs rv: %+v", rv)
 
 OUTER:
 	for _, indexDef := range indexDefs.IndexDefs {
 
 		if indexDef.Type != "fulltext-index" {
-			logging.Infof("FTS convertIndexDefs SKIP indexDef: %+v,"+
-				" not a fulltext-index", indexDef)
+			log.Printf("n1fty: convertIndexDefs skip indexDef: %+v,"+
+				" not a fulltext-index", indexDef.Type)
 			continue
 		}
 
 		if indexDef.SourceType != "couchbase" &&
 			indexDef.SourceType != "couchbase-dcp" {
-			logging.Infof("FTS convertIndexDefs SKIP indexDef: %+v,"+
-				" not couchbase/couchbase-dcp SourceType", indexDef)
+				log.Printf("n1fty: convertIndexDefs skip indexDef: %+v,"+
+				" not couchbase/couchbase-dcp SourceType", indexDef.SourceType)
 			continue
 		}
 
-		if indexDef.SourceName != indexer.keyspace {
-			log.Printf("FTS convertIndexDefs SKIP indexDef: %+v,"+
-				" SourceName != keyspace: %s", indexDef, indexer.keyspace)
+		/*if indexDef.SourceName != indexer.keyspace {
+			log.Printf("n1fty: convertIndexDefs skip indexDef: %+v,"+
+				" SourceName != keyspace: %s", indexDef.SourceName, 
+				indexer.keyspace)
 			continue
-		}
-
-		// TODO: Need to match indexDef.SourceUUID?
+		}*/
 
 		bp := cbft.NewBleveParams()
 
 		err := json.Unmarshal([]byte(indexDef.Params), bp)
 		if err != nil {
-			log.Printf("FTS convertIndexDefs SKIP indexDef: %+v,"+
+			log.Printf("n1fty: convertIndexDefs skip indexDef: %+v,"+
 				" json unmarshal indexDef.Params, err: %v", indexDef, err)
 			continue
 		}
 
 		if bp.DocConfig.Mode != "type_field" {
-			log.Printf("FTS convertIndexDefs SKIP indexDef: %+v,"+
+			log.Printf("n1fty: convertIndexDefs skip indexDef: %+v,"+
 				" wrong DocConfig.Mode", indexDef)
 			continue
 		}
 
 		typeField := bp.DocConfig.TypeField
 		if typeField == "" {
-			log.Printf("FTS convertIndexDefs SKIP indexDef: %+v,"+
-				" wrong DocConfig.TypeField", indexDef)
+			log.Printf("n1fty: convertIndexDefs skip indexDef: %+v,"+
+				" wrong DocConfig.TypeField", typeField)
 			continue
 		}
 
 		bm, ok := bp.Mapping.(*mapping.IndexMappingImpl)
 		if !ok {
-			log.Printf("FTS convertIndexDefs SKIP indexDef: %+v, "+
-				" not IndexMappingImpl", indexDef)
+			log.Printf("n1fty: convertIndexDefs skip indexDef: %+v, "+
+				" not IndexMappingImpl", *indexDef)
 			continue
 		}
-
-		/*if bm.IndexDynamic && bm.Enabled { // TODO: Handle IndexDynamic one day.
-			log.Printf("FTS convertIndexDefs SKIP indexDef: %+v, "+
-				" IndexDynamic", indexDef)
-			continue
-		}*/
+		log.Printf("n1fty: bm.TypeMapping : %+v", bm.TypeMapping)
 
 		// Keyed by field path (ex: "name", "address.geo.lat").
 		fieldPathIndexFields := map[string][]*indexField{}
-
+		var indexesWithDefaultMapping []string
 		if len(bm.TypeMapping) > 0 {
 			// If we have type mappings, then we can't support any
 			// default mapping.
-			//
 			if bm.TypeMapping[bm.DefaultType] != nil {
-				log.Printf("FTS convertIndexDefs SKIP indexDef: %+v,"+
-					" TypeMapping[bm.DefaultType] non-nil", indexDef)
+				log.Printf("n1fty: convertIndexDefs skip indexDef: %+v,"+
+					" TypeMapping[bm.DefaultType] non-nil", 
+					bm.TypeMapping[bm.DefaultType])
 				continue
 			}
 
-			if bm.DefaultMapping != nil &&
+			/*if bm.DefaultMapping != nil &&
 				bm.DefaultMapping.Enabled {
 				if bm.DefaultMapping.Dynamic ||
 					len(bm.DefaultMapping.Properties) > 0 ||
 					len(bm.DefaultMapping.Fields) > 0 {
-					log.Printf("FTS convertIndexDefs SKIP indexDef: %+v,"+
+					log.Printf("n1fty: convertIndexDefs skip indexDef: %+v,"+
 						" default mapping exists when type mappings exist", indexDef)
-					continue // TODO: Handle default mapping one day.
+					//continue // TODO: Handle default mapping one day.
 				}
-			}
+			}*/
 
 			for t, m := range bm.TypeMapping {
 				allowed := indexer.convertDocMap(t, false, "", "",
 					m, fieldPathIndexFields)
 				if !allowed {
-					log.Printf("FTS convertIndexDefs SKIP indexDef: %+v,"+
+					log.Printf("n1fty: convertIndexDefs skip indexDef: %+v,"+
 						" convertDocMap disallowed for type: %v, m: %v",
 						indexDef, t, m)
 					continue OUTER
 				}
 			}
 		} else {
-			// If we have no type mappings, then we have to have an
-			// enabled, non-dynamic, default mapping.
-			//
-			if bm.DefaultMapping == nil ||
-				bm.DefaultMapping.Enabled == false ||
+			// if we have default type mappings,
+			if bm.DefaultMapping != nil &&
+				bm.DefaultMapping.Enabled == true &&
 				bm.DefaultMapping.Dynamic {
-				//continue
-			}
-
-			if len(bm.DefaultMapping.Properties) <= 0 &&
-				len(bm.DefaultMapping.Fields) <= 0 {
-				//continue
+					if len(bm.DefaultMapping.Properties) == 0 &&
+						len(bm.DefaultMapping.Fields) == 0 {
+						indexesWithDefaultMapping = 
+							append(indexesWithDefaultMapping,indexDef.Name)
+					}
 			}
 
 			defaultDocMap := bm.TypeMapping[bm.DefaultType]
@@ -627,81 +589,107 @@ OUTER:
 			if defaultDocMap == nil {
 				//continue
 			}
+			log.Printf("defaultDocMap %+v", *defaultDocMap)
 
 			allowed := indexer.convertDocMap("", true, "", "",
 				defaultDocMap, fieldPathIndexFields)
 			if !allowed {
-				log.Printf("reached here!! %+v", fieldPathIndexFields)
+				log.Printf("reached here fieldPathIndexFields: %+v", fieldPathIndexFields)
 				continue
 			}
+
+			
 		}
 
-		// Filter out any fieldPath that has a non-"keyword" analyzer.
-		//
+		log.Printf("\n before fieldPathIndexFields %+v", fieldPathIndexFields)
+
+		tempMap := make(map[string][]*indexField, 1)
+		// add extra entries for fieldPath suffixed with the analyser name
+		// to later help the query serving capabilities at client side
 		for fieldPath, indexFields := range fieldPathIndexFields {
 			for _, indexField := range indexFields {
-				if indexField.field.Analyzer != "keyword" {
-					log.Printf("reached here!!")
-					delete(fieldPathIndexFields, fieldPath)
+				if indexField.field.Analyzer != "" {
+					newPath := fieldPath + "/" + indexField.field.Analyzer
+					tempMap[newPath] = append(tempMap[newPath], indexField) 
 				}
 			}
 		}
+
+		if len(tempMap) > 0 {
+			for k,v := range tempMap {
+				fieldPathIndexFields[k] = v
+			}
+		}
+
+		log.Printf("\n after fieldPathIndexFields %+v", fieldPathIndexFields)
 
 		// Generate index metadata for each fieldPath.
 		//
 		for fieldPath, indexFields := range fieldPathIndexFields {
-
-			fieldPathS := fmt.Sprintf("`%s`.`%s`", indexer.keyspace, fieldPath)
-
-			rangeKeyExpr, err := parser.Parse(fieldPathS)
+			index, err := makeIndex(fieldPath, typeField, indexFields, indexer, indexDef)
 			if err != nil {
-				log.Printf("FTS convertIndexDefs SKIP indexDef: %+v,"+
-					" parse fieldPath: %v, err: %v",
-					indexDef, fieldPath, err)
 				continue OUTER
 			}
-
-			indexName := "__FTS__/" + indexDef.Name + "/" + fieldPath
-
-			index := &index{
-				indexer:       indexer,
-				id:            indexName + "/" + indexDef.UUID,
-				name:          indexName,
-				indexDef:      indexDef,
-				typeField:     typeField,
-				fieldPath:     fieldPath,
-				indexFields:   indexFields,
-				seekKeyExprs:  expression.Expressions{},
-				rangeKeyExprs: expression.Expressions{rangeKeyExpr},
-			}
-
-			conditionExprs := make([]string, 0, len(indexFields))
-			for _, indexField := range indexFields {
-				if !indexField.isDefault {
-					conditionExprs = append(conditionExprs,
-						fmt.Sprintf("`%s` = %q", typeField, indexField.docType))
-				}
-			}
-
-			if len(conditionExprs) > 0 {
-				conditionExpr, err :=
-					parser.Parse(strings.Join(conditionExprs, " OR "))
-				if err != nil {
-					log.Printf("FTS convertIndexDefs SKIP indexDef: %+v,"+
-						" parse conditionExprs: %+v, err: %v",
-						indexDef, conditionExprs, err)
-					continue OUTER
-				}
-
-				index.conditionExpr = conditionExpr
-			}
-
 			rv[index.id] = index
+		}
 
+	
+	}
+
+	for k, v:= range rv {
+		log.Printf("\n key %s val %+v", k, *v)
+	}
+	
+	return rv
+}
+
+func makeIndex(fieldPath, typeField string, indexFields []*indexField, 
+	indexer *indexer, indexDef *cbgt.IndexDef) (*index, error) {
+	fieldPathS := fmt.Sprintf("`%s`.`%s`", indexer.keyspace, fieldPath)
+
+	rangeKeyExpr, err := parser.Parse(fieldPathS)
+	if err != nil {
+		log.Printf("n1fty: convertIndexDefs skip indexDef: %+v,"+
+			" parse fieldPath: %v, err: %v",
+			indexDef, fieldPath, err)
+		return nil, err
+	}
+
+	indexName := "__FTS__/" + indexDef.Name + "/" + fieldPath 
+
+	index := &index{
+		indexer:       indexer,
+		id:            indexName + "/" + indexDef.UUID,
+		name:          indexName,
+		indexDef:      indexDef,
+		typeField:     typeField,
+		fieldPath:     fieldPath,
+		indexFields:   indexFields,
+		seekKeyExprs:  expression.Expressions{},
+		rangeKeyExprs: expression.Expressions{rangeKeyExpr},
+	}
+
+	conditionExprs := make([]string, 0, len(indexFields))
+	for _, indexField := range indexFields {
+		if !indexField.isDefault {
+			conditionExprs = append(conditionExprs,
+				fmt.Sprintf("`%s` = %q", typeField, indexField.docType))
 		}
 	}
 
-	return rv
+	if len(conditionExprs) > 0 {
+		conditionExpr, err :=
+			parser.Parse(strings.Join(conditionExprs, " OR "))
+		if err != nil {
+			log.Printf("n1fty: convertIndexDefs skip indexDef: %+v,"+
+				" parse conditionExprs: %+v, err: %v",
+				indexDef, conditionExprs, err)
+			return nil, err
+		}
+
+		index.conditionExpr = conditionExpr
+	}
+	return index, nil
 }
 
 // ------------------------------------------------
@@ -727,9 +715,6 @@ func (indexer *indexer) convertDocMap(docType string, isDefault bool,
 	if docMap.Dynamic {
 		// Any dynamic seen anywhere means disallow the conversion of
 		// the indexDef.
-		//
-		// TODO: One day figure out how to convert dynamic FTS indexes.
-		//
 		return false
 	}
 
@@ -796,7 +781,7 @@ func (i *index) Name() string {
 
 // Type of this index.
 func (i *index) Type() datastore.IndexType {
-	return datastore.IndexType(INDEXER_PROVIDER_NAME)
+	return datastore.IndexType(IndexerProviderName)
 }
 
 // Equality keys.
@@ -850,6 +835,23 @@ func cleanupBackfills(tmpfile *os.File, requestID string) {
 }
 
 const DONEREQUEST = int64(1)
+
+type basicAuth struct {
+	username string
+	password string
+}
+
+func (b basicAuth) GetRequestMetadata(ctx context.Context, in ...string) (map[string]string, error) {
+	auth := b.username + ":" + b.password
+	enc := base64.StdEncoding.EncodeToString([]byte(auth))
+	return map[string]string{
+		"authorization": "Basic " + enc,
+	}, nil
+}
+
+func (basicAuth) RequireTransportSecurity() bool {
+	return false
+}
 
 // Perform a scan on this index. Distinct and limit are hints.
 func (i *index) Scan(requestId string, span *datastore.Span, distinct bool,
@@ -913,8 +915,31 @@ func (i *index) Scan(requestId string, span *datastore.Span, distinct bool,
 
 	//sresults, err := bucket.ExecuteSearchQuery(squery)
 	address := "localhost:15000"
+	opts := []grpc.DialOption{
+
+		grpc.WithInsecure(),
+
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			// Send keepalive every 60 seconds to prevent the
+			// connection from getting closed by upstreams
+			Time: time.Duration(60) * time.Second,
+		}),
+
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(1024*1024*2000),
+			grpc.MaxCallSendMsgSize(1024*1024*20),
+		),
+
+
+		grpc.WithPerRPCCredentials(&basicAuth{
+			username: "Administrator",
+			password: "asdasd",
+		},
+		),
+	}
+
 	// Set up a connection to the gRPC server.
-	grpcConn, err := grpc.Dial(address, grpc.WithInsecure())
+	grpcConn, err := grpc.Dial(address, opts...)
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
@@ -925,7 +950,7 @@ func (i *index) Scan(requestId string, span *datastore.Span, distinct bool,
 	// send a stream search request
 	req1 := &pb.SearchRequest{Query: []byte(`{"query": "country:\"United States\""}`), Stream: true, Size: int64(limit), From: int64(0), IndexName: "FTS"}
 
-	stream, err := client.StreamingSearch(context.Background(), req1)
+	stream, err := client.Search(context.Background(), req1)
 	if err != nil || stream == nil {
 		log.Printf("client: Search failed, err: %v", err)
 		return
@@ -942,12 +967,13 @@ func (i *index) Scan(requestId string, span *datastore.Span, distinct bool,
 func (qh *queryHandler) handleStreamResponse(conn *datastore.IndexConnection,
 	waitGroup *sync.WaitGroup,
 	backfillSync *int64,
-	stream pb.SearchSrv_StreamingSearchClient) {
+	stream pb.SearchSrv_SearchClient) {
 
 	entryCh := conn.EntryChannel()
 	backfillLimit := qh.i.getTmpSpaceLimit()
 	//primed, starttm, ticktm := false, time.Now(), time.Now()
 
+	log.Printf("handleStreamResponse started")
 	var enc *gob.Encoder
 	var dec *gob.Decoder
 	var readfd *os.File
@@ -1050,25 +1076,37 @@ func (qh *queryHandler) handleStreamResponse(conn *datastore.IndexConnection,
 	}
 
 	for {
-		hits, err := stream.Recv()
+		results, err := stream.Recv()
 		if err == io.EOF {
+			log.Printf("EOF")
 			// return as it read all data
 			return
 		}
 
 		if err != nil {
-			conn.Error(n1qlError(err))
 			log.Printf("stream read err: %v", err)
+			conn.Error(n1qlError(err))
+			
 		}
 
-		if hits.GetHits() != nil {
-			log.Printf("batch size = %d", len(hits.GetHits().Hits.DocumentMatchCollection))
+		if results.GetHits() != nil {
+			var hits []*search.DocumentMatch
+			switch r := results.PayLoad.(type) {
+
+			case *pb.StreamSearchResults_Hits:
+				err = json.Unmarshal(r.Hits, &hits)
+				if err != nil {
+					log.Printf("client: stream recv failed, err: %v", err)
+				}
+			}
+
+			log.Printf("batch size = %d", len(hits))
 
 			ln := len(entryCh)
 			cp := cap(entryCh)
 
 			if backfillLimit > 0 && tmpfile == nil &&
-				((cp - ln) < len(hits.GetHits().GetHits().DocumentMatchCollection)) {
+				((cp - ln) < len(hits)) {
 				log.Printf("Buffer outflow observed!!  cap %d len %d", cp, ln)
 				enc, dec, tmpfile, err = initBackFill(logPrefix, qh.requestID, qh)
 				if err != nil {
@@ -1096,7 +1134,7 @@ func (qh *queryHandler) handleStreamResponse(conn *datastore.IndexConnection,
 					return
 				}
 
-				err := writeToBackfill(hits.GetHits().GetHits().DocumentMatchCollection, enc)
+				err := writeToBackfill(hits, enc)
 				if err != nil {
 					log.Printf("writeToBackfill err: %v", err)
 					conn.Error(n1qlError(err))
@@ -1105,9 +1143,9 @@ func (qh *queryHandler) handleStreamResponse(conn *datastore.IndexConnection,
 
 				atomic.AddInt64(&backfillEntries, 1)
 
-			} else {
-				log.Printf("sent back %d items", len(hits.GetHits().GetHits().DocumentMatchCollection))
-				for _, hit := range hits.GetHits().GetHits().DocumentMatchCollection {
+			} else if hits != nil {
+				log.Printf("sent back %d items", len(hits))
+				for _, hit := range hits {
 					qh.sendEntry(hit.ID, nil, conn)
 				}
 			}
@@ -1161,7 +1199,7 @@ func backfillMonitor(period time.Duration, i *indexer) {
 		size := int64(0)
 		for _, file := range files {
 			fname := path.Join(nifty_backfill_temp_dir, file.Name())
-			if strings.Contains(fname, N1FTYBACKFILLPREFIX) {
+			if strings.Contains(fname, N1ftyBackfillPrefix) {
 				size += int64(file.Size())
 			}
 		}
@@ -1175,7 +1213,7 @@ func n1qlError(err error) errors.Error {
 
 func initBackFill(logPrefix, requestId string, qh *queryHandler) (*gob.Encoder,
 	*gob.Decoder, *os.File, error) {
-	prefix := N1FTYBACKFILLPREFIX + strconv.Itoa(os.Getpid())
+	prefix := N1ftyBackfillPrefix + strconv.Itoa(os.Getpid())
 	tmpfile, err := ioutil.TempFile(getTmpSpaceDir(), prefix)
 	name := ""
 
@@ -1204,7 +1242,11 @@ func initBackFill(logPrefix, requestId string, qh *queryHandler) (*gob.Encoder,
 	return enc, gob.NewDecoder(readfd), tmpfile, nil
 }
 
-func writeToBackfill(hits []*pb.DocumentMatch, enc *gob.Encoder) error {
+func writeToBackfill(hits []*search.DocumentMatch, enc *gob.Encoder) error {
+	/*var hits []*pb.DocumentMatch
+	if dmc != nil {
+		hits = dmc.Hits
+	}*/
 	var skeys []interface{}
 	var pkeys [][]byte
 	for _, hit := range hits {
@@ -1457,7 +1499,7 @@ func (i *index) getTmpSpaceLimit() int64 {
 }
 
 func getDefaultTmpDir() string {
-	file, err := ioutil.TempFile("" /*dir*/, N1FTYBACKFILLPREFIX)
+	file, err := ioutil.TempFile("" /*dir*/, N1ftyBackfillPrefix)
 	if err != nil {
 		return ""
 	}
