@@ -19,8 +19,6 @@ import (
 	"github.com/couchbase/query/timestamp"
 )
 
-// ----------------------------------------------------------------------------
-
 // Implements datastore.Index interface
 type FTSIndex struct {
 	indexer  *FTSIndexer
@@ -30,8 +28,9 @@ type FTSIndex struct {
 
 	typeMappings        []string
 	rangeKeyExpressions expression.Expressions
-	conditionExpression expression.Expression
 }
+
+// ----------------------------------------------------------------------------
 
 func newFTSIndex(fieldTypeMap map[string][]string, indexDef *cbgt.IndexDef,
 	indexer *FTSIndexer) (*FTSIndex, errors.Error) {
@@ -42,7 +41,6 @@ func newFTSIndex(fieldTypeMap map[string][]string, indexDef *cbgt.IndexDef,
 		indexDef:           indexDef,
 		typeMappings:       []string{},
 		rangeKeyExpression: make(expression.Expressions),
-		// FIXME: conditionExpressions
 	}
 
 	for typeName, fields := range fieldTypeMap {
@@ -82,6 +80,7 @@ func (i *FTSIndex) Indexer() datastore.Indexer {
 }
 
 func (i *FTSIndex) SeekKey() expression.Expressions {
+	// not supported
 	return nil
 }
 
@@ -90,7 +89,8 @@ func (i *FTSIndex) RangeKey() expression.Expressions {
 }
 
 func (i *FTSIndex) Condition() expression.Expression {
-	return i.conditionExpression
+	// WHERE clause stuff, not supported
+	return nil
 }
 
 func (i *FTSIndex) IsPrimary() bool {
@@ -103,16 +103,23 @@ func (i *FTSIndex) State() (datastore.IndexState, string, errors.Error) {
 
 func (i *FTSIndex) Statistics(requestId string, span *datastore.Span) (
 	datastore.Statistics, errors.Error) {
-	// FIXME add statistics
+	return nil, errors.NewError(nil, "not supported yet")
 }
 
 func (i *FTSIndex) Drop(requestId string) errors.Error {
 	return errors.NewError(nil, "not supported")
 }
 
-// Perform a scan on this index. Distinct and limit are hints.
 func (i *FTSIndex) Scan(requestId string, span *datastore.Span, distinct bool,
 	limit int64, cons datastore.ScanConsistency,
 	vector timestamp.Vector, conn *datastore.IndexConnection) {
-	// FIXME
+	conn.Error(errors.NewError(nil, "n1fty doesn't support the Scan API"))
+	return
+}
+
+// FIXME
+// Perform a search/scan over this index, with provided SearchInfo settings
+func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
+	cons datastore.ScanConsistency, vector timestamp.Vector,
+	conn *datastore.IndexConnection) {
 }

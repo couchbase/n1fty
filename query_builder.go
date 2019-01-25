@@ -54,6 +54,7 @@ type Options struct {
 	Operator     string  `json:"operator"`
 }
 
+// FIXME: _all
 func PrepQuery(field, input, options string) (query.Query, error) {
 	opt := Options{}
 	if options != "" {

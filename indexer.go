@@ -18,7 +18,6 @@ import (
 	"github.com/couchbase/cbauth"
 	"github.com/couchbase/cbft"
 	"github.com/couchbase/cbgt"
-	log "github.com/couchbase/clog"
 
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
@@ -26,11 +25,6 @@ import (
 
 	"gopkg.in/couchbase/gocbcore.v7"
 )
-
-// MetaDataRefreshIntervalMS is the time interval when the cached metadata is refreshed.
-var MetaDataRefreshIntervalMS = time.Duration(1000 * time.Millisecond)
-
-// ----------------------------------------------------------------------------
 
 // Implements datastore.Indexer interface
 type FTSIndexer struct {
@@ -46,22 +40,22 @@ type FTSIndexer struct {
 
 	indexIDs   []string
 	indexNames []string
-	allIndexes []*Index
+	allIndexes []*FTSIndex
 
-	mapIndexesById   map[string]*Index
-	mapIndexesByName map[string]*Index
+	mapIndexesById   map[string]*FTSIndex
+	mapIndexesByName map[string]*FTSIndex
 
 	// FIXME: Stats, config?
 }
 
 // ----------------------------------------------------------------------------
 
-func NewFTSIndexer(server, pool, bucket string) (datastore.Indexer, errors.Error) {
-	log.Printf("n1fty: server: %v, namespace: %v, keyspace: %v", server, pool, bucket)
+func NewFTSIndexer(server, namepsace, keyspace string) (datastore.Indexer, errors.Error) {
+	logging.Infof("n1fty: server: %v, namespace: %v, keyspace: %v", server, namespace, keyspace)
 
 	config := &gocbcore.AgentConfig{
 		UserString:           "n1fty",
-		BucketName:           bucket,
+		BucketName:           keyspace,
 		ConnectTimeout:       60000 * time.Millisecond,
 		ServerConnectTimeout: 7000 * time.Millisecond,
 		NmvRetryDelay:        100 * time.Millisecond,
@@ -81,8 +75,8 @@ func NewFTSIndexer(server, pool, bucket string) (datastore.Indexer, errors.Error
 
 	agent := gocbcore.CreateAgent(config)
 	indexer := &FTSIndexer{
-		namespace:       pool,
-		keyspace:        bucket,
+		namespace:       namespace,
+		keyspace:        keyspace,
 		agent:           agent,
 		lastRefreshTime: time.Now(),
 	}
@@ -126,7 +120,7 @@ func (i *FTSIndexer) Name() datastore.IndexType {
 }
 
 func (i *FTSIndexer) IndexIds() ([]string, errors.Error) {
-	if err := i.maybeRefresh(false); err != nil {
+	if err := i.refresh(); err != nil {
 		return nil, errors.NewError(err, "")
 	}
 
@@ -138,8 +132,8 @@ func (i *FTSIndexer) IndexIds() ([]string, errors.Error) {
 }
 
 func (i *FTSIndexer) IndexNames() ([]string, errors.Error) {
-	if err := i.maybeRefresh(false); err != nil {
-		return nil, errors.newError(err, "")
+	if err := i.refresh(); err != nil {
+		return nil, errors.NewError(err, "")
 	}
 
 	i.rw.RLock()
@@ -150,7 +144,7 @@ func (i *FTSIndexer) IndexNames() ([]string, errors.Error) {
 }
 
 func (i *FTSIndexer) IndexById(id string) (datastore.Index, errors.Error) {
-	if err := i.maybeRefresh(false); err != nil {
+	if err := i.refresh(); err != nil {
 		return nil, errors.NewError(err, "")
 	}
 
@@ -169,7 +163,7 @@ func (i *FTSIndexer) IndexById(id string) (datastore.Index, errors.Error) {
 }
 
 func (i *FTSIndexer) IndexByName(name string) (datastore.Index, errors.Error) {
-	if err := i.maybeRefresh(false); err != nil {
+	if err := i.refresh(); err != nil {
 		return nil, errors.NewError(err, "")
 	}
 
@@ -191,7 +185,7 @@ func (i *FTSIndexer) PrimaryIndexes([]datastore.PrimaryIndex, errors.Error) {
 }
 
 func (i *FTSIndexer) Indexes() ([]datastore.Index, errors.Errorf) {
-	if err := i.maybeRefresh(false); err != nil {
+	if err := i.refresh(); err != nil {
 		return nil, errors.NewError(err, "")
 	}
 
@@ -219,7 +213,7 @@ func (i *FTSIndexer) BuildIndexes(requestId string, name ...string) errors.Error
 }
 
 func (i *FTSIndexer) Refresh() errors.Error {
-	return i.maybeRefresh(true)
+	return i.refresh()
 }
 
 func (i *FTSIndexer) MetadataVersion() uint64 {
@@ -228,37 +222,13 @@ func (i *FTSIndexer) MetadataVersion() uint64 {
 }
 
 func (i *FTSIndexer) SetLogLevel(level logging.Level) {
-	switch level {
-	case logging.FATAL:
-		fallthrough
-	case logging.SEVERE:
-		log.SetLevel(log.LevelPanic)
-	case logging.ERROR:
-		log.SetLevel(log.LevelError)
-	case logging.WARNING:
-		log.SetLevel(log.LevelWarning)
-	case logging.INFO:
-		log.SetLevel(log.LevelNormal)
-	default:
-		log.Printf("n1fty: SetLogLevel Unsupported logger setting: %v", level)
-	}
+	logging.SetLevel(level)
 }
 
 // ----------------------------------------------------------------------------
 
-func (i *FTSIndexer) maybeRefresh(force bool) errors.Error {
-	i.rw.Lock()
-	if force || time.Since(i.lastRefreshTime) > MetaDataRefreshIntervalMS {
-		force = true
-		i.lastRefreshTime = time.Now()
-	}
-	i.rw.Unlock()
-
-	if !force {
-		return nil
-	}
-
-	mapIndexesById, err := i.refresh()
+func (i *FTSIndexer) refresh() errors.Error {
+	mapIndexesById, err := i.updateIndexes()
 	if err != nil {
 		return errors.NewError(err, "refresh failed")
 	}
@@ -288,7 +258,7 @@ func (i *FTSIndexer) maybeRefresh(force bool) errors.Error {
 	return nil
 }
 
-func (i *FTSIndexer) refresh() (map[string]*Index, errors.Error) {
+func (i *FTSIndexer) updateIndexes() (map[string]*Index, errors.Error) {
 	ftsEndpoints := i.agent.FtsEps()
 
 	if len(ftsEndpoints) == 0 {
@@ -356,27 +326,27 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 		bp := cbft.NewBleveParams()
 		er := json.Unmarshal([]byte(indexDef.Params), bp)
 		if er != nil {
-			log.Printf("n1fty: convertIndexDefs skip indexDef: %+v,"+
+			logging.Infof("n1fty: convertIndexDefs skip indexDef: %+v,"+
 				" json unmarshal indexDef.Params, err: %v\n", indexDef, err)
 			continue
 		}
 
 		if bp.DocConfig.Mode != "type_field" {
-			log.Printf("n1fty: convertIndexDefs skip indexDef: %+v,"+
+			logging.Infof("n1fty: convertIndexDefs skip indexDef: %+v,"+
 				" wrong DocConfig.Mode\n", indexDef)
 			continue
 		}
 
 		typeField := bp.DocConfig.TypeField
 		if typeField == "" {
-			log.Printf("n1fty: convertIndexDefs skip indexDef: %+v,"+
+			logging.Infof("n1fty: convertIndexDefs skip indexDef: %+v,"+
 				" wrong DocConfig.TypeField\n", typeField)
 			continue
 		}
 
 		bm, ok := bp.Mapping.(*mapping.IndexMappingImpl)
 		if !ok {
-			log.Printf("n1fty: convertIndexDefs skip indexDef: %+v, "+
+			logging.Infof("n1fty: convertIndexDefs skip indexDef: %+v, "+
 				" not IndexMappingImpl\n", *indexDef)
 			continue
 		}
@@ -391,7 +361,6 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 					fieldTypeMap[typeName] = rv
 				}
 			}
-
 		}
 
 		if bm.DefaultMapping != nil && bm.DefaultMapping.Enabled && bm.DefaultMapping.Dynamic {
