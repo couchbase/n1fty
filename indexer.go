@@ -355,7 +355,7 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 			if typeMapping.Enabled {
 				if typeMapping.Dynamic {
 					// everything under document type is indexed
-					fieldTypeMap[typeName] = nil
+					fieldTypeMap[typeName] = []string{"_all"}
 				} else {
 					rv := fetchFullyQualifiedFields("", typeMapping)
 					fieldTypeMap[typeName] = rv
@@ -364,7 +364,7 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 		}
 
 		if bm.DefaultMapping != nil && bm.DefaultMapping.Enabled && bm.DefaultMapping.Dynamic {
-			fieldTypeMap["default"] = nil
+			fieldTypeMap["default"] = []string{"_all"}
 		}
 
 		var err errors.Error
