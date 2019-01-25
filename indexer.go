@@ -42,7 +42,7 @@ type FTSIndexer struct {
 	agent *gocbcore.Agent
 
 	// sync RWMutex protects following fields
-	rw sync.RWMutex
+	m sync.RWMutex
 
 	lastRefreshTime time.Time
 
@@ -53,7 +53,7 @@ type FTSIndexer struct {
 	mapIndexesById   map[string]datastore.Index
 	mapIndexesByName map[string]datastore.Index
 
-	// FIXME: Stats, config?
+	// FIXME: Stats, config
 }
 
 // ----------------------------------------------------------------------------
@@ -136,9 +136,9 @@ func (i *FTSIndexer) IndexIds() ([]string, errors.Error) {
 		return nil, errors.NewError(err, "")
 	}
 
-	i.rw.RLock()
+	i.m.RLock()
 	indexIds := i.indexIds
-	i.rw.RUnlock()
+	i.m.RUnlock()
 
 	return indexIds, nil
 }
@@ -148,9 +148,9 @@ func (i *FTSIndexer) IndexNames() ([]string, errors.Error) {
 		return nil, errors.NewError(err, "")
 	}
 
-	i.rw.RLock()
+	i.m.RLock()
 	indexNames := i.indexNames
-	i.rw.RUnlock()
+	i.m.RUnlock()
 
 	return indexNames, nil
 }
@@ -160,8 +160,8 @@ func (i *FTSIndexer) IndexById(id string) (datastore.Index, errors.Error) {
 		return nil, errors.NewError(err, "")
 	}
 
-	i.rw.RLock()
-	defer i.rw.RUnlock()
+	i.m.RLock()
+	defer i.m.RUnlock()
 	if i.mapIndexesById != nil {
 		index, ok := i.mapIndexesById[id]
 		if ok {
@@ -179,8 +179,8 @@ func (i *FTSIndexer) IndexByName(name string) (datastore.Index, errors.Error) {
 		return nil, errors.NewError(err, "")
 	}
 
-	i.rw.RLock()
-	defer i.rw.RUnlock()
+	i.m.RLock()
+	defer i.m.RUnlock()
 	if i.mapIndexesByName != nil {
 		index, ok := i.mapIndexesByName[name]
 		if ok {
@@ -201,9 +201,9 @@ func (i *FTSIndexer) Indexes() ([]datastore.Index, errors.Error) {
 		return nil, errors.NewError(err, "")
 	}
 
-	i.rw.RLock()
+	i.m.RLock()
 	allIndexes := i.allIndexes
-	i.rw.RUnlock()
+	i.m.RUnlock()
 
 	return allIndexes, nil
 }
@@ -259,13 +259,13 @@ func (i *FTSIndexer) refresh() errors.Error {
 		mapIndexesByName[index.Name()] = index
 	}
 
-	i.rw.Lock()
+	i.m.Lock()
 	i.indexIds = indexIds
 	i.indexNames = indexNames
 	i.allIndexes = allIndexes
 	i.mapIndexesById = mapIndexesById
 	i.mapIndexesByName = mapIndexesByName
-	i.rw.Unlock()
+	i.m.Unlock()
 
 	return nil
 }

@@ -20,7 +20,7 @@ import (
 	"github.com/couchbase/query/timestamp"
 )
 
-// Implements datastore.Index interface
+// Implements datastore.FTSIndex interface
 type FTSIndex struct {
 	indexer  *FTSIndexer
 	id       string
@@ -118,11 +118,9 @@ func (i *FTSIndex) Scan(requestId string, span *datastore.Span, distinct bool,
 	return
 }
 
-/*
-// FIXME
 // Perform a search/scan over this index, with provided SearchInfo settings
 func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	cons datastore.ScanConsistency, vector timestamp.Vector,
 	conn *datastore.IndexConnection) {
+	//FIXME
 }
-*/
