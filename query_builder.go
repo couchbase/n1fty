@@ -36,7 +36,7 @@ func updateFieldsInQuery(q query.Query, field string) error {
 		}
 	default:
 		if fq, ok := q.(query.FieldableQuery); ok {
-			if fq.Field() == "" && field != "" {
+			if fq.Field() == "" {
 				fq.SetField(field)
 			}
 		}
@@ -54,7 +54,8 @@ type Options struct {
 	Operator     string  `json:"operator"`
 }
 
-// FIXME: _all
+// -----------------------------------------------------------------------------
+
 func PrepQuery(field, input, options string) (query.Query, error) {
 	opt := Options{}
 	if options != "" {
@@ -77,12 +78,15 @@ func PrepQuery(field, input, options string) (query.Query, error) {
 		qsq := query.NewQueryStringQuery(input)
 		q, err := qsq.Parse()
 		if err != nil {
-			return nil, fmt.Errorf("qsq.Parse, err: %v", err)
+			return nil, fmt.Errorf("query_builder Parse, err: %v", err)
 		}
 
-		err = updateFieldsInQuery(q, field)
-		if err != nil {
-			return nil, fmt.Errorf("updateFieldsInQuery, err: %v", err)
+		if field != "" && field != "_all" {
+			err = updateFieldsInQuery(q, field)
+			if err != nil {
+				return nil, fmt.Errorf("query_builder updateFieldsInQuery,"+
+					" err: %v", err)
+			}
 		}
 		return q, nil
 	case "bool":
@@ -101,7 +105,9 @@ func PrepQuery(field, input, options string) (query.Query, error) {
 		fallthrough
 	case "term":
 		output := map[string]interface{}{}
-		output["field"] = field
+		if field != "" && field != "_all" {
+			output["field"] = field
+		}
 		output[opt.Type] = input
 		if opt.Analyzer != "" {
 			output["analyzer"] = opt.Analyzer

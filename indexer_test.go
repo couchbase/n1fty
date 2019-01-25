@@ -148,7 +148,7 @@ func TestIndexDefConversion(t *testing.T) {
 	var id cbgt.IndexDef
 	err := json.Unmarshal(sampleIndexDef, &id)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	indexDefs := &cbgt.IndexDefs{
@@ -165,18 +165,18 @@ func TestIndexDefConversion(t *testing.T) {
 
 	indexMap, err := ftsIndexer.convertIndexDefs(indexDefs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	travelIndex, exists := indexMap["travel"]
 	if !exists || travelIndex == nil {
-		t.Error("index name travel not found!")
+		t.Fatal("index name travel not found!")
 	}
 
 	if travelIndex.KeyspaceId() != "travel-sample" ||
 		travelIndex.Name() != "travel" ||
 		travelIndex.Id() != "xyz" {
-		t.Error("unexpected index attributes")
+		t.Fatal("unexpected index attributes")
 	}
 
 	rangeExprs := travelIndex.RangeKey()
@@ -196,6 +196,6 @@ func TestIndexDefConversion(t *testing.T) {
 	sort.Strings(gotRangeExprStrings)
 
 	if !reflect.DeepEqual(expectedRangeExprStrings, gotRangeExprStrings) {
-		t.Errorf("Expected: %v, Got: %v", expectedRangeExprStrings, gotRangeExprStrings)
+		t.Fatalf("Expected: %v, Got: %v", expectedRangeExprStrings, gotRangeExprStrings)
 	}
 }

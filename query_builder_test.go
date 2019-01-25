@@ -49,7 +49,7 @@ func TestPrepQuery(t *testing.T) {
 	for i, test := range tests {
 		q, err := PrepQuery(test.field, test.query, test.options)
 		if err != nil {
-			t.Error(err)
+			t.Fatal(err)
 		}
 
 		switch q.(type) {
@@ -57,44 +57,44 @@ func TestPrepQuery(t *testing.T) {
 			bq := q.(*query.BooleanQuery)
 			cq := bq.Must.(*query.ConjunctionQuery)
 			if len(cq.Conjuncts) != 1 {
-				t.Errorf("Exception in boolean query, number of must clauses: %v",
+				t.Fatalf("Exception in boolean query, number of must clauses: %v",
 					len(cq.Conjuncts))
 			}
 			mcq := cq.Conjuncts[0].(*query.MatchQuery)
 			if mcq.Match != "Avengers" || mcq.FieldVal != "title" || mcq.Fuzziness != 2 {
-				t.Errorf("Exception in boolean must query: %v, %v, %v",
+				t.Fatalf("Exception in boolean must query: %v, %v, %v",
 					mcq.Match, mcq.FieldVal, mcq.Fuzziness)
 			}
 			dq := bq.Should.(*query.DisjunctionQuery)
 			if len(dq.Disjuncts) != 1 {
-				t.Errorf("Exception in boolean query, number of should clauses: %v",
+				t.Fatalf("Exception in boolean query, number of should clauses: %v",
 					len(dq.Disjuncts))
 			}
 			mdq := dq.Disjuncts[0].(*query.MatchQuery)
 			if mdq.Match != "marvel" || mdq.FieldVal != "company" {
-				t.Errorf("Exception in boolean should query: %v, %v",
+				t.Fatalf("Exception in boolean should query: %v, %v",
 					mdq.Match, mdq.FieldVal)
 			}
 		case *query.MatchQuery:
 			mq := q.(*query.MatchQuery)
 			if mq.Match != "avengers" || mq.FieldVal != "title" || mq.Fuzziness != 2 {
-				t.Errorf("Exception in match query: %v, %v, %v",
+				t.Fatalf("Exception in match query: %v, %v, %v",
 					mq.Match, mq.FieldVal, mq.Fuzziness)
 			}
 		case *query.MatchPhraseQuery:
 			mpq := q.(*query.MatchPhraseQuery)
 			if mpq.MatchPhrase != "Avengers: Infinity War" || mpq.FieldVal != "title" ||
 				mpq.Analyzer != "en" || float64(*mpq.BoostVal) != float64(10) {
-				t.Errorf("Exception in match phrase query: %v, %v, %v, %v",
+				t.Fatalf("Exception in match phrase query: %v, %v, %v, %v",
 					mpq.MatchPhrase, mpq.FieldVal, mpq.Analyzer, *mpq.BoostVal)
 			}
 		case *query.WildcardQuery:
 			wq := q.(*query.WildcardQuery)
 			if wq.Wildcard != "Avengers*" || wq.FieldVal != "title" {
-				t.Errorf("Exception in wildcard query: %v, %v", wq.Wildcard, wq.FieldVal)
+				t.Fatalf("Exception in wildcard query: %v, %v", wq.Wildcard, wq.FieldVal)
 			}
 		default:
-			t.Errorf("Unexpected query type: %v, for entry: %v", reflect.TypeOf(q), i)
+			t.Fatalf("Unexpected query type: %v, for entry: %v", reflect.TypeOf(q), i)
 		}
 	}
 }

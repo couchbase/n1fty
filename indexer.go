@@ -56,10 +56,12 @@ type FTSIndexer struct {
 	// FIXME: Stats, config
 }
 
-// ----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
-func NewFTSIndexer(server, namespace, keyspace string) (datastore.Indexer, errors.Error) {
-	logging.Infof("n1fty: server: %v, namespace: %v, keyspace: %v", server, namespace, keyspace)
+func NewFTSIndexer(server, namespace, keyspace string) (datastore.Indexer,
+	errors.Error) {
+	logging.Infof("n1fty: server: %v, namespace: %v, keyspace: %v",
+		server, namespace, keyspace)
 
 	config := &gocbcore.AgentConfig{
 		UserString:           "n1fty",
@@ -73,7 +75,8 @@ func NewFTSIndexer(server, namespace, keyspace string) (datastore.Indexer, error
 
 	svrs := strings.Split(server, ";")
 	if len(svrs) <= 0 {
-		return nil, errors.NewError(fmt.Errorf("NewFTSIndexer: no servers provided"), "")
+		return nil, errors.NewError(fmt.Errorf(
+			"NewFTSIndexer: no servers provided"), "")
 	}
 
 	err := config.FromConnStr(svrs[0])
@@ -98,18 +101,18 @@ func NewFTSIndexer(server, namespace, keyspace string) (datastore.Indexer, error
 		return nil, errors.NewError(err, "n1fty: Refresh err")
 	}
 
-	// FIXME: Backfill monitor
-
 	return indexer, nil
 }
 
 type Authenticator struct{}
 
-func (a *Authenticator) Credentials(req gocbcore.AuthCredsRequest) ([]gocbcore.UserPassPair, error) {
+func (a *Authenticator) Credentials(req gocbcore.AuthCredsRequest) (
+	[]gocbcore.UserPassPair, error) {
 	endpoint := req.Endpoint
 
 	// get rid of the http:// or https:// prefix from the endpoint
-	endpoint = strings.TrimPrefix(strings.TrimPrefix(endpoint, "http://"), "https://")
+	endpoint = strings.TrimPrefix(strings.TrimPrefix(
+		endpoint, "http://"), "https://")
 	username, password, err := cbauth.GetMemcachedServiceAuth(endpoint)
 	if err != nil {
 		return []gocbcore.UserPassPair{{}}, err
@@ -121,7 +124,7 @@ func (a *Authenticator) Credentials(req gocbcore.AuthCredsRequest) ([]gocbcore.U
 	}}, nil
 }
 
-// ----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 func (i *FTSIndexer) KeyspaceId() string {
 	return i.keyspace
@@ -208,8 +211,8 @@ func (i *FTSIndexer) Indexes() ([]datastore.Index, errors.Error) {
 	return allIndexes, nil
 }
 
-func (i *FTSIndexer) CreatePrimaryIndex(requestId, name string, with value.Value) (
-	datastore.PrimaryIndex, errors.Error) {
+func (i *FTSIndexer) CreatePrimaryIndex(requestId, name string,
+	with value.Value) (datastore.PrimaryIndex, errors.Error) {
 	return nil, errors.NewError(nil, "not supported")
 }
 
@@ -237,7 +240,7 @@ func (i *FTSIndexer) SetLogLevel(level logging.Level) {
 	logging.SetLevel(level)
 }
 
-// ---------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 func (i *FTSIndexer) refresh() errors.Error {
 	mapIndexesById, err := i.getLatestIndexSet()
@@ -279,13 +282,15 @@ func (i *FTSIndexer) getLatestIndexSet() (map[string]datastore.Index, error) {
 
 	now := time.Now().UnixNano()
 	for k := 0; k < len(ftsEndpoints); k++ {
-		indexDefs, err := i.retrieveIndexDefs(ftsEndpoints[(now+int64(k))%int64(len(ftsEndpoints))])
+		indexDefs, err := i.retrieveIndexDefs(
+			ftsEndpoints[(now+int64(k))%int64(len(ftsEndpoints))])
 		if err == nil {
 			return i.convertIndexDefs(indexDefs)
 		}
 	}
 
-	return nil, fmt.Errorf("could not fetch index defintions from any of the known nodes: %v", ftsEndpoints)
+	return nil, fmt.Errorf("could not fetch index defintions from any of the"+
+		" known nodes: %v", ftsEndpoints)
 }
 
 func (i *FTSIndexer) retrieveIndexDefs(node string) (*cbgt.IndexDefs, error) {
@@ -301,7 +306,8 @@ func (i *FTSIndexer) retrieveIndexDefs(node string) (*cbgt.IndexDefs, error) {
 
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("retrieveIndexDefs, resp status code: %v", resp.StatusCode)
+		return nil, fmt.Errorf("retrieveIndexDefs, resp status code: %v",
+			resp.StatusCode)
 	}
 
 	bodyBuf, err := ioutil.ReadAll(resp.Body)
@@ -326,7 +332,8 @@ func (i *FTSIndexer) retrieveIndexDefs(node string) (*cbgt.IndexDefs, error) {
 	return body.IndexDefs, nil
 }
 
-// Convert FTS index definitions into a map of n1ql index id mapping to datastore.Index
+// Convert FTS index definitions into a map of n1ql index id mapping to
+// datastore.FTSIndex
 func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 	map[string]datastore.Index, error) {
 	rv := map[string]datastore.Index{}
@@ -368,14 +375,19 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 					// everything under document type is indexed
 					fieldTypeMap[typeName] = []string{"_all"}
 				} else {
-					rv := fetchFullyQualifiedFields("", typeMapping)
+					rv := fetchCompleteFieldNames("", typeMapping)
 					fieldTypeMap[typeName] = rv
 				}
 			}
 		}
 
-		if bm.DefaultMapping != nil && bm.DefaultMapping.Enabled && bm.DefaultMapping.Dynamic {
-			fieldTypeMap["default"] = []string{"_all"}
+		if bm.DefaultMapping != nil && bm.DefaultMapping.Enabled {
+			if bm.DefaultMapping.Dynamic {
+				fieldTypeMap["default"] = []string{"_all"}
+			} else {
+				rv := fetchCompleteFieldNames("", bm.DefaultMapping)
+				fieldTypeMap["default"] = rv
+			}
 		}
 
 		rv[indexDef.Name], err = newFTSIndex(fieldTypeMap, indexDef, i)
@@ -387,7 +399,9 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 	return rv, nil
 }
 
-func fetchFullyQualifiedFields(path string, typeMapping *mapping.DocumentMapping) []string {
+// -----------------------------------------------------------------------------
+
+func fetchCompleteFieldNames(path string, typeMapping *mapping.DocumentMapping) []string {
 	rv := []string{}
 	for _, field := range typeMapping.Fields {
 		if field.Index {
@@ -412,7 +426,7 @@ func fetchFullyQualifiedFields(path string, typeMapping *mapping.DocumentMapping
 			if typeMapping.Dynamic {
 				rv = append(rv, newPath)
 			} else {
-				extra := fetchFullyQualifiedFields(newPath, childMapping)
+				extra := fetchCompleteFieldNames(newPath, childMapping)
 				rv = append(rv, extra...)
 			}
 		}
