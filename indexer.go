@@ -12,16 +12,24 @@
 package n1fty
 
 import (
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/blevesearch/bleve/mapping"
 
 	"github.com/couchbase/cbauth"
 	"github.com/couchbase/cbft"
 	"github.com/couchbase/cbgt"
-
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
+	"github.com/couchbase/query/expression"
 	"github.com/couchbase/query/logging"
+	"github.com/couchbase/query/value"
 
 	"gopkg.in/couchbase/gocbcore.v7"
 )
@@ -38,19 +46,19 @@ type FTSIndexer struct {
 
 	lastRefreshTime time.Time
 
-	indexIDs   []string
+	indexIds   []string
 	indexNames []string
-	allIndexes []*FTSIndex
+	allIndexes []datastore.Index
 
-	mapIndexesById   map[string]*FTSIndex
-	mapIndexesByName map[string]*FTSIndex
+	mapIndexesById   map[string]datastore.Index
+	mapIndexesByName map[string]datastore.Index
 
 	// FIXME: Stats, config?
 }
 
 // ----------------------------------------------------------------------------
 
-func NewFTSIndexer(server, namepsace, keyspace string) (datastore.Indexer, errors.Error) {
+func NewFTSIndexer(server, namespace, keyspace string) (datastore.Indexer, errors.Error) {
 	logging.Infof("n1fty: server: %v, namespace: %v, keyspace: %v", server, namespace, keyspace)
 
 	config := &gocbcore.AgentConfig{
@@ -59,11 +67,11 @@ func NewFTSIndexer(server, namepsace, keyspace string) (datastore.Indexer, error
 		ConnectTimeout:       60000 * time.Millisecond,
 		ServerConnectTimeout: 7000 * time.Millisecond,
 		NmvRetryDelay:        100 * time.Millisecond,
-		UserKvErrorMaps:      true,
+		UseKvErrorMaps:       true,
 		Auth:                 &Authenticator{},
 	}
 
-	srvs := strings.Split(server, ";")
+	svrs := strings.Split(server, ";")
 	if len(svrs) <= 0 {
 		return nil, errors.NewError(fmt.Errorf("NewFTSIndexer: no servers provided"), "")
 	}
@@ -73,7 +81,11 @@ func NewFTSIndexer(server, namepsace, keyspace string) (datastore.Indexer, error
 		return nil, errors.NewError(err, "")
 	}
 
-	agent := gocbcore.CreateAgent(config)
+	agent, err := gocbcore.CreateAgent(config)
+	if err != nil {
+		return nil, errors.NewError(err, "")
+	}
+
 	indexer := &FTSIndexer{
 		namespace:       namespace,
 		keyspace:        keyspace,
@@ -111,7 +123,7 @@ func (a *Authenticator) Credentials(req gocbcore.AuthCredsRequest) ([]gocbcore.U
 
 // ----------------------------------------------------------------------------
 
-func (i *FTSIndexer) KeySpaceId() string {
+func (i *FTSIndexer) KeyspaceId() string {
 	return i.keyspace
 }
 
@@ -125,10 +137,10 @@ func (i *FTSIndexer) IndexIds() ([]string, errors.Error) {
 	}
 
 	i.rw.RLock()
-	indexIDs := i.indexIDs
+	indexIds := i.indexIds
 	i.rw.RUnlock()
 
-	return indexIDs, nil
+	return indexIds, nil
 }
 
 func (i *FTSIndexer) IndexNames() ([]string, errors.Error) {
@@ -170,7 +182,7 @@ func (i *FTSIndexer) IndexByName(name string) (datastore.Index, errors.Error) {
 	i.rw.RLock()
 	defer i.rw.RUnlock()
 	if i.mapIndexesByName != nil {
-		index, ok := i.mapIndexesByName[id]
+		index, ok := i.mapIndexesByName[name]
 		if ok {
 			return index, nil
 		}
@@ -180,11 +192,11 @@ func (i *FTSIndexer) IndexByName(name string) (datastore.Index, errors.Error) {
 		fmt.Sprintf("IndexByName: fts index with name: %v not found", name))
 }
 
-func (i *FTSIndexer) PrimaryIndexes([]datastore.PrimaryIndex, errors.Error) {
+func (i *FTSIndexer) PrimaryIndexes() ([]datastore.PrimaryIndex, errors.Error) {
 	return nil, errors.NewError(nil, "not supported")
 }
 
-func (i *FTSIndexer) Indexes() ([]datastore.Index, errors.Errorf) {
+func (i *FTSIndexer) Indexes() ([]datastore.Index, errors.Error) {
 	if err := i.refresh(); err != nil {
 		return nil, errors.NewError(err, "")
 	}
@@ -205,7 +217,7 @@ func (i *FTSIndexer) CreateIndex(requestId, name string,
 	seekKey, rangeKey expression.Expressions,
 	where expression.Expression, with value.Value) (
 	datastore.Index, errors.Error) {
-	return errors.NewError(nil, "not supported")
+	return nil, errors.NewError(nil, "not supported")
 }
 
 func (i *FTSIndexer) BuildIndexes(requestId string, name ...string) errors.Error {
@@ -225,10 +237,10 @@ func (i *FTSIndexer) SetLogLevel(level logging.Level) {
 	logging.SetLevel(level)
 }
 
-// ----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 
 func (i *FTSIndexer) refresh() errors.Error {
-	mapIndexesById, err := i.updateIndexes()
+	mapIndexesById, err := i.getLatestIndexSet()
 	if err != nil {
 		return errors.NewError(err, "refresh failed")
 	}
@@ -236,9 +248,9 @@ func (i *FTSIndexer) refresh() errors.Error {
 	numIndexes := len(mapIndexesById)
 	indexIds := make([]string, 0, numIndexes)
 	indexNames := make([]string, 0, numIndexes)
-	allIndexes := make([]*Index, 0, numIndexes)
+	allIndexes := make([]datastore.Index, 0, numIndexes)
 
-	mapIndexesByName := map[string]*Index{}
+	mapIndexesByName := map[string]datastore.Index{}
 
 	for id, index := range mapIndexesById {
 		indexIds = append(indexIds, id)
@@ -258,28 +270,27 @@ func (i *FTSIndexer) refresh() errors.Error {
 	return nil
 }
 
-func (i *FTSIndexer) updateIndexes() (map[string]*Index, errors.Error) {
+func (i *FTSIndexer) getLatestIndexSet() (map[string]datastore.Index, error) {
 	ftsEndpoints := i.agent.FtsEps()
 
 	if len(ftsEndpoints) == 0 {
-		return nil, errors.NewError(nil, "no fts nodes found")
+		return nil, fmt.Errorf("no fts nodes found")
 	}
 
 	now := time.Now().UnixNano()
-	for i := 0; i < len(ftsEndpoints); i++ {
-		indexDefs, err := i.retrieveIndexDefs(ftsEndpoints[(now+i)%len(ftsEndpoints)])
+	for k := 0; k < len(ftsEndpoints); k++ {
+		indexDefs, err := i.retrieveIndexDefs(ftsEndpoints[(now+int64(k))%int64(len(ftsEndpoints))])
 		if err == nil {
 			return i.convertIndexDefs(indexDefs)
 		}
 	}
 
-	return nil, errors.NewError(fmt.Errorf("unavailable"),
-		"could not fetch index defintions from any of the known nodes: %v", ftsEndpoints)
+	return nil, fmt.Errorf("could not fetch index defintions from any of the known nodes: %v", ftsEndpoints)
 }
 
 func (i *FTSIndexer) retrieveIndexDefs(node string) (*cbgt.IndexDefs, error) {
 	httpClient := i.agent.HttpClient()
-	if client != nil {
+	if httpClient != nil {
 		return nil, fmt.Errorf("retrieveIndexDefs, client not available")
 	}
 
@@ -317,15 +328,15 @@ func (i *FTSIndexer) retrieveIndexDefs(node string) (*cbgt.IndexDefs, error) {
 
 // Convert FTS index definitions into a map of n1ql index id mapping to datastore.Index
 func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
-	map[string]*index, errors.Error) {
-	rv := map[string]*FTSIndex{}
+	map[string]datastore.Index, error) {
+	rv := map[string]datastore.Index{}
 
 	for _, indexDef := range indexDefs.IndexDefs {
 		fieldTypeMap := map[string][]string{}
 
 		bp := cbft.NewBleveParams()
-		er := json.Unmarshal([]byte(indexDef.Params), bp)
-		if er != nil {
+		err := json.Unmarshal([]byte(indexDef.Params), bp)
+		if err != nil {
 			logging.Infof("n1fty: convertIndexDefs skip indexDef: %+v,"+
 				" json unmarshal indexDef.Params, err: %v\n", indexDef, err)
 			continue
@@ -367,7 +378,6 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 			fieldTypeMap["default"] = []string{"_all"}
 		}
 
-		var err errors.Error
 		rv[indexDef.Name], err = newFTSIndex(fieldTypeMap, indexDef, i)
 		if err != nil {
 			return nil, err

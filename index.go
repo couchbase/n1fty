@@ -16,6 +16,7 @@ import (
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/expression"
+	"github.com/couchbase/query/expression/parser"
 	"github.com/couchbase/query/timestamp"
 )
 
@@ -33,21 +34,21 @@ type FTSIndex struct {
 // ----------------------------------------------------------------------------
 
 func newFTSIndex(fieldTypeMap map[string][]string, indexDef *cbgt.IndexDef,
-	indexer *FTSIndexer) (*FTSIndex, errors.Error) {
+	indexer *FTSIndexer) (*FTSIndex, error) {
 	index := &FTSIndex{
-		indexer:            indexer,
-		id:                 indexDef.UUID,
-		name:               indexDef.Name,
-		indexDef:           indexDef,
-		typeMappings:       []string{},
-		rangeKeyExpression: make(expression.Expressions),
+		indexer:             indexer,
+		id:                  indexDef.UUID,
+		name:                indexDef.Name,
+		indexDef:            indexDef,
+		typeMappings:        []string{},
+		rangeKeyExpressions: expression.Expressions{},
 	}
 
 	for typeName, fields := range fieldTypeMap {
 		for _, entry := range fields {
 			rangeKeyExpr, err := parser.Parse(entry)
 			if err != nil {
-				return nil, errors.NewError(err, "failed to build expressions")
+				return nil, err
 			}
 			index.rangeKeyExpressions = append(index.rangeKeyExpressions, rangeKeyExpr)
 		}
@@ -60,7 +61,7 @@ func newFTSIndex(fieldTypeMap map[string][]string, indexDef *cbgt.IndexDef,
 // ----------------------------------------------------------------------------
 
 func (i *FTSIndex) KeyspaceId() string {
-	return i.indexer.KeySpaceId()
+	return i.indexer.KeyspaceId()
 }
 
 func (i *FTSIndex) Id() string {
@@ -117,9 +118,11 @@ func (i *FTSIndex) Scan(requestId string, span *datastore.Span, distinct bool,
 	return
 }
 
+/*
 // FIXME
 // Perform a search/scan over this index, with provided SearchInfo settings
 func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	cons datastore.ScanConsistency, vector timestamp.Vector,
 	conn *datastore.IndexConnection) {
 }
+*/
