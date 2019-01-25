@@ -135,8 +135,8 @@ func (i *FTSIndexer) Name() datastore.IndexType {
 }
 
 func (i *FTSIndexer) IndexIds() ([]string, errors.Error) {
-	if err := i.refresh(); err != nil {
-		return nil, errors.NewError(err, "")
+	if err := i.Refresh(); err != nil {
+		return nil, err
 	}
 
 	i.m.RLock()
@@ -147,8 +147,8 @@ func (i *FTSIndexer) IndexIds() ([]string, errors.Error) {
 }
 
 func (i *FTSIndexer) IndexNames() ([]string, errors.Error) {
-	if err := i.refresh(); err != nil {
-		return nil, errors.NewError(err, "")
+	if err := i.Refresh(); err != nil {
+		return nil, err
 	}
 
 	i.m.RLock()
@@ -159,10 +159,7 @@ func (i *FTSIndexer) IndexNames() ([]string, errors.Error) {
 }
 
 func (i *FTSIndexer) IndexById(id string) (datastore.Index, errors.Error) {
-	if err := i.refresh(); err != nil {
-		return nil, errors.NewError(err, "")
-	}
-
+	// no refresh
 	i.m.RLock()
 	defer i.m.RUnlock()
 	if i.mapIndexesById != nil {
@@ -178,10 +175,7 @@ func (i *FTSIndexer) IndexById(id string) (datastore.Index, errors.Error) {
 }
 
 func (i *FTSIndexer) IndexByName(name string) (datastore.Index, errors.Error) {
-	if err := i.refresh(); err != nil {
-		return nil, errors.NewError(err, "")
-	}
-
+	// no refresh
 	i.m.RLock()
 	defer i.m.RUnlock()
 	if i.mapIndexesByName != nil {
@@ -200,7 +194,7 @@ func (i *FTSIndexer) PrimaryIndexes() ([]datastore.PrimaryIndex, errors.Error) {
 }
 
 func (i *FTSIndexer) Indexes() ([]datastore.Index, errors.Error) {
-	if err := i.refresh(); err != nil {
+	if err := i.Refresh(); err != nil {
 		return nil, errors.NewError(err, "")
 	}
 
@@ -228,22 +222,7 @@ func (i *FTSIndexer) BuildIndexes(requestId string, name ...string) errors.Error
 }
 
 func (i *FTSIndexer) Refresh() errors.Error {
-	return i.refresh()
-}
-
-func (i *FTSIndexer) MetadataVersion() uint64 {
-	//FIXME
-	return 0
-}
-
-func (i *FTSIndexer) SetLogLevel(level logging.Level) {
-	logging.SetLevel(level)
-}
-
-// -----------------------------------------------------------------------------
-
-func (i *FTSIndexer) refresh() errors.Error {
-	mapIndexesById, err := i.getLatestIndexSet()
+	mapIndexesById, err := i.refreshIndexes()
 	if err != nil {
 		return errors.NewError(err, "refresh failed")
 	}
@@ -273,7 +252,18 @@ func (i *FTSIndexer) refresh() errors.Error {
 	return nil
 }
 
-func (i *FTSIndexer) getLatestIndexSet() (map[string]datastore.Index, error) {
+func (i *FTSIndexer) MetadataVersion() uint64 {
+	//FIXME
+	return 0
+}
+
+func (i *FTSIndexer) SetLogLevel(level logging.Level) {
+	logging.SetLevel(level)
+}
+
+// -----------------------------------------------------------------------------
+
+func (i *FTSIndexer) refreshIndexes() (map[string]datastore.Index, error) {
 	ftsEndpoints := i.agent.FtsEps()
 
 	if len(ftsEndpoints) == 0 {
