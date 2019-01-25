@@ -120,7 +120,6 @@ func PrepQuery(field, input, options string) (query.Query, error) {
 		if err != nil {
 			return nil, fmt.Errorf("err: %v", err)
 		}
-		fmt.Println(string(outputJSON))
 		q, err := query.ParseQuery(outputJSON)
 		if err != nil {
 			return nil, fmt.Errorf("ParseQuery, err: %v", err)
