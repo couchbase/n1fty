@@ -133,6 +133,10 @@ func TestIndexDefConversion(t *testing.T) {
 									"store": true,
 									"type": "text"
 								}]
+							},
+							"reviews": {
+								"dynamic": true,
+								"enabled": true
 							}
 						}
 					}
@@ -183,6 +187,7 @@ func TestIndexDefConversion(t *testing.T) {
 	expectedRangeExprStrings := []string{
 		"(`reviews`.`author`)",
 		"(`reviews`.`content`)",
+		"`_all`",
 		"`_all`",
 		"`country`",
 		"`country`",

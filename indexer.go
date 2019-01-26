@@ -393,6 +393,13 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 
 func fetchCompleteFieldNames(path string, typeMapping *mapping.DocumentMapping) []string {
 	rv := []string{}
+
+	if len(typeMapping.Fields) == 0 && len(typeMapping.Properties) == 0 &&
+		typeMapping.Enabled && typeMapping.Dynamic {
+		rv = append(rv, "_all")
+		return rv
+	}
+
 	for _, field := range typeMapping.Fields {
 		if field.Index {
 			if len(path) == 0 {
@@ -407,14 +414,14 @@ func fetchCompleteFieldNames(path string, typeMapping *mapping.DocumentMapping) 
 		newPath := path
 		if len(childMapping.Fields) == 0 {
 			if len(path) == 0 {
-				newPath += childMappingName
+				newPath = childMappingName
 			} else {
 				newPath += "." + childMappingName
 			}
 		}
 		if typeMapping.Enabled {
 			if typeMapping.Dynamic {
-				rv = append(rv, newPath)
+				rv = append(rv, "_all")
 			} else {
 				extra := fetchCompleteFieldNames(newPath, childMapping)
 				rv = append(rv, extra...)
