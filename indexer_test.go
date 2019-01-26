@@ -172,7 +172,7 @@ func TestIndexDefConversion(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	travelIndex, exists := indexMap["travel"]
+	travelIndex, exists := indexMap["xyz"]
 	if !exists || travelIndex == nil {
 		t.Fatal("index name travel not found!")
 	}

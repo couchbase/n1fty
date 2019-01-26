@@ -53,7 +53,7 @@ type FTSIndexer struct {
 	mapIndexesById   map[string]datastore.Index
 	mapIndexesByName map[string]datastore.Index
 
-	// FIXME: Stats, config
+	// TODO: Stats, config
 }
 
 // -----------------------------------------------------------------------------
@@ -253,7 +253,7 @@ func (i *FTSIndexer) Refresh() errors.Error {
 }
 
 func (i *FTSIndexer) MetadataVersion() uint64 {
-	//FIXME
+	// FIXME
 	return 0
 }
 
@@ -329,7 +329,7 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 	rv := map[string]datastore.Index{}
 
 	for _, indexDef := range indexDefs.IndexDefs {
-		fieldTypeMap := map[string][]string{}
+		searchableFieldsMap := map[string][]string{}
 
 		bp := cbft.NewBleveParams()
 		err := json.Unmarshal([]byte(indexDef.Params), bp)
@@ -363,24 +363,23 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 			if typeMapping.Enabled {
 				if typeMapping.Dynamic {
 					// everything under document type is indexed
-					fieldTypeMap[typeName] = []string{"_all"}
+					searchableFieldsMap[typeName] = []string{"_all"}
 				} else {
-					rv := fetchCompleteFieldNames("", typeMapping)
-					fieldTypeMap[typeName] = rv
+					searchableFieldsMap[typeName] = fetchSearchableFields("", typeMapping)
 				}
 			}
 		}
 
 		if bm.DefaultMapping != nil && bm.DefaultMapping.Enabled {
 			if bm.DefaultMapping.Dynamic {
-				fieldTypeMap["default"] = []string{"_all"}
+				searchableFieldsMap["default"] = []string{"_all"}
 			} else {
-				rv := fetchCompleteFieldNames("", bm.DefaultMapping)
-				fieldTypeMap["default"] = rv
+				rv := fetchSearchableFields("", bm.DefaultMapping)
+				searchableFieldsMap["default"] = rv
 			}
 		}
 
-		rv[indexDef.Name], err = newFTSIndex(fieldTypeMap, indexDef, i)
+		rv[indexDef.UUID], err = newFTSIndex(searchableFieldsMap, indexDef, i)
 		if err != nil {
 			return nil, err
 		}
@@ -391,7 +390,7 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 
 // -----------------------------------------------------------------------------
 
-func fetchCompleteFieldNames(path string, typeMapping *mapping.DocumentMapping) []string {
+func fetchSearchableFields(path string, typeMapping *mapping.DocumentMapping) []string {
 	rv := []string{}
 
 	if len(typeMapping.Fields) == 0 && len(typeMapping.Properties) == 0 &&
@@ -423,7 +422,7 @@ func fetchCompleteFieldNames(path string, typeMapping *mapping.DocumentMapping) 
 			if typeMapping.Dynamic {
 				rv = append(rv, "_all")
 			} else {
-				extra := fetchCompleteFieldNames(newPath, childMapping)
+				extra := fetchSearchableFields(newPath, childMapping)
 				rv = append(rv, extra...)
 			}
 		}

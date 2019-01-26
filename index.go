@@ -27,24 +27,24 @@ type FTSIndex struct {
 	name     string
 	indexDef *cbgt.IndexDef
 
-	fieldTypeMap        map[string][]string
+	searchableFieldsMap map[string][]string // map of type to fields
 	rangeKeyExpressions expression.Expressions
 }
 
 // -----------------------------------------------------------------------------
 
-func newFTSIndex(fieldTypeMap map[string][]string, indexDef *cbgt.IndexDef,
+func newFTSIndex(searchableFieldsMap map[string][]string, indexDef *cbgt.IndexDef,
 	indexer *FTSIndexer) (*FTSIndex, error) {
 	index := &FTSIndex{
 		indexer:             indexer,
 		id:                  indexDef.UUID,
 		name:                indexDef.Name,
 		indexDef:            indexDef,
-		fieldTypeMap:        fieldTypeMap,
+		searchableFieldsMap: searchableFieldsMap,
 		rangeKeyExpressions: expression.Expressions{},
 	}
 
-	for _, fields := range fieldTypeMap {
+	for _, fields := range searchableFieldsMap {
 		for _, entry := range fields {
 			rangeKeyExpr, err := parser.Parse(entry)
 			if err != nil {
@@ -122,5 +122,5 @@ func (i *FTSIndex) Scan(requestId string, span *datastore.Span, distinct bool,
 func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	cons datastore.ScanConsistency, vector timestamp.Vector,
 	conn *datastore.IndexConnection) {
-	//FIXME
+	// FIXME
 }
