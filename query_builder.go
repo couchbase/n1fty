@@ -57,6 +57,15 @@ type Options struct {
 // -----------------------------------------------------------------------------
 
 func PrepQuery(field, input, options string) (query.Query, error) {
+	qBytes, err := PrepQueryBytes(field, input, options)
+	if err != nil {
+		return nil, fmt.Errorf("PrepQuery err: %v", err)
+	}
+
+	return query.ParseQuery(qBytes)
+}
+
+func PrepQueryBytes(field, input, options string) ([]byte, error) {
 	opt := Options{}
 	if options != "" {
 		err := json.Unmarshal([]byte(options), &opt)
@@ -78,17 +87,18 @@ func PrepQuery(field, input, options string) (query.Query, error) {
 		qsq := query.NewQueryStringQuery(input)
 		q, err := qsq.Parse()
 		if err != nil {
-			return nil, fmt.Errorf("query_builder Parse, err: %v", err)
+			return nil, fmt.Errorf("PrepQueryBytes Parse, err: %v", err)
 		}
 
 		if field != "" && field != "_all" {
 			err = updateFieldsInQuery(q, field)
 			if err != nil {
-				return nil, fmt.Errorf("query_builder updateFieldsInQuery,"+
+				return nil, fmt.Errorf("PrepQueryBytes updateFieldsInQuery,"+
 					" err: %v", err)
 			}
 		}
-		return q, nil
+
+		return json.Marshal(q)
 	case "bool":
 		fallthrough
 	case "match_phrase":
@@ -122,16 +132,8 @@ func PrepQuery(field, input, options string) (query.Query, error) {
 		if opt.Operator != "" {
 			output["operator"] = opt.Operator
 		}
-		outputJSON, err := json.Marshal(output)
-		if err != nil {
-			return nil, fmt.Errorf("err: %v", err)
-		}
-		q, err := query.ParseQuery(outputJSON)
-		if err != nil {
-			return nil, fmt.Errorf("ParseQuery, err: %v", err)
-		}
-		return q, nil
+		return json.Marshal(output)
 	default:
-		return nil, fmt.Errorf("not supported: %v", opt.Type)
+		return nil, fmt.Errorf("PrepQueryBytes not supported: %v", opt.Type)
 	}
 }
