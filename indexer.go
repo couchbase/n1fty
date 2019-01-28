@@ -38,6 +38,7 @@ import (
 type FTSIndexer struct {
 	namespace string
 	keyspace  string
+	serverURL string
 
 	agent *gocbcore.Agent
 
@@ -92,6 +93,7 @@ func NewFTSIndexer(server, namespace, keyspace string) (datastore.Indexer,
 	indexer := &FTSIndexer{
 		namespace:       namespace,
 		keyspace:        keyspace,
+		serverURL:       svrs[0],
 		agent:           agent,
 		lastRefreshTime: time.Now(),
 	}
