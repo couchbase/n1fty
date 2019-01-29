@@ -146,7 +146,7 @@ func (c *n1ftyConfig) processConfig(conf map[string]interface{}) {
 	}
 }
 
-// best effor cleanup as tmpdir may change during restart
+// best effort cleanup as tmpdir may change during restart
 func cleanupTmpFiles(olddir string) {
 	files, err := ioutil.ReadDir(olddir)
 	if err != nil {
@@ -165,8 +165,7 @@ func cleanupTmpFiles(olddir string) {
 		fname := path.Join(olddir, file.Name())
 		mtime := file.ModTime()
 		since := (time.Since(mtime).Seconds() * 1000) * 2 // twice the long search
-		if (strings.Contains(fname, "search-backfill") ||
-			strings.Contains(fname, n1ftyBackfillPrefix)) &&
+		if (strings.Contains(fname, n1ftyBackfillPrefix)) &&
 			int64(since) > searchTimeout {
 			logging.Infof("n1fty: removing old file %v, last modified @ %v",
 				fname, mtime)
