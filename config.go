@@ -27,14 +27,14 @@ import (
 
 // Implementation of datastore.IndexConfig interface
 
-const n1ftyTmpSpaceDir = "n1fty_tmpspace_dir"
-const n1ftyTmpSpaceLimit = "n1fty_tmpspace_limit"
-const n1ftySearchTimeoutMS = "n1fty_search_timeout_ms"
+const tmpSpaceDir = "n1fty_tmpspace_dir"
+const tmpSpaceLimit = "n1fty_tmpspace_limit"
+const searchTimeoutMS = "n1fty_search_timeout_ms"
 
-var defaultN1ftyBackfillLimit = int64(100)      // default tmp space limit
-var defaultN1ftySearchTimeoutMS = int64(120000) // 2min
+var defaultBackfillLimit = int64(100)      // default tmp space limit
+var defaultSearchTimeoutMS = int64(120000) // 2min
 
-const n1ftyBackfillPrefix = "search-results"
+const backfillPrefix = "search-results"
 
 var config n1ftyConfig
 
@@ -42,7 +42,7 @@ type n1ftyConfig struct {
 	config atomic.Value
 }
 
-func GetN1ftyConfig() (datastore.IndexConfig, errors.Error) {
+func GetConfig() (datastore.IndexConfig, errors.Error) {
 	return &config, nil
 }
 
@@ -92,26 +92,26 @@ func (c *n1ftyConfig) validateConfig(conf map[string]interface{}) errors.Error {
 		return nil
 	}
 
-	if v, ok := conf[n1ftyTmpSpaceDir]; ok {
+	if v, ok := conf[tmpSpaceDir]; ok {
 		if _, ok1 := v.(string); !ok1 {
 			err := fmt.Errorf("n1fty Invalid Config.. key: %v, val: %v",
-				n1ftyTmpSpaceDir, v)
+				tmpSpaceDir, v)
 			return errors.NewError(err, err.Error())
 		}
 	}
 
-	if v, ok := conf[n1ftyTmpSpaceLimit]; ok {
+	if v, ok := conf[tmpSpaceLimit]; ok {
 		if _, ok1 := v.(int64); !ok1 {
 			err := fmt.Errorf("n1fty Invalid Config.. key: %v, val: %v",
-				n1ftyTmpSpaceLimit, v)
+				tmpSpaceLimit, v)
 			return errors.NewError(err, err.Error())
 		}
 	}
 
-	if v, ok := conf[n1ftySearchTimeoutMS]; ok {
+	if v, ok := conf[searchTimeoutMS]; ok {
 		if _, ok1 := v.(int64); !ok1 {
 			err := fmt.Errorf("n1fty Invalid Config.. key: %v, val: %v",
-				n1ftySearchTimeoutMS, v)
+				searchTimeoutMS, v)
 			return errors.NewError(err, err.Error())
 		}
 	}
@@ -124,13 +124,13 @@ func (c *n1ftyConfig) processConfig(conf map[string]interface{}) {
 	var newdir interface{}
 
 	if conf != nil {
-		newdir, _ = conf[n1ftyTmpSpaceDir]
+		newdir, _ = conf[tmpSpaceDir]
 	}
 
 	prevconf := config.getConfig()
 
 	if prevconf != nil {
-		olddir, _ = prevconf[n1ftyTmpSpaceDir]
+		olddir, _ = prevconf[tmpSpaceDir]
 	}
 
 	if olddir == nil {
@@ -153,10 +153,10 @@ func cleanupTmpFiles(olddir string) {
 		return
 	}
 
-	searchTimeout := defaultN1ftySearchTimeoutMS
+	searchTimeout := defaultSearchTimeoutMS
 	conf := config.getConfig()
 	if conf != nil {
-		if val, ok := conf[n1ftySearchTimeoutMS]; ok {
+		if val, ok := conf[searchTimeoutMS]; ok {
 			searchTimeout = val.(int64)
 		}
 	}
@@ -165,7 +165,7 @@ func cleanupTmpFiles(olddir string) {
 		fname := path.Join(olddir, file.Name())
 		mtime := file.ModTime()
 		since := (time.Since(mtime).Seconds() * 1000) * 2 // twice the long search
-		if (strings.Contains(fname, n1ftyBackfillPrefix)) &&
+		if (strings.Contains(fname, backfillPrefix)) &&
 			int64(since) > searchTimeout {
 			logging.Infof("n1fty: removing old file %v, last modified @ %v",
 				fname, mtime)
@@ -184,7 +184,7 @@ func (c *n1ftyConfig) getConfig() map[string]interface{} {
 }
 
 func getDefaultTmpDir() string {
-	file, err := ioutil.TempFile("" /*dir*/, n1ftyBackfillPrefix)
+	file, err := ioutil.TempFile("" /*dir*/, backfillPrefix)
 	if err != nil {
 		return ""
 	}

@@ -127,30 +127,30 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 
 // -----------------------------------------------------------------------------
 
-func (i *FTSIndex) getTmpSpaceDir() string {
+func getTmpSpaceDir() string {
 	conf := config.getConfig()
 
 	if conf == nil {
 		return getDefaultTmpDir()
 	}
 
-	if v, ok := conf[n1ftyTmpSpaceDir]; ok {
+	if v, ok := conf[tmpSpaceDir]; ok {
 		return v.(string)
 	}
 
 	return getDefaultTmpDir()
 }
 
-func (i *FTSIndex) getTmpSpaceLimit() int64 {
+func getTmpSpaceLimit() int64 {
 	conf := config.getConfig()
 
 	if conf == nil {
-		return defaultN1ftyBackfillLimit
+		return defaultBackfillLimit
 	}
 
-	if v, ok := conf[n1ftyTmpSpaceLimit]; ok {
+	if v, ok := conf[tmpSpaceLimit]; ok {
 		return v.(int64)
 	}
 
-	return defaultN1ftyBackfillLimit
+	return defaultBackfillLimit
 }
