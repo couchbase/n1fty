@@ -238,7 +238,7 @@ func basicAuth(username, password string) string {
 // -----------------------------------------------------------------------------
 
 func getTmpSpaceDir() string {
-	conf := config.getConfig()
+	conf := config.GetConfig()
 
 	if conf == nil {
 		return getDefaultTmpDir()
@@ -252,7 +252,7 @@ func getTmpSpaceDir() string {
 }
 
 func getTmpSpaceLimit() int64 {
-	conf := config.getConfig()
+	conf := config.GetConfig()
 
 	if conf == nil {
 		return defaultBackfillLimit

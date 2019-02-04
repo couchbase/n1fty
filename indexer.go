@@ -54,6 +54,7 @@ type FTSIndexer struct {
 	mapIndexesById   map[string]datastore.Index
 	mapIndexesByName map[string]datastore.Index
 
+	cfg Cfg
 	// TODO: Stats, config
 }
 
@@ -127,6 +128,11 @@ func (a *Authenticator) Credentials(req gocbcore.AuthCredsRequest) (
 }
 
 // -----------------------------------------------------------------------------
+
+// SetCfg for better testing
+func (i *FTSIndexer) SetCfg(cfg Cfg) {
+	i.cfg = cfg
+}
 
 func (i *FTSIndexer) KeyspaceId() string {
 	return i.keyspace
@@ -266,23 +272,38 @@ func (i *FTSIndexer) SetLogLevel(level logging.Level) {
 // -----------------------------------------------------------------------------
 
 func (i *FTSIndexer) refreshIndexes() (map[string]datastore.Index, error) {
-	ftsEndpoints := i.agent.FtsEps()
-
-	if len(ftsEndpoints) == 0 {
-		return nil, fmt.Errorf("no fts nodes found")
+	// first try to load configs from local cache
+	var cfg Cfg
+	cfg = &config
+	if i.cfg != nil {
+		cfg = i.cfg
 	}
+	indexDefs, err := GetIndexDefs(cfg)
 
-	now := time.Now().UnixNano()
-	for k := 0; k < len(ftsEndpoints); k++ {
-		indexDefs, err := i.retrieveIndexDefs(
-			ftsEndpoints[(now+int64(k))%int64(len(ftsEndpoints))])
-		if err == nil {
-			return i.convertIndexDefs(indexDefs)
+	// fetch from fts nodes directly
+	var ftsEndpoints []string
+	if indexDefs == nil || err != nil {
+		ftsEndpoints = i.agent.FtsEps()
+
+		if len(ftsEndpoints) == 0 {
+			return nil, fmt.Errorf("no fts nodes in cluster")
+		}
+		now := time.Now().UnixNano()
+		for k := 0; k < len(ftsEndpoints); k++ {
+			indexDefs, _ = i.retrieveIndexDefs(
+				ftsEndpoints[(now+int64(k))%int64(len(ftsEndpoints))])
+			if indexDefs != nil {
+				break
+			}
 		}
 	}
 
-	return nil, fmt.Errorf("could not fetch index defintions from any of the"+
-		" known nodes: %v", ftsEndpoints)
+	if indexDefs == nil {
+		return nil, fmt.Errorf("could not fetch index defintions from any of the"+
+			" known nodes: %v", ftsEndpoints)
+	}
+
+	return i.convertIndexDefs(indexDefs)
 }
 
 func (i *FTSIndexer) retrieveIndexDefs(node string) (*cbgt.IndexDefs, error) {
@@ -291,37 +312,53 @@ func (i *FTSIndexer) retrieveIndexDefs(node string) (*cbgt.IndexDefs, error) {
 		return nil, fmt.Errorf("retrieveIndexDefs, client not available")
 	}
 
-	resp, err := httpClient.Get(node + "/api/index")
-	if err != nil {
-		return nil, err
-	}
+	var indexDefs *cbgt.IndexDefs
+	backoffStartSleepMS := 200
+	backoffFactor := float32(1.5)
+	backoffMaxSleepMS := 5000
 
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("retrieveIndexDefs, resp status code: %v",
-			resp.StatusCode)
-	}
+	cbgt.ExponentialBackoffLoop("retrieveIndexDefs",
+		func() int {
+			resp, err := httpClient.Get(node + "/api/index")
+			if err != nil {
+				logging.Infof("retrieveIndexDefs, http get err: %v", err)
+				return 0 // failed, so exponential backoff
+			}
 
-	bodyBuf, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				logging.Infof("retrieveIndexDefs, resp status code: %v", resp.StatusCode)
+				return 0 // failed, so exponential backoff
+			}
 
-	var body struct {
-		IndexDefs *cbgt.IndexDefs `json:"indexDefs"`
-		Status    string          `json:"status"`
-	}
-	err = json.Unmarshal(bodyBuf, &body)
-	if err != nil {
-		return nil, err
-	}
+			bodyBuf, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				logging.Infof("retrieveIndexDefs,resp body read err: %v", err)
+				return 0 // failed, so exponential backoff
+			}
 
-	if body.Status != "ok" || body.IndexDefs == nil {
-		return nil, fmt.Errorf("retrieveIndexDefs status error,"+
-			" body: %+v, bodyBuf: %v", body, bodyBuf)
-	}
+			var body struct {
+				IndexDefs *cbgt.IndexDefs `json:"indexDefs"`
+				Status    string          `json:"status"`
+			}
+			err = json.Unmarshal(bodyBuf, &body)
+			if err != nil {
+				logging.Infof("retrieveIndexDefs, json err: %v", err)
+				return 0 // failed, so exponential backoff
+			}
 
-	return body.IndexDefs, nil
+			if body.Status != "ok" || body.IndexDefs == nil {
+				logging.Infof("retrieveIndexDefs status error,"+
+					" body: %+v, bodyBuf: %v", body, bodyBuf)
+				return 0 // failed, so exponential backoff
+			}
+
+			indexDefs = body.IndexDefs
+			return -1 // success, so stop the loop.
+		},
+		backoffStartSleepMS, backoffFactor, backoffMaxSleepMS)
+
+	return indexDefs, nil
 }
 
 // Convert FTS index definitions into a map of n1ql index id mapping to

@@ -12,6 +12,7 @@
 package n1fty
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -20,6 +21,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/couchbase/cbgt"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/logging"
@@ -35,6 +37,11 @@ var defaultBackfillLimit = int64(100)      // default tmp space limit
 var defaultSearchTimeoutMS = int64(120000) // 2min
 
 const backfillPrefix = "search-results"
+
+type Cfg interface {
+	datastore.IndexConfig
+	GetConfig() map[string]interface{}
+}
 
 var config n1ftyConfig
 
@@ -56,11 +63,26 @@ func (c *n1ftyConfig) SetConfig(conf map[string]interface{}) errors.Error {
 
 	// make local copy so caller doesn't accidentally modify
 	localconf := make(map[string]interface{})
+	var b []byte
+	var ok bool
 	for k, v := range conf {
-		localconf[k] = v
+		if b, ok = v.([]byte); !ok {
+			continue
+		}
+		li := strings.LastIndex(k, "/")
+		k = k[li+1:]
+		// currently listen only to indexDef changes
+		switch k {
+		case "indexDefs":
+			var indexDefs cbgt.IndexDefs
+			err := json.Unmarshal(b, &indexDefs)
+			if err != nil {
+				continue
+			}
+			localconf[k] = &indexDefs
+		}
 	}
 
-	logging.Infof("n1ftyConfig - Setting config %v", conf)
 	c.config.Store(localconf)
 	return nil
 }
@@ -127,7 +149,7 @@ func (c *n1ftyConfig) processConfig(conf map[string]interface{}) {
 		newdir, _ = conf[tmpSpaceDir]
 	}
 
-	prevconf := config.getConfig()
+	prevconf := config.GetConfig()
 
 	if prevconf != nil {
 		olddir, _ = prevconf[tmpSpaceDir]
@@ -154,7 +176,7 @@ func cleanupTmpFiles(olddir string) {
 	}
 
 	searchTimeout := defaultSearchTimeoutMS
-	conf := config.getConfig()
+	conf := config.GetConfig()
 	if conf != nil {
 		if val, ok := conf[searchTimeoutMS]; ok {
 			searchTimeout = val.(int64)
@@ -174,13 +196,12 @@ func cleanupTmpFiles(olddir string) {
 	}
 }
 
-func (c *n1ftyConfig) getConfig() map[string]interface{} {
+func (c *n1ftyConfig) GetConfig() map[string]interface{} {
 	conf := c.config.Load()
 	if conf != nil {
 		return conf.(map[string]interface{})
-	} else {
-		return nil
 	}
+	return nil
 }
 
 func getDefaultTmpDir() string {
@@ -193,4 +214,17 @@ func getDefaultTmpDir() string {
 	os.Remove(file.Name()) // remove this file
 
 	return default_temp_dir
+}
+
+func GetIndexDefs(cfg Cfg) (*cbgt.IndexDefs, error) {
+	conf := cfg.GetConfig()
+	if conf != nil {
+		if v, ok := conf["indexDefs"]; ok {
+			if defs, ok := v.(*cbgt.IndexDefs); ok {
+				return defs, nil
+			}
+			return nil, fmt.Errorf("no indexDefs found")
+		}
+	}
+	return nil, fmt.Errorf("no config found")
 }
