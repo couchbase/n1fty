@@ -17,7 +17,7 @@ import (
 	"github.com/couchbase/query/value"
 )
 
-func NewVerify(collection, field string, query, options value.Value) (
+func NewVerify(keyspace, field string, query, options value.Value) (
 	datastore.Verify, errors.Error) {
 	// FIXME
 	return &VerifyCtx{}, nil

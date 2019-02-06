@@ -9,7 +9,7 @@
 //  express or implied. See the License for the specific language
 //  governing permissions and limitations under the License.
 
-package n1fty
+package bleve
 
 import (
 	"encoding/json"
@@ -149,58 +149,27 @@ func TestIndexDefConversion(t *testing.T) {
 		}
 	}`)
 
-	var id cbgt.IndexDef
+	var id *cbgt.IndexDef
 	err := json.Unmarshal(sampleIndexDef, &id)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	indexDefs := &cbgt.IndexDefs{
-		UUID:        "nodeUUID",
-		ImplVersion: "123",
-		IndexDefs:   make(map[string]*cbgt.IndexDef),
-	}
-	indexDefs.IndexDefs[id.Name] = &id
-
-	ftsIndexer := &FTSIndexer{
-		namespace: "test",
-		keyspace:  "travel-sample",
+	got := SearchableFieldsForIndexDef(id)
+	if got == nil {
+		t.Fatalf("expected a set of searchable fields")
 	}
 
-	indexMap, err := ftsIndexer.convertIndexDefs(indexDefs)
-	if err != nil {
-		t.Fatal(err)
+	for _, value := range got {
+		sort.Strings(value)
 	}
 
-	travelIndex, exists := indexMap["xyz"]
-	if !exists || travelIndex == nil {
-		t.Fatal("index name travel not found!")
-	}
+	expect := map[string][]string{}
+	expect["hotel"] = []string{"country", "reviews.author", "reviews.content", "state"}
+	expect["landmark"] = []string{"_all", "country"}
+	expect["default"] = []string{"_all"}
 
-	if travelIndex.KeyspaceId() != "travel-sample" ||
-		travelIndex.Name() != "travel" ||
-		travelIndex.Id() != "xyz" {
-		t.Fatal("unexpected index attributes")
-	}
-
-	rangeExprs := travelIndex.RangeKey()
-	expectedRangeExprStrings := []string{
-		"(`reviews`.`author`)",
-		"(`reviews`.`content`)",
-		"`_all`",
-		"`_all`",
-		"`country`",
-		"`country`",
-		"`state`",
-	}
-
-	gotRangeExprStrings := []string{}
-	for _, rangeExpr := range rangeExprs {
-		gotRangeExprStrings = append(gotRangeExprStrings, rangeExpr.String())
-	}
-	sort.Strings(gotRangeExprStrings)
-
-	if !reflect.DeepEqual(expectedRangeExprStrings, gotRangeExprStrings) {
-		t.Fatalf("Expected: %v, Got: %v", expectedRangeExprStrings, gotRangeExprStrings)
+	if !reflect.DeepEqual(expect, got) {
+		t.Fatalf("Expected: %v, Got: %v", expect, got)
 	}
 }
