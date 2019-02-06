@@ -25,6 +25,7 @@ import (
 	"github.com/couchbase/query/expression"
 	"github.com/couchbase/query/expression/parser"
 	"github.com/couchbase/query/timestamp"
+	"github.com/couchbase/query/value"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
@@ -136,6 +137,8 @@ func (i *FTSIndex) Scan(requestId string, span *datastore.Span, distinct bool,
 	return
 }
 
+// -----------------------------------------------------------------------------
+
 // Perform a search/scan over this index, with provided SearchInfo settings
 func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	cons datastore.ScanConsistency, vector timestamp.Vector,
@@ -204,6 +207,21 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 
 	fmt.Println(stream)
 	// FIXME
+}
+
+// -----------------------------------------------------------------------------
+
+func (i *FTSIndex) Sargable(field string, query, options value.Value) (
+	int, bool, errors.Error) {
+	// FIXME
+	return 0, false, nil
+}
+
+// -----------------------------------------------------------------------------
+
+func (i *FTSIndex) Pagination(order []string, offset, limit uint64) bool {
+	// FIXME
+	return false
 }
 
 // -----------------------------------------------------------------------------
