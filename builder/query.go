@@ -9,7 +9,7 @@
 // or implied. See the License for the specific language governing
 // permissions and limitations under the License.
 
-package n1fty
+package builder
 
 import (
 	"encoding/json"
@@ -56,16 +56,16 @@ type Options struct {
 
 // -----------------------------------------------------------------------------
 
-func PrepQuery(field, input, options string) (query.Query, error) {
-	qBytes, err := PrepQueryBytes(field, input, options)
+func BuildQuery(field, input, options string) (query.Query, error) {
+	qBytes, err := BuildQueryBytes(field, input, options)
 	if err != nil {
-		return nil, fmt.Errorf("PrepQuery err: %v", err)
+		return nil, fmt.Errorf("BuildQuery err: %v", err)
 	}
 
 	return query.ParseQuery(qBytes)
 }
 
-func PrepQueryBytes(field, input, options string) ([]byte, error) {
+func BuildQueryBytes(field, input, options string) ([]byte, error) {
 	opt := Options{}
 	if options != "" {
 		err := json.Unmarshal([]byte(options), &opt)
@@ -87,13 +87,13 @@ func PrepQueryBytes(field, input, options string) ([]byte, error) {
 		qsq := query.NewQueryStringQuery(input)
 		q, err := qsq.Parse()
 		if err != nil {
-			return nil, fmt.Errorf("PrepQueryBytes Parse, err: %v", err)
+			return nil, fmt.Errorf("BuildQueryBytes Parse, err: %v", err)
 		}
 
 		if field != "" && field != "_all" {
 			err = updateFieldsInQuery(q, field)
 			if err != nil {
-				return nil, fmt.Errorf("PrepQueryBytes updateFieldsInQuery,"+
+				return nil, fmt.Errorf("BuildQueryBytes updateFieldsInQuery,"+
 					" err: %v", err)
 			}
 		}
@@ -134,6 +134,6 @@ func PrepQueryBytes(field, input, options string) ([]byte, error) {
 		}
 		return json.Marshal(output)
 	default:
-		return nil, fmt.Errorf("PrepQueryBytes not supported: %v", opt.Type)
+		return nil, fmt.Errorf("BuildQueryBytes not supported: %v", opt.Type)
 	}
 }

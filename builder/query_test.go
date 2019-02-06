@@ -9,7 +9,7 @@
 // or implied. See the License for the specific language governing
 // permissions and limitations under the License.
 
-package n1fty
+package builder
 
 import (
 	"reflect"
@@ -18,7 +18,7 @@ import (
 	"github.com/blevesearch/bleve/search/query"
 )
 
-func TestPrepQuery(t *testing.T) {
+func TestBuildQuery(t *testing.T) {
 	tests := []struct {
 		field   string
 		query   string
@@ -47,7 +47,7 @@ func TestPrepQuery(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		q, err := PrepQuery(test.field, test.query, test.options)
+		q, err := BuildQuery(test.field, test.query, test.options)
 		if err != nil {
 			t.Fatal(err)
 		}

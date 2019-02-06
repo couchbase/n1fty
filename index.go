@@ -20,6 +20,7 @@ import (
 	"github.com/couchbase/cbauth"
 	pb "github.com/couchbase/cbft/protobuf"
 	"github.com/couchbase/cbgt"
+	"github.com/couchbase/n1fty/builder"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/expression"
@@ -183,7 +184,7 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	// create a new customer client
 	client := pb.NewSearchServiceClient(grpcConn)
 
-	query, err := PrepQueryBytes(searchInfo.Field.String(),
+	query, err := builder.BuildQueryBytes(searchInfo.Field.String(),
 		searchInfo.Query.String(),
 		searchInfo.Options.String())
 	if err != nil {
