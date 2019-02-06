@@ -58,14 +58,17 @@ type FTSIndexer struct {
 
 // -----------------------------------------------------------------------------
 
-func NewFTSIndexer(server, namespace, keyspace string) (datastore.Indexer,
+func NewFTSIndexer(serverIn, namespace, keyspace string) (datastore.Indexer,
 	errors.Error) {
 	logging.Infof("n1fty: server: %v, namespace: %v, keyspace: %v",
-		server, namespace, keyspace)
+		serverIn, namespace, keyspace)
+
+	server, _, bucketName :=
+		cbgt.CouchbaseParseSourceName(serverIn, "default", keyspace)
 
 	config := &gocbcore.AgentConfig{
 		UserString:           "n1fty",
-		BucketName:           keyspace,
+		BucketName:           bucketName,
 		ConnectTimeout:       60000 * time.Millisecond,
 		ServerConnectTimeout: 7000 * time.Millisecond,
 		NmvRetryDelay:        100 * time.Millisecond,
