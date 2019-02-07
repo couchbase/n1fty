@@ -20,7 +20,7 @@ import (
 	"github.com/couchbase/cbauth"
 	pb "github.com/couchbase/cbft/protobuf"
 	"github.com/couchbase/cbgt"
-	"github.com/couchbase/n1fty/bleve"
+	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/expression"
@@ -191,7 +191,7 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	// create a new customer client
 	client := pb.NewSearchServiceClient(grpcConn)
 
-	query, err := bleve.BuildQueryBytes(searchInfo.Field.String(),
+	query, err := util.BuildQueryBytes(searchInfo.Field.String(),
 		searchInfo.Query.String(),
 		searchInfo.Options.String())
 	if err != nil {
@@ -226,7 +226,7 @@ func (i *FTSIndex) Sargable(field string, query, options value.Value) (
 		return 0, true, nil
 	}
 
-	fieldsToSearch, err := bleve.FetchFieldsToSearch(field, query.String(),
+	fieldsToSearch, err := util.FetchFieldsToSearch(field, query.String(),
 		options.String())
 	if err != nil {
 		return 0, false, errors.NewError(err, "")

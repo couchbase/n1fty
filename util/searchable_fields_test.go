@@ -9,7 +9,7 @@
 //  express or implied. See the License for the specific language
 //  governing permissions and limitations under the License.
 
-package bleve
+package util
 
 import (
 	"encoding/json"
@@ -204,6 +204,14 @@ func TestFieldsToSearch(t *testing.T) {
 			query:   "Avengers*",
 			options: `{"type": "wildcard"}`,
 			expect:  []string{"title"},
+		},
+		{
+			field:   "title",
+			query:   "+movie:Avengers +sequel.id:3 +company:marvel",
+			options: ``,
+			expect:  []string{"company", "movie", "sequel.id", "sequel.id"},
+			// Expect 2 sequel.id entries above as the number look up above is
+			// considered as a disjunction of a match and a numeric range.
 		},
 	}
 

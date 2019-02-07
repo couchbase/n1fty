@@ -22,7 +22,7 @@ import (
 
 	"github.com/couchbase/cbauth"
 	"github.com/couchbase/cbgt"
-	"github.com/couchbase/n1fty/bleve"
+	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/expression"
@@ -370,7 +370,7 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 	var err error
 	for _, indexDef := range indexDefs.IndexDefs {
 		searchableFieldsMap, defaultMappingDynamic :=
-			bleve.SearchableFieldsForIndexDef(indexDef)
+			util.SearchableFieldsForIndexDef(indexDef)
 		if searchableFieldsMap != nil || defaultMappingDynamic {
 			rv[indexDef.UUID], err = newFTSIndex(searchableFieldsMap,
 				defaultMappingDynamic, indexDef, i)
