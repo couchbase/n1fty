@@ -369,9 +369,11 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 	rv := map[string]datastore.Index{}
 	var err error
 	for _, indexDef := range indexDefs.IndexDefs {
-		searchableFieldsMap := bleve.SearchableFieldsForIndexDef(indexDef)
-		if searchableFieldsMap != nil {
-			rv[indexDef.UUID], err = newFTSIndex(searchableFieldsMap, indexDef, i)
+		searchableFieldsMap, defaultMappingDynamic :=
+			bleve.SearchableFieldsForIndexDef(indexDef)
+		if searchableFieldsMap != nil || defaultMappingDynamic {
+			rv[indexDef.UUID], err = newFTSIndex(searchableFieldsMap,
+				defaultMappingDynamic, indexDef, i)
 			if err != nil {
 				return nil, err
 			}

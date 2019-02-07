@@ -15,38 +15,40 @@ import (
 	"encoding/json"
 
 	"github.com/blevesearch/bleve/mapping"
+	"github.com/blevesearch/bleve/search/query"
 	"github.com/couchbase/cbft"
 	"github.com/couchbase/cbgt"
 	"github.com/couchbase/query/logging"
 )
 
-func SearchableFieldsForIndexDef(indexDef *cbgt.IndexDef) map[string][]string {
+func SearchableFieldsForIndexDef(indexDef *cbgt.IndexDef) (
+	map[string][]string, bool) {
 	bp := cbft.NewBleveParams()
 	err := json.Unmarshal([]byte(indexDef.Params), bp)
 	if err != nil {
 		logging.Infof("n1fty: convertIndexDefs skip indexDef: %+v,"+
 			" json unmarshal indexDef.Params, err: %v\n", indexDef, err)
-		return nil
+		return nil, false
 	}
 
 	if bp.DocConfig.Mode != "type_field" {
 		logging.Infof("n1fty: convertIndexDefs skip indexDef: %+v,"+
 			" wrong DocConfig.Mode\n", indexDef)
-		return nil
+		return nil, false
 	}
 
 	typeField := bp.DocConfig.TypeField
 	if typeField == "" {
 		logging.Infof("n1fty: convertIndexDefs skip indexDef: %+v,"+
 			" wrong DocConfig.TypeField\n", typeField)
-		return nil
+		return nil, false
 	}
 
 	bm, ok := bp.Mapping.(*mapping.IndexMappingImpl)
 	if !ok {
 		logging.Infof("n1fty: convertIndexDefs skip indexDef: %+v, "+
 			" not IndexMappingImpl\n", *indexDef)
-		return nil
+		return nil, false
 	}
 
 	searchableFieldsMap := map[string][]string{}
@@ -62,16 +64,18 @@ func SearchableFieldsForIndexDef(indexDef *cbgt.IndexDef) map[string][]string {
 		}
 	}
 
+	defaultMappingDynamic := false
 	if bm.DefaultMapping != nil && bm.DefaultMapping.Enabled {
 		if bm.DefaultMapping.Dynamic {
 			searchableFieldsMap["default"] = []string{"_all"}
+			defaultMappingDynamic = true
 		} else {
 			rv := fetchSearchableFields("", bm.DefaultMapping)
 			searchableFieldsMap["default"] = rv
 		}
 	}
 
-	return searchableFieldsMap
+	return searchableFieldsMap, defaultMappingDynamic
 }
 
 func fetchSearchableFields(path string, typeMapping *mapping.DocumentMapping) []string {
@@ -113,4 +117,40 @@ func fetchSearchableFields(path string, typeMapping *mapping.DocumentMapping) []
 	}
 
 	return rv
+}
+
+// -----------------------------------------------------------------------------
+
+func FetchFieldsToSearch(field, q, options string) ([]string, error) {
+	que, err := BuildQuery(field, q, options)
+	if err != nil {
+		return nil, err
+	}
+
+	fields := []string{}
+	var walk func(que query.Query)
+
+	walk = func(que query.Query) {
+		switch qq := que.(type) {
+		case *query.BooleanQuery:
+			walk(qq.Must)
+			walk(qq.MustNot)
+			walk(qq.Should)
+		case *query.ConjunctionQuery:
+			for _, childQ := range qq.Conjuncts {
+				walk(childQ)
+			}
+		case *query.DisjunctionQuery:
+			for _, childQ := range qq.Disjuncts {
+				walk(childQ)
+			}
+		default:
+			if fq, ok := que.(query.FieldableQuery); ok {
+				fields = append(fields, fq.Field())
+			}
+		}
+	}
+
+	walk(que)
+	return fields, nil
 }

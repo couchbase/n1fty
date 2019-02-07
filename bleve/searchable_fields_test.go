@@ -155,7 +155,7 @@ func TestIndexDefConversion(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := SearchableFieldsForIndexDef(id)
+	got, _ := SearchableFieldsForIndexDef(id)
 	if got == nil {
 		t.Fatalf("expected a set of searchable fields")
 	}
@@ -171,5 +171,51 @@ func TestIndexDefConversion(t *testing.T) {
 
 	if !reflect.DeepEqual(expect, got) {
 		t.Fatalf("Expected: %v, Got: %v", expect, got)
+	}
+}
+
+func TestFieldsToSearch(t *testing.T) {
+	tests := []struct {
+		field   string
+		query   string
+		options string
+		expect  []string
+	}{
+		{
+			field:   "title",
+			query:   "+Avengers~2 company:marvel",
+			options: "",
+			expect:  []string{"company", "title"},
+		},
+		{
+			field:   "title",
+			query:   "avengers",
+			options: `{"type": "match", "fuzziness": 2}`,
+			expect:  []string{"title"},
+		},
+		{
+			field:   "title",
+			query:   "Avengers: Infinity War",
+			options: `{"type": "match_phrase", "analyzer": "en", "boost": 10}`,
+			expect:  []string{"title"},
+		},
+		{
+			field:   "title",
+			query:   "Avengers*",
+			options: `{"type": "wildcard"}`,
+			expect:  []string{"title"},
+		},
+	}
+
+	for _, test := range tests {
+		fields, err := FetchFieldsToSearch(test.field, test.query, test.options)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		sort.Strings(fields)
+		if !reflect.DeepEqual(test.expect, fields) {
+			t.Fatalf("Expected: %v, Got: %v", test.expect, fields)
+		}
 	}
 }

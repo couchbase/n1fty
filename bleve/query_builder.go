@@ -18,31 +18,27 @@ import (
 	"github.com/blevesearch/bleve/search/query"
 )
 
-func updateFieldsInQuery(q query.Query, field string) error {
-	switch q.(type) {
+func updateFieldsInQuery(q query.Query, field string) {
+	switch que := q.(type) {
 	case *query.BooleanQuery:
-		updateFieldsInQuery(q.(*query.BooleanQuery).Must, field)
-		updateFieldsInQuery(q.(*query.BooleanQuery).Should, field)
-		updateFieldsInQuery(q.(*query.BooleanQuery).MustNot, field)
+		updateFieldsInQuery(que.Must, field)
+		updateFieldsInQuery(que.Should, field)
+		updateFieldsInQuery(que.MustNot, field)
 	case *query.ConjunctionQuery:
-		cq := q.(*query.ConjunctionQuery)
-		for i := 0; i < len(cq.Conjuncts); i++ {
-			updateFieldsInQuery(cq.Conjuncts[i], field)
+		for i := 0; i < len(que.Conjuncts); i++ {
+			updateFieldsInQuery(que.Conjuncts[i], field)
 		}
 	case *query.DisjunctionQuery:
-		dq := q.(*query.DisjunctionQuery)
-		for i := 0; i < len(dq.Disjuncts); i++ {
-			updateFieldsInQuery(dq.Disjuncts[i], field)
+		for i := 0; i < len(que.Disjuncts); i++ {
+			updateFieldsInQuery(que.Disjuncts[i], field)
 		}
 	default:
-		if fq, ok := q.(query.FieldableQuery); ok {
+		if fq, ok := que.(query.FieldableQuery); ok {
 			if fq.Field() == "" {
 				fq.SetField(field)
 			}
 		}
 	}
-
-	return nil
 }
 
 type Options struct {
@@ -91,11 +87,7 @@ func BuildQueryBytes(field, input, options string) ([]byte, error) {
 		}
 
 		if field != "" && field != "_all" {
-			err = updateFieldsInQuery(q, field)
-			if err != nil {
-				return nil, fmt.Errorf("BuildQueryBytes updateFieldsInQuery,"+
-					" err: %v", err)
-			}
+			updateFieldsInQuery(q, field)
 		}
 
 		return json.Marshal(q)

@@ -47,25 +47,32 @@ type FTSIndex struct {
 	name     string
 	indexDef *cbgt.IndexDef
 
-	searchableFieldsMap map[string][]string // map of type to fields
-	rangeKeyExpressions expression.Expressions
+	searchableFields      map[string]struct{} // map of searchable fields
+	defaultMappingDynamic bool
+	rangeKeyExpressions   expression.Expressions
 }
 
 // -----------------------------------------------------------------------------
 
-func newFTSIndex(searchableFieldsMap map[string][]string, indexDef *cbgt.IndexDef,
+func newFTSIndex(searchableFieldsMap map[string][]string,
+	defaultMappingDynamic bool,
+	indexDef *cbgt.IndexDef,
 	indexer *FTSIndexer) (*FTSIndex, error) {
 	index := &FTSIndex{
-		indexer:             indexer,
-		id:                  indexDef.UUID,
-		name:                indexDef.Name,
-		indexDef:            indexDef,
-		searchableFieldsMap: searchableFieldsMap,
-		rangeKeyExpressions: expression.Expressions{},
+		indexer:               indexer,
+		id:                    indexDef.UUID,
+		name:                  indexDef.Name,
+		indexDef:              indexDef,
+		searchableFields:      map[string]struct{}{},
+		defaultMappingDynamic: defaultMappingDynamic,
+		rangeKeyExpressions:   expression.Expressions{},
 	}
+
+	v := struct{}{}
 
 	for _, fields := range searchableFieldsMap {
 		for _, entry := range fields {
+			index.searchableFields[entry] = v
 			rangeKeyExpr, err := parser.Parse(entry)
 			if err != nil {
 				return nil, err
@@ -214,8 +221,24 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 
 func (i *FTSIndex) Sargable(field string, query, options value.Value) (
 	int, bool, errors.Error) {
-	// FIXME
-	return 0, false, nil
+	// TODO: len of supported fields may not be needed?
+	if i.defaultMappingDynamic {
+		return 0, true, nil
+	}
+
+	fieldsToSearch, err := bleve.FetchFieldsToSearch(field, query.String(),
+		options.String())
+	if err != nil {
+		return 0, false, errors.NewError(err, "")
+	}
+
+	for _, field := range fieldsToSearch {
+		if _, exists := i.searchableFields[field]; !exists {
+			return 0, false, nil
+		}
+	}
+
+	return 0, true, nil
 }
 
 // -----------------------------------------------------------------------------
