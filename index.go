@@ -193,15 +193,15 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 
 	fieldStr := ""
 	if searchInfo.Field != nil {
-		fieldStr = searchInfo.Field.String()
+		fieldStr = searchInfo.Field.Actual().(string)
 	}
 	optionsStr := ""
 	if searchInfo.Options != nil {
-		optionsStr = searchInfo.Options.String()
+		optionsStr = searchInfo.Options.Actual().(string)
 	}
 
 	query, err := util.BuildQueryBytes(fieldStr,
-		searchInfo.Query.String(),
+		searchInfo.Query.Actual().(string),
 		optionsStr)
 	if err != nil {
 		conn.Error(errors.NewError(err, ""))
