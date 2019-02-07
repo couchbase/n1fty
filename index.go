@@ -14,10 +14,10 @@ package n1fty
 import (
 	"context"
 	"encoding/base64"
-	"fmt"
+	"sync"
+	"sync/atomic"
 	"time"
 
-	"github.com/couchbase/cbauth"
 	pb "github.com/couchbase/cbft/protobuf"
 	"github.com/couchbase/cbgt"
 	"github.com/couchbase/n1fty/util"
@@ -27,20 +27,11 @@ import (
 	"github.com/couchbase/query/expression/parser"
 	"github.com/couchbase/query/timestamp"
 	"github.com/couchbase/query/value"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/keepalive"
 )
 
-var DefaultGrpcConnectionIdleTimeout = time.Duration(60) * time.Second
-var DefaultGrpcConnectionHeartBeatInterval = time.Duration(60) * time.Second
+const doneRequest = int64(1)
 
-var DefaultGrpcMaxRecvMsgSize = 1024 * 1024 * 20 // 20 MB
-var DefaultGrpcMaxSendMsgSize = 1024 * 1024 * 20 // 20 MB
-
-// -----------------------------------------------------------------------------
-
-// Implements datastore.FTSIndex interface
+// FTSIndex implements datastore.FTSIndex interface
 type FTSIndex struct {
 	indexer  *FTSIndexer
 	id       string
@@ -145,9 +136,7 @@ func (i *FTSIndex) Scan(requestId string, span *datastore.Span, distinct bool,
 	return
 }
 
-// -----------------------------------------------------------------------------
-
-// Perform a search/scan over this index, with provided SearchInfo settings
+// Search performs a search/scan over this index, with provided SearchInfo settings
 func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	cons datastore.ScanConsistency, vector timestamp.Vector,
 	conn *datastore.IndexConnection) {
@@ -160,36 +149,20 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 		return
 	}
 
-	username, password, err := cbauth.GetHTTPServiceAuth(i.indexer.serverURL)
-	if err != nil {
-		conn.Error(errors.NewError(nil, "error fetching auth creds"))
-		return
-	}
+	starttm := time.Now()
+	entryCh := conn.EntryChannel()
 
-	options := []grpc.DialOption{
-		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			// timeout value for an inactive connection
-			Timeout: DefaultGrpcConnectionIdleTimeout,
-		}),
-		grpc.WithDefaultCallOptions(
-			grpc.MaxCallRecvMsgSize(DefaultGrpcMaxRecvMsgSize),
-			grpc.MaxCallSendMsgSize(DefaultGrpcMaxSendMsgSize),
-		),
-		grpc.WithPerRPCCredentials(&basicAuthCreds{
-			username: username,
-			password: password,
-		}),
-	}
+	var waitGroup sync.WaitGroup
+	var backfillSync int64
+	var rh *responseHandler
 
-	grpcConn, err := grpc.Dial(i.indexer.serverURL, options...)
-	if err != nil {
-		conn.Error(errors.NewError(err, "could not connect to gRPC port"))
-		return
-	}
-	defer grpcConn.Close()
-
-	// create a new customer client
-	client := pb.NewSearchServiceClient(grpcConn)
+	defer func() {
+		// cleanup the backfill file
+		atomic.StoreInt64(&backfillSync, doneRequest)
+		waitGroup.Wait()
+		close(entryCh)
+		cleanupBackfills(rh.backfillFile, requestId)
+	}()
 
 	fieldStr := ""
 	if searchInfo.Field != nil {
@@ -216,14 +189,20 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 		IndexName: i.name,
 	}
 
+	client := i.indexer.srvWrapper.getGrpcClient()
+
 	stream, err := client.Search(context.Background(), searchRequest)
 	if err != nil || stream == nil {
 		conn.Error(errors.NewError(err, "search failed"))
 		return
 	}
 
-	fmt.Println(stream)
-	// FIXME
+	rh = &responseHandler{requestID: requestId, i: i}
+
+	rh.handleResponse(conn, &waitGroup, &backfillSync, stream)
+
+	atomic.AddInt64(&i.indexer.stats.TotalSearch, 1)
+	atomic.AddInt64(&i.indexer.stats.TotalSearchDuration, int64(time.Since(starttm)))
 }
 
 // -----------------------------------------------------------------------------
@@ -288,28 +267,28 @@ func basicAuth(username, password string) string {
 
 // -----------------------------------------------------------------------------
 
-func getTmpSpaceDir() string {
+func getBackfillSpaceDir() string {
 	conf := config.GetConfig()
 
 	if conf == nil {
 		return getDefaultTmpDir()
 	}
 
-	if v, ok := conf[tmpSpaceDir]; ok {
+	if v, ok := conf[backfillSpaceDir]; ok {
 		return v.(string)
 	}
 
 	return getDefaultTmpDir()
 }
 
-func getTmpSpaceLimit() int64 {
+func getBackfillSpaceLimit() int64 {
 	conf := config.GetConfig()
 
 	if conf == nil {
 		return defaultBackfillLimit
 	}
 
-	if v, ok := conf[tmpSpaceLimit]; ok {
+	if v, ok := conf[backfillSpaceLimit]; ok {
 		return v.(int64)
 	}
 

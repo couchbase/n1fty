@@ -32,7 +32,7 @@ import (
 	"gopkg.in/couchbase/gocbcore.v7"
 )
 
-// Implements datastore.Indexer interface
+// FTSIndexer implements datastore.Indexer interface
 type FTSIndexer struct {
 	namespace string
 	keyspace  string
@@ -49,11 +49,22 @@ type FTSIndexer struct {
 	indexNames []string
 	allIndexes []datastore.Index
 
-	mapIndexesById   map[string]datastore.Index
+	mapIndexesByID   map[string]datastore.Index
 	mapIndexesByName map[string]datastore.Index
 
-	cfg Cfg
-	// TODO: Stats, config
+	cfg        Cfg
+	srvWrapper *ftsSrvWrapper
+	stats      *stats
+}
+
+type stats struct {
+	TotalSearch                int64
+	TotalSearchDuration        int64
+	TotalTTFBDuration          int64 // time to first response byte
+	TotalThrottledFtsDuration  int64
+	TotalThrottledN1QLDuration int64
+	TotalBackFills             int64
+	CurBackFillSize            int64
 }
 
 // -----------------------------------------------------------------------------
@@ -66,7 +77,7 @@ func NewFTSIndexer(serverIn, namespace, keyspace string) (datastore.Indexer,
 	server, _, bucketName :=
 		cbgt.CouchbaseParseSourceName(serverIn, "default", keyspace)
 
-	config := &gocbcore.AgentConfig{
+	conf := &gocbcore.AgentConfig{
 		UserString:           "n1fty",
 		BucketName:           bucketName,
 		ConnectTimeout:       60000 * time.Millisecond,
@@ -82,12 +93,12 @@ func NewFTSIndexer(serverIn, namespace, keyspace string) (datastore.Indexer,
 			"NewFTSIndexer: no servers provided"), "")
 	}
 
-	err := config.FromConnStr(svrs[0])
+	err := conf.FromConnStr(svrs[0])
 	if err != nil {
 		return nil, errors.NewError(err, "")
 	}
 
-	agent, err := gocbcore.CreateAgent(config)
+	agent, err := gocbcore.CreateAgent(conf)
 	if err != nil {
 		return nil, errors.NewError(err, "")
 	}
@@ -98,6 +109,8 @@ func NewFTSIndexer(serverIn, namespace, keyspace string) (datastore.Indexer,
 		serverURL:       svrs[0],
 		agent:           agent,
 		lastRefreshTime: time.Now(),
+		cfg:             &config,
+		stats:           &stats{},
 	}
 
 	err = indexer.Refresh()
@@ -105,6 +118,7 @@ func NewFTSIndexer(serverIn, namespace, keyspace string) (datastore.Indexer,
 		return nil, errors.NewError(err, "n1fty: Refresh err")
 	}
 
+	go backfillMonitor(1*time.Second, indexer)
 	return indexer, nil
 }
 
@@ -171,8 +185,8 @@ func (i *FTSIndexer) IndexById(id string) (datastore.Index, errors.Error) {
 	// no refresh
 	i.m.RLock()
 	defer i.m.RUnlock()
-	if i.mapIndexesById != nil {
-		index, ok := i.mapIndexesById[id]
+	if i.mapIndexesByID != nil {
+		index, ok := i.mapIndexesByID[id]
 		if ok {
 			return index, nil
 		}
@@ -231,19 +245,24 @@ func (i *FTSIndexer) BuildIndexes(requestId string, name ...string) errors.Error
 }
 
 func (i *FTSIndexer) Refresh() errors.Error {
-	mapIndexesById, err := i.refreshIndexes()
+	mapIndexesByID, nodeDefs, err := i.refreshConfigs()
 	if err != nil {
 		return errors.NewError(err, "refresh failed")
 	}
 
-	numIndexes := len(mapIndexesById)
+	err = i.initSrvWrapper(nodeDefs)
+	if err != nil {
+		return errors.NewError(err, "indexer: initSrvWrapper err")
+	}
+
+	numIndexes := len(mapIndexesByID)
 	indexIds := make([]string, 0, numIndexes)
 	indexNames := make([]string, 0, numIndexes)
 	allIndexes := make([]datastore.Index, 0, numIndexes)
 
 	mapIndexesByName := map[string]datastore.Index{}
 
-	for id, index := range mapIndexesById {
+	for id, index := range mapIndexesByID {
 		indexIds = append(indexIds, id)
 		indexNames = append(indexNames, index.Name())
 		allIndexes = append(allIndexes, index)
@@ -254,7 +273,7 @@ func (i *FTSIndexer) Refresh() errors.Error {
 	i.indexIds = indexIds
 	i.indexNames = indexNames
 	i.allIndexes = allIndexes
-	i.mapIndexesById = mapIndexesById
+	i.mapIndexesByID = mapIndexesByID
 	i.mapIndexesByName = mapIndexesByName
 	i.m.Unlock()
 
@@ -272,55 +291,81 @@ func (i *FTSIndexer) SetLogLevel(level logging.Level) {
 
 // -----------------------------------------------------------------------------
 
-func (i *FTSIndexer) refreshIndexes() (map[string]datastore.Index, error) {
-	// first try to load configs from local cache
+func (i *FTSIndexer) refreshConfigs() (map[string]datastore.Index,
+	*cbgt.NodeDefs, error) {
 	var cfg Cfg
 	cfg = &config
 	if i.cfg != nil {
 		cfg = i.cfg
 	}
+
+	// first try to load configs from local config cache
 	indexDefs, err := GetIndexDefs(cfg)
+	nodeDefs, err1 := GetNodeDefs(cfg)
 
-	// fetch from fts nodes directly
+	// upon error, fetch from fts nodes directly
 	var ftsEndpoints []string
-	if indexDefs == nil || err != nil {
+	if (indexDefs == nil || err != nil) || (nodeDefs == nil || err1 != nil) {
 		ftsEndpoints = i.agent.FtsEps()
-
 		if len(ftsEndpoints) == 0 {
-			return nil, fmt.Errorf("no fts nodes in cluster")
+			return nil, nil, fmt.Errorf("no fts nodes in cluster")
 		}
 		now := time.Now().UnixNano()
 		for k := 0; k < len(ftsEndpoints); k++ {
-			indexDefs, _ = i.retrieveIndexDefs(
+			indexDefs, nodeDefs, err = i.retrieveIndexDefs(
 				ftsEndpoints[(now+int64(k))%int64(len(ftsEndpoints))])
-			if indexDefs != nil {
+			if err != nil {
+				logging.Infof("retrieveIndexDefs err: %v", err)
+			}
+			if indexDefs != nil && nodeDefs != nil {
 				break
 			}
 		}
 	}
 
 	if indexDefs == nil {
-		return nil, fmt.Errorf("could not fetch index defintions from any of the"+
+		return nil, nil, fmt.Errorf("could not fetch index defintions from any of the"+
 			" known nodes: %v", ftsEndpoints)
 	}
 
-	return i.convertIndexDefs(indexDefs)
+	if nodeDefs == nil {
+		return nil, nil, fmt.Errorf("could not fetch node defintions from any of the"+
+			" known nodes: %v", ftsEndpoints)
+	}
+
+	imap, err := i.convertIndexDefs(indexDefs)
+	return imap, nodeDefs, err
 }
 
-func (i *FTSIndexer) retrieveIndexDefs(node string) (*cbgt.IndexDefs, error) {
+func (i *FTSIndexer) initSrvWrapper(nodeDefs *cbgt.NodeDefs) error {
+	hostMap, err := extractHostCertsMap(nodeDefs)
+	if err != nil {
+		return errors.NewError(err, "indexer: extractHostCertsMap err")
+	}
+
+	i.srvWrapper, err = initRouter(hostMap, nil)
+	if err != nil {
+		return errors.NewError(err, "indexer: initRouter err")
+	}
+
+	return nil
+}
+
+func (i *FTSIndexer) retrieveIndexDefs(node string) (*cbgt.IndexDefs, *cbgt.NodeDefs, error) {
 	httpClient := i.agent.HttpClient()
 	if httpClient == nil {
-		return nil, fmt.Errorf("retrieveIndexDefs, client not available")
+		return nil, nil, fmt.Errorf("retrieveIndexDefs, client not available")
 	}
 
 	var indexDefs *cbgt.IndexDefs
+	var nodeDefs *cbgt.NodeDefs
 	backoffStartSleepMS := 200
 	backoffFactor := float32(1.5)
-	backoffMaxSleepMS := 5000
+	backoffMaxSleepMS := 500
 
 	cbgt.ExponentialBackoffLoop("retrieveIndexDefs",
 		func() int {
-			resp, err := httpClient.Get(node + "/api/index")
+			resp, err := httpClient.Get(node + "/api/cfg")
 			if err != nil {
 				logging.Infof("retrieveIndexDefs, http get err: %v", err)
 				return 0 // failed, so exponential backoff
@@ -340,26 +385,30 @@ func (i *FTSIndexer) retrieveIndexDefs(node string) (*cbgt.IndexDefs, error) {
 
 			var body struct {
 				IndexDefs *cbgt.IndexDefs `json:"indexDefs"`
+				NodeDefs  *cbgt.NodeDefs  `json:"nodeDefsKnown"`
 				Status    string          `json:"status"`
 			}
+
 			err = json.Unmarshal(bodyBuf, &body)
 			if err != nil {
 				logging.Infof("retrieveIndexDefs, json err: %v", err)
 				return 0 // failed, so exponential backoff
 			}
 
-			if body.Status != "ok" || body.IndexDefs == nil {
+			if body.Status != "ok" || body.IndexDefs == nil ||
+				body.NodeDefs == nil {
 				logging.Infof("retrieveIndexDefs status error,"+
 					" body: %+v, bodyBuf: %v", body, bodyBuf)
 				return 0 // failed, so exponential backoff
 			}
 
 			indexDefs = body.IndexDefs
+			nodeDefs = body.NodeDefs
 			return -1 // success, so stop the loop.
 		},
 		backoffStartSleepMS, backoffFactor, backoffMaxSleepMS)
 
-	return indexDefs, nil
+	return indexDefs, nodeDefs, nil
 }
 
 // Convert FTS index definitions into a map of n1ql index id mapping to

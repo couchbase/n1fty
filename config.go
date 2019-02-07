@@ -14,9 +14,11 @@ package n1fty
 import (
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"io/ioutil"
 	"os"
 	"path"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -27,11 +29,9 @@ import (
 	"github.com/couchbase/query/logging"
 )
 
-// Implementation of datastore.IndexConfig interface
-
-const tmpSpaceDir = "n1fty_tmpspace_dir"
-const tmpSpaceLimit = "n1fty_tmpspace_limit"
-const searchTimeoutMS = "n1fty_search_timeout_ms"
+const backfillSpaceDir = "backfillSpaceDir"
+const backfillSpaceLimit = "backfillSpaceLimit"
+const searchTimeoutMS = "searchTimeoutMS"
 
 var defaultBackfillLimit = int64(100)      // default tmp space limit
 var defaultSearchTimeoutMS = int64(120000) // 2min
@@ -45,6 +45,7 @@ type Cfg interface {
 
 var config n1ftyConfig
 
+// n1ftyConfig implementation of datastore.IndexConfig interface
 type n1ftyConfig struct {
 	config atomic.Value
 }
@@ -53,38 +54,60 @@ func GetConfig() (datastore.IndexConfig, errors.Error) {
 	return &config, nil
 }
 
-func (c *n1ftyConfig) SetConfig(conf map[string]interface{}) errors.Error {
-	err := c.validateConfig(conf)
+func setConfig(nf *n1ftyConfig, conf map[string]interface{}) errors.Error {
+	err := nf.validateConfig(conf)
 	if err != nil {
 		return err
 	}
 
-	c.processConfig(conf)
+	nf.processConfig(conf)
 
 	// make local copy so caller doesn't accidentally modify
-	localconf := make(map[string]interface{})
+	newConf := nf.GetConfig()
+	if newConf == nil {
+		newConf = make(map[string]interface{})
+	}
 	var b []byte
 	var ok bool
 	for k, v := range conf {
 		if b, ok = v.([]byte); !ok {
 			continue
 		}
+
+		if strings.Contains(k, "nodeDefs-known") {
+			// may be a node deletion
+			if len(b) == 0 {
+				delete(newConf, k)
+				continue
+			}
+
+			var nodeDefs cbgt.NodeDefs
+			err := json.Unmarshal(b, &nodeDefs)
+			if err != nil {
+				continue
+			}
+			newConf[k] = &nodeDefs
+			continue
+		}
+
 		li := strings.LastIndex(k, "/")
-		k = k[li+1:]
-		// currently listen only to indexDef changes
-		switch k {
-		case "indexDefs":
+		leaf := k[li+1:]
+		if leaf == "indexDefs" {
 			var indexDefs cbgt.IndexDefs
 			err := json.Unmarshal(b, &indexDefs)
 			if err != nil {
 				continue
 			}
-			localconf[k] = &indexDefs
+			newConf[leaf] = &indexDefs
 		}
 	}
 
-	c.config.Store(localconf)
+	nf.config.Store(newConf)
 	return nil
+}
+
+func (c *n1ftyConfig) SetConfig(conf map[string]interface{}) errors.Error {
+	return setConfig(c, conf)
 }
 
 // SetParam should not be called concurrently with SetConfig
@@ -114,18 +137,18 @@ func (c *n1ftyConfig) validateConfig(conf map[string]interface{}) errors.Error {
 		return nil
 	}
 
-	if v, ok := conf[tmpSpaceDir]; ok {
+	if v, ok := conf[backfillSpaceDir]; ok {
 		if _, ok1 := v.(string); !ok1 {
 			err := fmt.Errorf("n1fty Invalid Config.. key: %v, val: %v",
-				tmpSpaceDir, v)
+				backfillSpaceDir, v)
 			return errors.NewError(err, err.Error())
 		}
 	}
 
-	if v, ok := conf[tmpSpaceLimit]; ok {
+	if v, ok := conf[backfillSpaceLimit]; ok {
 		if _, ok1 := v.(int64); !ok1 {
 			err := fmt.Errorf("n1fty Invalid Config.. key: %v, val: %v",
-				tmpSpaceLimit, v)
+				backfillSpaceLimit, v)
 			return errors.NewError(err, err.Error())
 		}
 	}
@@ -146,13 +169,13 @@ func (c *n1ftyConfig) processConfig(conf map[string]interface{}) {
 	var newdir interface{}
 
 	if conf != nil {
-		newdir, _ = conf[tmpSpaceDir]
+		newdir, _ = conf[backfillSpaceDir]
 	}
 
 	prevconf := config.GetConfig()
 
 	if prevconf != nil {
-		olddir, _ = prevconf[tmpSpaceDir]
+		olddir, _ = prevconf[backfillSpaceDir]
 	}
 
 	if olddir == nil {
@@ -216,6 +239,7 @@ func getDefaultTmpDir() string {
 	return default_temp_dir
 }
 
+// GetIndexDefs gets the latest indexDefs from configs
 func GetIndexDefs(cfg Cfg) (*cbgt.IndexDefs, error) {
 	conf := cfg.GetConfig()
 	if conf != nil {
@@ -227,4 +251,40 @@ func GetIndexDefs(cfg Cfg) (*cbgt.IndexDefs, error) {
 		}
 	}
 	return nil, fmt.Errorf("no config found")
+}
+
+// GetNodeDefs gets the latest nodeDefs from configs
+func GetNodeDefs(cfg Cfg) (*cbgt.NodeDefs, error) {
+	conf := cfg.GetConfig()
+	rv := cbgt.NodeDefs{
+		NodeDefs: make(map[string]*cbgt.NodeDef, 1),
+	}
+
+	if conf != nil {
+		uuids := []string{}
+		for k, v := range conf {
+			if strings.Contains(k, "nodeDefs-known") {
+				if defs, ok := v.(*cbgt.NodeDefs); ok {
+					for k1, v1 := range defs.NodeDefs {
+						rv.NodeDefs[k1] = v1
+					}
+					// use the lowest version among nodeDefs
+					if rv.ImplVersion == "" ||
+						!cbgt.VersionGTE(defs.ImplVersion, defs.ImplVersion) {
+						rv.ImplVersion = defs.ImplVersion
+					}
+					uuids = append(uuids, defs.UUID)
+				}
+			}
+		}
+		rv.UUID = checkSumUUIDs(uuids)
+		return &rv, nil
+	}
+	return nil, fmt.Errorf("no config found")
+}
+
+func checkSumUUIDs(uuids []string) string {
+	sort.Strings(uuids)
+	d, _ := json.Marshal(uuids)
+	return fmt.Sprint(crc32.ChecksumIEEE(d))
 }
