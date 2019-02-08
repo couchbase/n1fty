@@ -155,7 +155,7 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 		return
 	}
 
-	if searchInfo == nil {
+	if searchInfo == nil || searchInfo.Query == nil {
 		conn.Error(errors.NewError(nil, "no search parameters provided"))
 		return
 	}
@@ -191,9 +191,18 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	// create a new customer client
 	client := pb.NewSearchServiceClient(grpcConn)
 
-	query, err := util.BuildQueryBytes(searchInfo.Field.String(),
+	fieldStr := ""
+	if searchInfo.Field != nil {
+		fieldStr = searchInfo.Field.String()
+	}
+	optionsStr := ""
+	if searchInfo.Options != nil {
+		optionsStr = searchInfo.Options.String()
+	}
+
+	query, err := util.BuildQueryBytes(fieldStr,
 		searchInfo.Query.String(),
-		searchInfo.Options.String())
+		optionsStr)
 	if err != nil {
 		conn.Error(errors.NewError(err, ""))
 		return
