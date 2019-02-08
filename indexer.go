@@ -309,7 +309,7 @@ func (i *FTSIndexer) refreshIndexes() (map[string]datastore.Index, error) {
 
 func (i *FTSIndexer) retrieveIndexDefs(node string) (*cbgt.IndexDefs, error) {
 	httpClient := i.agent.HttpClient()
-	if httpClient != nil {
+	if httpClient == nil {
 		return nil, fmt.Errorf("retrieveIndexDefs, client not available")
 	}
 
