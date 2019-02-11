@@ -231,7 +231,7 @@ func (i *FTSIndex) Sargable(field string, query, options value.Value) (
 
 // -----------------------------------------------------------------------------
 
-func (i *FTSIndex) Pagination(order []string, offset, limit uint64) bool {
+func (i *FTSIndex) Pagination(order []string, offset, limit int64) bool {
 	// FIXME
 	return false
 }

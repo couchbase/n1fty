@@ -31,7 +31,11 @@ import (
 	pb "github.com/couchbase/cbft/protobuf"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/logging"
+	"github.com/couchbase/query/value"
 )
+
+var defaultBatchSize = 100
+var defaultSizeInMB = float64(1024 * 1024)
 
 type responseHandler struct {
 	i            *FTSIndex
@@ -55,6 +59,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 	logPrefix := fmt.Sprintf("n1fty[%s/%s-%v]", r.i.Name(), r.i.KeyspaceId(), time.Now().UnixNano())
 	var tmpfile *os.File
 	var backfillFin, backfillEntries int64
+	hits := make([]*search.DocumentMatch, defaultBatchSize)
 
 	backfill := func() {
 		name := tmpfile.Name()
@@ -82,7 +87,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 				continue
 			}
 
-			cummsize := float64(atomic.LoadInt64(&r.i.indexer.stats.CurBackFillSize)) / (1024 * 1024) // make constant
+			cummsize := float64(atomic.LoadInt64(&r.i.indexer.stats.CurBackFillSize)) / defaultSizeInMB // make constant
 			logging.Infof("atomic.LoadInt64(&i.indexer.stats.CurBackfillSize) %d cummsize %f", atomic.LoadInt64(&r.i.indexer.stats.CurBackFillSize), cummsize)
 			if cummsize > float64(backfillLimit) {
 				fmsg := "%q backfill size: %d exceeded limit: %d"
@@ -91,24 +96,17 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 				return
 			}
 
-			skeys := make([]interface{}, 0)
-			if err := dec.Decode(&skeys); err != nil {
+			if err := dec.Decode(&hits); err != nil {
 				fmsg := "%v %q decoding from backfill file: %v: err: %v\n"
 				err = fmt.Errorf(fmsg, logPrefix, r.requestID, name, err)
 				conn.Error(n1qlError(err))
 				return
 			}
 
-			logging.Infof("%v backfill read %v entries\n", logPrefix, len(skeys))
+			logging.Infof("%v backfill read %v entries\n", logPrefix, len(hits))
 
-			//var vals []value.Value
-			//var bKey *[]byte
-			for _, skey := range skeys {
-				bKey, ok := skey.([]byte)
-				if !ok {
-					logging.Infof("byte err: %v", ok)
-				}
-				r.sendEntry(string(bKey), nil, conn)
+			for _, hit := range hits {
+				r.sendEntry(hit, conn)
 			}
 
 			if firstResponseByte == false {
@@ -161,7 +159,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 			// slow reader found and hence start dumping the results to the backfill file
 			if tmpfile != nil {
 				// whether temp-file is exhausted the limit.
-				cummsize := float64(atomic.LoadInt64(&r.i.indexer.stats.CurBackFillSize)) / (1024 * 1024)
+				cummsize := float64(atomic.LoadInt64(&r.i.indexer.stats.CurBackFillSize)) / defaultSizeInMB
 				logging.Infof("atomic.LoadInt64(&i.indexer.stats.CurBackfillSize) %d cummsize %f", atomic.LoadInt64(&r.i.indexer.stats.CurBackFillSize), cummsize)
 				if cummsize > float64(backfillLimit) {
 					fmsg := "%q backfill exceeded limit %v, %v"
@@ -186,7 +184,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 			} else if hits != nil {
 				logging.Infof("sent back %d items", len(hits))
 				for _, hit := range hits {
-					r.sendEntry(hit.ID, nil, conn)
+					r.sendEntry(hit, conn)
 				}
 			}
 		}
@@ -194,7 +192,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 
 }
 
-func (r *responseHandler) sendEntry(key string, value []byte,
+func (r *responseHandler) sendEntry(hit *search.DocumentMatch,
 	conn *datastore.IndexConnection) bool {
 	var start time.Time
 	blockedtm, blocked := int64(0), false
@@ -208,7 +206,8 @@ func (r *responseHandler) sendEntry(key string, value []byte,
 	}
 
 	select {
-	case entryCh <- &datastore.IndexEntry{PrimaryKey: key}:
+	case entryCh <- &datastore.IndexEntry{PrimaryKey: hit.ID,
+		MetaData: value.NewValue(hit.Score)}:
 		// NO-OP.
 	case <-stopCh:
 		return false
@@ -278,22 +277,9 @@ func initBackFill(logPrefix, requestID string, rh *responseHandler) (*gob.Encode
 }
 
 func writeToBackfill(hits []*search.DocumentMatch, enc *gob.Encoder) error {
-	var skeys []interface{}
-	var pkeys [][]byte
-	for _, hit := range hits {
-		skeys = append(skeys, []byte(hit.ID))
-	}
-
-	if err := enc.Encode(skeys); err != nil {
+	if err := enc.Encode(hits); err != nil {
 		return err
 	}
-
-	if len(pkeys) > 0 {
-		if err := enc.Encode(pkeys); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
