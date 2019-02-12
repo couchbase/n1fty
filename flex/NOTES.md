@@ -27,12 +27,41 @@ The FlexIndex.Sargable() implementation currently supports...
   - named parameters are supported.
   - positional parameters are supported.
 
+- type learnings via "LoVal < a AND a < HiVal" pattern,
+  - where LoVal & HiVal are both numbers.
+       or LoVal & HiVal are both strings.
+  - comparisons can be < or <=.
+
 - "ANY v IN expr SATISFIES condition END" syntax.
 
 - "ANY AND EVERY v IN expr SATISFIES condition END" syntax,
   which is considered to always need filtering.
 
+- handling UNNEST's (which is similar to ANY-IN-SATISFIES).
+
 - handling LET / common table expressions.
+
+- numeric inequality comparisons (i.e., rating < 2).
+  - NOTE: FTS might not be very efficient at number inequality searches.
+
+- string inequality comparisons (i.e., lastName <= "t").
+  - NOTE: FTS does not generically support string inequality searches,
+    but some narrow edge cases might be implemented as prefix searches.
+
+  - ">" and ">=" comparisons are handled as N1QL's planner.DNF
+    rewrites them into < and <=
+
+- handling LIKE expressions, as LIKE is rewritten by N1QL's
+  planner.DNF as...
+    (EQ x "regexp.LiteralPrefix") // When the literal prefix is complete.
+  or as...
+    (AND (GE x "$pattern.toRegexp().LiteralPrefix()")
+         (LT x "$pattern.toRegexp().LiteralPrefix()+1"))
+  and those patterns are supported by FlexIndex.Sargable().
+
+- handling BETWEEN expressions as `BETWEEN exprA AND exprB`
+  is rewritten by N1QL's planner.DNF as...
+    (AND (GE x exprA) (LE x exprB)).
 
 ------------------------------------------
 TODO...
@@ -52,19 +81,11 @@ TODO...
 
 - expression - SEARCH().
 
-- expression - numeric range (i.e., rating > 2).
-
-- expression - LIKE.
-
 - expression - CONTAINS.
 
 - expression - geopoint / geojson.
 
 - expression - TOKENS (???).
-
-- expression - string range (i.e., lastName >= "c").
-
-- support UNNEST (which is equivalent to ANY-IN-SATISFIES).
 
 - support for CAST syntax (planned for future N1QL release)
   for type declarations?
@@ -72,6 +93,9 @@ TODO...
     instead of type validation & filtering.
 
 - GROUP BY / aggregate pushdown.
+
+- implementation to learn field-types in a conjunct is inefficient,
+  and keeps on reexamining the previous exprOut entry?
 
 ------------------------------------------
 Edge cases...

@@ -11,9 +11,15 @@ package flex
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/couchbase/query/algebra"
 	"github.com/couchbase/query/expression"
 )
+
+var CmpReverse = map[string]string{
+	"eq": "eq", "lt": "gt", "le": "ge", "gt": "lt", "ge": "le",
+}
 
 // Allows apps to declare supported expressions to FlexSargable().
 type SupportedExpr interface {
@@ -33,4 +39,107 @@ func (s *SupportedExprNoop) Supports(fi *FlexIndex, identifiers Identifiers,
 	bool, FieldTracks, bool, *FlexBuild, error) {
 	fmt.Printf("SupportedExprNoop, expr: %+v, %#v\n", expr, expr)
 	return false, nil, false, nil, nil
+}
+
+// ----------------------------------------------------------------------
+
+// SupportedExprCmpFieldConstant implements the SupportedExpr
+// interface and represents a comparison of a field to a constant
+// value with a given type.
+type SupportedExprCmpFieldConstant struct {
+	Cmp string // Ex: "eq" (default when ""), "lt", "le", "lt le", etc.
+
+	// Regular examples: ["description"], ["address", "city"].
+	// Dynamic examples: [], ["address"].
+	FieldPath []string
+
+	ValueType string // Ex: "string", "number", etc.
+
+	// When FieldPathPartial is true, FieldPath represents a prefix or
+	// leading part of a full field path, used for dynamic indexing.
+	FieldPathPartial bool
+
+	// When FieldTypeCheck is true, additional type checks on the
+	// FieldPath are performed based on the gathered exprFieldTypes.
+	FieldTypeCheck bool
+}
+
+func (s *SupportedExprCmpFieldConstant) Supports(fi *FlexIndex, ids Identifiers,
+	expr expression.Expression, exprFieldTypes FieldTypes) (
+	bool, FieldTracks, bool, *FlexBuild, error) {
+	f, ok := expr.(expression.BinaryFunction)
+	if !ok ||
+		(s.Cmp == "" && f.Name() != "eq") ||
+		(s.Cmp != "" && !strings.Contains(s.Cmp, f.Name())) {
+		return false, nil, false, nil, nil
+	}
+
+	matches, fieldTracks, needsFiltering, flexBuild, err :=
+		s.SupportsXY(fi, ids, f.Name(),
+			f.First(), f.Second(), exprFieldTypes)
+	if err != nil || matches {
+		return matches, fieldTracks, needsFiltering, flexBuild, err
+	}
+
+	return s.SupportsXY(fi, ids, CmpReverse[f.Name()],
+		f.Second(), f.First(), exprFieldTypes)
+}
+
+func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifiers,
+	fName string, exprX, exprY expression.Expression, exprFieldTypes FieldTypes) (
+	bool, FieldTracks, bool, *FlexBuild, error) {
+	suffix, ok := ExpressionFieldPathSuffix(ids, exprX, s.FieldPath, nil)
+	if !ok {
+		return false, nil, false, nil, nil
+	}
+
+	if s.FieldPathPartial != (len(suffix) > 0) {
+		return false, nil, false, nil, nil
+	}
+
+	for _, s := range suffix {
+		if s == "" { // Complex or array element is not-sargable.
+			return true, nil, false, nil, nil
+		}
+	}
+
+	exprFieldTypesCheck := s.FieldTypeCheck
+
+	switch x := exprY.(type) {
+	case *expression.Constant:
+		if x.Type().String() != s.ValueType {
+			return true, nil, false, nil, nil // Wrong const type, so not-sargable.
+		}
+
+	case *algebra.NamedParameter:
+		exprFieldTypesCheck = true
+
+	case *algebra.PositionalParameter:
+		exprFieldTypesCheck = true
+
+	default: // Not a constant or parameter, etc, so not-sargable.
+		return true, nil, false, nil, nil
+	}
+
+	fieldTrack := strings.Join(s.FieldPath, ".")
+	if len(suffix) > 0 {
+		if len(fieldTrack) > 0 {
+			fieldTrack = fieldTrack + "."
+		}
+		fieldTrack = fieldTrack + strings.Join(suffix, ".")
+	}
+
+	if exprFieldTypesCheck {
+		fieldType, ok := exprFieldTypes.Lookup(FieldTrack(fieldTrack))
+		if !ok || fieldType != s.ValueType {
+			return true, nil, false, nil, nil // Wrong field type, not-sargable.
+		}
+	}
+
+	return true, FieldTracks{FieldTrack(fieldTrack): 1}, false, &FlexBuild{
+		Kind: "expr",
+		Data: []string{
+			fName + "FieldConstant", fieldTrack, s.ValueType, exprY.String(),
+		},
+	}, nil
 }

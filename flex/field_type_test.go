@@ -165,6 +165,66 @@ func TestProcessConjunctFieldTypes(t *testing.T) {
 		{`ISNUMBER(a) AND a = $1`, fieldInfosA, fieldTypesZ,
 			"[((`bucket`.`a`) = $1)]",
 			fieldTypes1aNumber, true},
+
+		// ------------------------------------------------------
+
+		{`ISSTRING(a)`, fieldInfosA, fieldTypesZ,
+			"[]",
+			fieldTypes1a, true},
+
+		{`ISSTRING(a) AND ISNUMBER(a)`, fieldInfosA, fieldTypesZ,
+			"[]",
+			nil, false},
+
+		// ------------------------------------------------------
+
+		{`0 < a AND a < 10`, fieldInfosA, fieldTypesZ,
+			"[(0 < (`bucket`.`a`)), ((`bucket`.`a`) < 10)]",
+			fieldTypes1aNumber, true},
+
+		{`0 < a AND a <= 10`, fieldInfosA, fieldTypesZ,
+			"[(0 < (`bucket`.`a`)), ((`bucket`.`a`) <= 10)]",
+			fieldTypes1aNumber, true},
+
+		{`0 <= a AND a < 10`, fieldInfosA, fieldTypesZ,
+			"[(0 <= (`bucket`.`a`)), ((`bucket`.`a`) < 10)]",
+			fieldTypes1aNumber, true},
+
+		{`0 <= a AND a <= 10`, fieldInfosA, fieldTypesZ,
+			"[(0 <= (`bucket`.`a`)), ((`bucket`.`a`) <= 10)]",
+			fieldTypes1aNumber, true},
+
+		// ------------------------------------------------------
+
+		{`"A" <= a AND a < "Z"`, fieldInfosA, fieldTypesZ,
+			"[(\"A\" <= (`bucket`.`a`)), ((`bucket`.`a`) < \"Z\")]",
+			fieldTypes1a, true},
+
+		{`"A" <= a AND a <= "Z"`, fieldInfosA, fieldTypesZ,
+			"[(\"A\" <= (`bucket`.`a`)), ((`bucket`.`a`) <= \"Z\")]",
+			fieldTypes1a, true},
+
+		{`"A" < a AND a <= "Z"`, fieldInfosA, fieldTypesZ,
+			"[(\"A\" < (`bucket`.`a`)), ((`bucket`.`a`) <= \"Z\")]",
+			fieldTypes1a, true},
+
+		{`"A" < a AND a < "Z"`, fieldInfosA, fieldTypesZ,
+			"[(\"A\" < (`bucket`.`a`)), ((`bucket`.`a`) < \"Z\")]",
+			fieldTypes1a, true},
+
+		{`"A" <= a AND a < "Z" AND "A" <= b AND b < "Z"`, fieldInfosAB, fieldTypesZ,
+			"[(\"A\" <= (`bucket`.`a`)), ((`bucket`.`a`) < \"Z\"), (\"A\" <= (`bucket`.`b`)), ((`bucket`.`b`) < \"Z\")]",
+			fieldTypes1ab, true},
+
+		// ------------------------------------------------------
+
+		{`0 < a AND a < 10 AND ISSTRING(a)`, fieldInfosA, fieldTypesZ,
+			"[]",
+			nil, false},
+
+		{`"A" < a AND a < "Z" AND ISNUMBER(a)`, fieldInfosA, fieldTypesZ,
+			"[]",
+			nil, false},
 	}
 
 	for testi, test := range tests {

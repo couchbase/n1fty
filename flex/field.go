@@ -32,7 +32,6 @@ func (identifiers Identifiers) PushBindings(bs expression.Bindings, max int) (
 		}
 
 		suffix, ok := ExpressionFieldPathSuffix(identifiers, b.Expression(), nil, nil)
-
 		if ok {
 			identifiers = append(Identifiers{Identifier{
 				Name:      b.Variable(),

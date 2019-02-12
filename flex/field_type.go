@@ -16,7 +16,8 @@ import (
 	"github.com/couchbase/query/value"
 )
 
-// A copy-on-write, left-side-pushed stack of immutable dictionaries.
+// Used to track field-type learnings, FieldTypes is a copy-on-write,
+// left-side-pushed stack of immutable dictionaries.
 type FieldTypes []map[FieldTrack]string
 
 func (f FieldTypes) Lookup(k FieldTrack) (string, bool) {
@@ -48,7 +49,7 @@ func ProcessConjunctFieldTypes(
 	exprs expression.Expressions, exprFieldTypes FieldTypes) (
 	exprsOut expression.Expressions, exprFieldTypesOut FieldTypes,
 	needsFiltering bool, ok bool) {
-	p := &CheckFieldTypeInfo{
+	p := &ConjunctFieldTypes{
 		IndexedFields:  indexedFields,
 		Identifiers:    identifiers,
 		Exprs:          exprs,
@@ -57,7 +58,7 @@ func ProcessConjunctFieldTypes(
 
 OUTER:
 	for _, expr := range exprs {
-		for _, f := range RegisteredCheckFieldTypeFuncs {
+		for _, f := range RegisteredCFTFuncs {
 			r := f.Func(p, expr)
 			if r == NotSargable {
 				return nil, nil, false, false
@@ -84,19 +85,21 @@ OUTER:
 
 // ------------------------------------------------
 
-type CheckFieldTypeInfo struct {
+// ConjunctFieldTypes represents state as a conjunct expression is
+// examined and processed for field-type information.
+type ConjunctFieldTypes struct {
 	// The following are immutable.
 	IndexedFields  FieldInfos
 	Identifiers    Identifiers
 	Exprs          expression.Expressions
 	ExprFieldTypes FieldTypes
 
-	// The following are mutable.
+	// The following are mutated during the learning.
 	Learned  map[FieldTrack]string
 	ExprsOut expression.Expressions
 }
 
-func (p *CheckFieldTypeInfo) AddLearning(
+func (p *ConjunctFieldTypes) AddLearning(
 	fieldPath []string, fieldSuffix []string, fieldType string) bool {
 	fieldTrack := FieldTrack(strings.Join(fieldPath, "."))
 	if len(fieldSuffix) > 0 {
@@ -123,56 +126,52 @@ func (p *CheckFieldTypeInfo) AddLearning(
 
 // ------------------------------------------------
 
-type CheckFieldTypeResult int
+type CFTResult int // Check field type result.
 
 const (
-	NotSargable CheckFieldTypeResult = iota
+	NotSargable CFTResult = iota
 	NotMatch
 	Match
 )
 
-type CheckFieldTypeFunc func(*CheckFieldTypeInfo, expression.Expression) CheckFieldTypeResult
+type CFTFunc func(*ConjunctFieldTypes, expression.Expression) CFTResult
 
-type RegisteredCheckFieldTypeFunc struct {
+type RegisteredCFTFunc struct {
 	Name string
-	Func CheckFieldTypeFunc
+	Func CFTFunc
 }
 
-var RegisteredCheckFieldTypeFuncs = []RegisteredCheckFieldTypeFunc{
-	{"CheckFieldTypeNumber", CheckFieldTypeNumber},
-	{"CheckFieldTypeString", CheckFieldTypeString},
+var RegisteredCFTFuncs = []RegisteredCFTFunc{
+	{"CFTNumber", CFTNumber},
+	{"CFTString", CFTString},
 }
 
 // ------------------------------------------------
 
-// CheckFieldTypeString() implements the CheckFieldTypeFunc() signature,
+// CFTString() implements the CFTFunc() signature,
 // and looks for range comparisons that tells us that a field is a string.
 // For example... ("" <= `t`.`a`) AND (`t`.`a` < []),
 // which is how ISSTRING(t.a) is simplified by N1QL.
-func CheckFieldTypeString(p *CheckFieldTypeInfo,
-	expr expression.Expression) CheckFieldTypeResult {
-	return p.CheckFieldTypeByLoHiBounds(expr, "string",
-		"le", value.EMPTY_STRING_VALUE,
-		"lt", value.EMPTY_ARRAY_VALUE)
+func CFTString(p *ConjunctFieldTypes, e expression.Expression) CFTResult {
+	return p.CheckFieldTypeLoHi(e, "string",
+		"le,lt", value.EMPTY_STRING_VALUE, "lt,le", value.EMPTY_ARRAY_VALUE)
 }
 
-// CheckFieldTypeNumber() implements the CheckFieldTypeFunc() signature,
+// CFTNumber() implements the CFTFunc() signature,
 // and looks for range comparisons that tells us that a field is a number.
 // For example... (true < `t`.`a`) AND (`t`.`a` < ""),
 // which is how ISNUMBER(t.a) is simplified by N1QL.
-func CheckFieldTypeNumber(p *CheckFieldTypeInfo,
-	expr expression.Expression) CheckFieldTypeResult {
-	return p.CheckFieldTypeByLoHiBounds(expr, "number",
-		"lt", value.TRUE_VALUE,
-		"lt", value.EMPTY_STRING_VALUE)
+func CFTNumber(p *ConjunctFieldTypes, e expression.Expression) CFTResult {
+	return p.CheckFieldTypeLoHi(e, "number",
+		"lt,le", value.TRUE_VALUE, "lt,le", value.EMPTY_STRING_VALUE)
 }
 
 // ------------------------------------------------
 
-func (p *CheckFieldTypeInfo) CheckFieldTypeByLoHiBounds(
-	expr expression.Expression, fieldType string,
+func (p *ConjunctFieldTypes) CheckFieldTypeLoHi(
+	exprHi expression.Expression, fieldType string,
 	loComp string, loValue value.Value,
-	hiComp string, hiValue value.Value) CheckFieldTypeResult {
+	hiComp string, hiValue value.Value) CFTResult {
 	if len(p.ExprsOut) < 1 {
 		return NotMatch
 	}
@@ -181,12 +180,12 @@ func (p *CheckFieldTypeInfo) CheckFieldTypeByLoHiBounds(
 	exprLo := p.ExprsOut[len(p.ExprsOut)-1]
 
 	bfLo, ok := exprLo.(expression.BinaryFunction)
-	if !ok || bfLo.Name() != loComp {
+	if !ok || !strings.Contains(loComp, bfLo.Name()) {
 		return NotMatch
 	}
 
 	cLo, ok := bfLo.First().(*expression.Constant)
-	if !ok || !cLo.Value().Equals(loValue).Truth() {
+	if !ok {
 		return NotMatch
 	}
 
@@ -200,8 +199,8 @@ func (p *CheckFieldTypeInfo) CheckFieldTypeByLoHiBounds(
 	}
 
 	// Check (`t`.`a` < hiValue).
-	bfHi, ok := expr.(expression.BinaryFunction)
-	if !ok || bfHi.Name() != hiComp {
+	bfHi, ok := exprHi.(expression.BinaryFunction)
+	if !ok || !strings.Contains(hiComp, bfHi.Name()) {
 		return NotMatch
 	}
 
@@ -221,17 +220,31 @@ func (p *CheckFieldTypeInfo) CheckFieldTypeByLoHiBounds(
 	}
 
 	cHi, ok := bfHi.Second().(*expression.Constant)
-	if !ok || !cHi.Value().Equals(hiValue).Truth() {
+	if !ok {
 		return NotMatch
 	}
 
-	// Add to learnings if no conflicts.
-	if !p.AddLearning(fiHi.FieldPath, suffixHi, fieldType) {
-		return NotSargable
+	if cLo.Value().Equals(loValue).Truth() && strings.HasPrefix(loComp, bfLo.Name()) &&
+		cHi.Value().Equals(hiValue).Truth() && strings.HasPrefix(hiComp, bfHi.Name()) {
+		// Add to learnings if no conflicts.
+		if !p.AddLearning(fiHi.FieldPath, suffixHi, fieldType) {
+			return NotSargable
+		}
+
+		// Filter exprLo & exprHi as ISSTRING/NUMBER() was exactly learned().
+		p.ExprsOut = p.ExprsOut[0 : len(p.ExprsOut)-1]
+
+		return Match
 	}
 
-	// Filter the exprLo & exprHi since their type info was learned.
-	p.ExprsOut = p.ExprsOut[0 : len(p.ExprsOut)-1]
+	if (cLo.Value().Type().String() == fieldType &&
+		cLo.Value().Type() == cHi.Value().Type() &&
+		cLo.Value().Collate(cHi.Value()) <= 0) &&
+		p.AddLearning(fiHi.FieldPath, suffixHi, fieldType) {
+		p.ExprsOut = append(p.ExprsOut, exprHi)
 
-	return Match
+		return Match
+	}
+
+	return NotMatch
 }
