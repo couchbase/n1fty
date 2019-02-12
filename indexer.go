@@ -348,7 +348,12 @@ func (i *FTSIndexer) retrieveIndexDefs(node string) (
 		return nil, nil, fmt.Errorf("retrieveIndexDefs, client not available")
 	}
 
-	resp, err := httpClient.Get(node + "/api/cfg")
+	cbauthURL, err := cbgt.CBAuthURL(node + "/api/cfg")
+	if err != nil {
+		return nil, nil, fmt.Errorf("retrieveIndexDefs, err: %v", err)
+	}
+
+	resp, err := httpClient.Get(cbauthURL)
 	if err != nil {
 		return nil, nil, fmt.Errorf("retrieveIndexDefs, err: %v", err)
 	}
