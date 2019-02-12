@@ -113,10 +113,7 @@ func NewFTSIndexer(serverIn, namespace, keyspace string) (datastore.Indexer,
 		stats:           &stats{},
 	}
 
-	err = indexer.Refresh()
-	if err != nil {
-		return nil, errors.NewError(err, "n1fty: Refresh err")
-	}
+	indexer.Refresh()
 
 	go backfillMonitor(1*time.Second, indexer)
 	return indexer, nil
@@ -194,7 +191,6 @@ func (i *FTSIndexer) IndexById(id string) (datastore.Index, errors.Error) {
 
 	return nil, errors.NewError(nil,
 		fmt.Sprintf("IndexById: fts index with id: %v not found", id))
-
 }
 
 func (i *FTSIndexer) IndexByName(name string) (datastore.Index, errors.Error) {
@@ -291,46 +287,40 @@ func (i *FTSIndexer) SetLogLevel(level logging.Level) {
 
 // -----------------------------------------------------------------------------
 
-func (i *FTSIndexer) refreshConfigs() (map[string]datastore.Index,
-	*cbgt.NodeDefs, error) {
+func (i *FTSIndexer) refreshConfigs() (
+	map[string]datastore.Index, *cbgt.NodeDefs, error) {
 	var cfg Cfg
 	cfg = &config
 	if i.cfg != nil {
 		cfg = i.cfg
 	}
 
-	// first try to load configs from local config cache
-	indexDefs, err := GetIndexDefs(cfg)
-	nodeDefs, err1 := GetNodeDefs(cfg)
+	var err error
 
-	// upon error, fetch from fts nodes directly
-	var ftsEndpoints []string
-	if (indexDefs == nil || err != nil) || (nodeDefs == nil || err1 != nil) {
-		ftsEndpoints = i.agent.FtsEps()
+	// first try to load configs from local config cache
+	indexDefs, _ := GetIndexDefs(cfg)
+	nodeDefs, _ := GetNodeDefs(cfg)
+
+	// if not available in config, try fetching them from an fts node
+	if indexDefs == nil || nodeDefs == nil {
+		ftsEndpoints := i.agent.FtsEps()
 		if len(ftsEndpoints) == 0 {
-			return nil, nil, fmt.Errorf("no fts nodes in cluster")
+			return nil, nil, fmt.Errorf("refreshConfigs: no fts nodes available")
 		}
 		now := time.Now().UnixNano()
-		for k := 0; k < len(ftsEndpoints); k++ {
-			indexDefs, nodeDefs, err = i.retrieveIndexDefs(
-				ftsEndpoints[(now+int64(k))%int64(len(ftsEndpoints))])
-			if err != nil {
-				logging.Infof("retrieveIndexDefs err: %v", err)
-			}
-			if indexDefs != nil && nodeDefs != nil {
-				break
-			}
+		indexDefs, nodeDefs, err = i.retrieveIndexDefs(
+			ftsEndpoints[now%int64(len(ftsEndpoints))])
+		if err != nil {
+			return nil, nil, err
 		}
 	}
 
 	if indexDefs == nil {
-		return nil, nil, fmt.Errorf("could not fetch index defintions from any of the"+
-			" known nodes: %v", ftsEndpoints)
+		return nil, nil, fmt.Errorf("no index definitions available")
 	}
 
 	if nodeDefs == nil {
-		return nil, nil, fmt.Errorf("could not fetch node defintions from any of the"+
-			" known nodes: %v", ftsEndpoints)
+		return nil, nil, fmt.Errorf("no node definitions available")
 	}
 
 	imap, err := i.convertIndexDefs(indexDefs)
@@ -351,64 +341,45 @@ func (i *FTSIndexer) initSrvWrapper(nodeDefs *cbgt.NodeDefs) error {
 	return nil
 }
 
-func (i *FTSIndexer) retrieveIndexDefs(node string) (*cbgt.IndexDefs, *cbgt.NodeDefs, error) {
+func (i *FTSIndexer) retrieveIndexDefs(node string) (
+	*cbgt.IndexDefs, *cbgt.NodeDefs, error) {
 	httpClient := i.agent.HttpClient()
 	if httpClient == nil {
 		return nil, nil, fmt.Errorf("retrieveIndexDefs, client not available")
 	}
 
-	var indexDefs *cbgt.IndexDefs
-	var nodeDefs *cbgt.NodeDefs
-	backoffStartSleepMS := 200
-	backoffFactor := float32(1.5)
-	backoffMaxSleepMS := 500
+	resp, err := httpClient.Get(node + "/api/cfg")
+	if err != nil {
+		return nil, nil, fmt.Errorf("retrieveIndexDefs, err: %v", err)
+	}
 
-	cbgt.ExponentialBackoffLoop("retrieveIndexDefs",
-		func() int {
-			resp, err := httpClient.Get(node + "/api/cfg")
-			if err != nil {
-				logging.Infof("retrieveIndexDefs, http get err: %v", err)
-				return 0 // failed, so exponential backoff
-			}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, nil, fmt.Errorf("retrieveIndexDefs, resp status code: %v",
+			resp.StatusCode)
+	}
 
-			defer resp.Body.Close()
-			if resp.StatusCode != http.StatusOK {
-				logging.Infof("retrieveIndexDefs, resp status code: %v", resp.StatusCode)
-				return 0 // failed, so exponential backoff
-			}
+	bodyBuf, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("retrieveIndexDefs, resp body read err: %v", err)
+	}
 
-			bodyBuf, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				logging.Infof("retrieveIndexDefs,resp body read err: %v", err)
-				return 0 // failed, so exponential backoff
-			}
+	var body struct {
+		IndexDefs *cbgt.IndexDefs `json:"indexDefs"`
+		NodeDefs  *cbgt.NodeDefs  `json:"nodeDefsKnown"`
+		Status    string          `json:"status"`
+	}
 
-			var body struct {
-				IndexDefs *cbgt.IndexDefs `json:"indexDefs"`
-				NodeDefs  *cbgt.NodeDefs  `json:"nodeDefsKnown"`
-				Status    string          `json:"status"`
-			}
+	err = json.Unmarshal(bodyBuf, &body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("retrieveIndexDefs, err: %v", err)
+	}
 
-			err = json.Unmarshal(bodyBuf, &body)
-			if err != nil {
-				logging.Infof("retrieveIndexDefs, json err: %v", err)
-				return 0 // failed, so exponential backoff
-			}
+	if body.Status != "ok" || body.IndexDefs == nil || body.NodeDefs == nil {
+		return nil, nil, fmt.Errorf("retrieveIndexDefs, error")
+	}
 
-			if body.Status != "ok" || body.IndexDefs == nil ||
-				body.NodeDefs == nil {
-				logging.Infof("retrieveIndexDefs status error,"+
-					" body: %+v, bodyBuf: %v", body, bodyBuf)
-				return 0 // failed, so exponential backoff
-			}
-
-			indexDefs = body.IndexDefs
-			nodeDefs = body.NodeDefs
-			return -1 // success, so stop the loop.
-		},
-		backoffStartSleepMS, backoffFactor, backoffMaxSleepMS)
-
-	return indexDefs, nodeDefs, nil
+	return body.IndexDefs, body.NodeDefs, nil
 }
 
 // Convert FTS index definitions into a map of n1ql index id mapping to
