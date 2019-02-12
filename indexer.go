@@ -55,6 +55,7 @@ type FTSIndexer struct {
 	cfg        Cfg
 	srvWrapper *ftsSrvWrapper
 	stats      *stats
+	closeCh    chan struct{}
 }
 
 type stats struct {
@@ -111,11 +112,15 @@ func NewFTSIndexer(serverIn, namespace, keyspace string) (datastore.Indexer,
 		lastRefreshTime: time.Now(),
 		cfg:             &config,
 		stats:           &stats{},
+		closeCh:         make(chan struct{}),
 	}
 
 	indexer.Refresh()
 
 	go backfillMonitor(1*time.Second, indexer)
+	// configurable interval later
+	go logStats(300*time.Millisecond, indexer)
+
 	return indexer, nil
 }
 
@@ -139,7 +144,13 @@ func (a *Authenticator) Credentials(req gocbcore.AuthCredsRequest) (
 	}}, nil
 }
 
-// -----------------------------------------------------------------------------
+// Close is an implementation of io.Closer interface
+// It is recommended that query calls Close on the FTSIndexer
+// object once its usage is over, for a graceful cleanup.
+func (i *FTSIndexer) Close() error {
+	close(i.closeCh)
+	return nil
+}
 
 // SetCfg for better testing
 func (i *FTSIndexer) SetCfg(cfg Cfg) {

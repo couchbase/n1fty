@@ -237,6 +237,40 @@ func (r *responseHandler) sendEntry(hit *search.DocumentMatch,
 	return true
 }
 
+func logStats(logtick time.Duration, i *FTSIndexer) {
+	tick := time.NewTicker(logtick)
+	defer func() {
+		tick.Stop()
+	}()
+
+	var sofar int64
+	for {
+		select {
+		case <-i.closeCh:
+			return
+
+		case <-tick.C:
+			searchDur := atomic.LoadInt64(&i.stats.TotalSearchDuration)
+			n1qlDur := atomic.LoadInt64(&i.stats.TotalThrottledN1QLDuration)
+			ftsDur := atomic.LoadInt64(&i.stats.TotalThrottledFtsDuration)
+			ttfbDur := atomic.LoadInt64(&i.stats.TotalTTFBDuration)
+			totalsearch := atomic.LoadInt64(&i.stats.TotalSearch)
+			totalbackfills := atomic.LoadInt64(&i.stats.TotalBackFills)
+			if totalsearch > sofar {
+				fmsg := `n1fty keyspace: %q {` +
+					`"n1fty_search_count":%v,"n1fty_search_duration":%v,` +
+					`"n1fty_fts_duration":%v,` +
+					`"n1fty_ttfb_duration":%v,"n1fty_n1ql_duration":%v,` +
+					`"n1fty_totalbackfills":%v}`
+				logging.Infof(
+					fmsg, i.keyspace, totalsearch, searchDur,
+					ftsDur, ttfbDur, n1qlDur, totalbackfills)
+			}
+			sofar = totalsearch
+		}
+	}
+}
+
 func backfillMonitor(period time.Duration, i *FTSIndexer) {
 	tick := time.NewTicker(period)
 	defer func() {
@@ -244,21 +278,26 @@ func backfillMonitor(period time.Duration, i *FTSIndexer) {
 	}()
 
 	for {
-		<-tick.C
-		nifty_backfill_temp_dir := getBackfillSpaceDir()
-		files, err := ioutil.ReadDir(nifty_backfill_temp_dir)
-		if err != nil {
+		select {
+		case <-i.closeCh:
 			return
-		}
 
-		size := int64(0)
-		for _, file := range files {
-			fname := path.Join(nifty_backfill_temp_dir, file.Name())
-			if strings.Contains(fname, backfillPrefix) {
-				size += int64(file.Size())
+		case <-tick.C:
+			backfillDir := getBackfillSpaceDir()
+			files, err := ioutil.ReadDir(backfillDir)
+			if err != nil {
+				return
 			}
+
+			var size int64
+			for _, file := range files {
+				fname := path.Join(backfillDir, file.Name())
+				if strings.Contains(fname, backfillPrefix) {
+					size += file.Size()
+				}
+			}
+			atomic.StoreInt64(&i.stats.CurBackFillSize, size)
 		}
-		atomic.StoreInt64(&i.stats.CurBackFillSize, size)
 	}
 }
 
