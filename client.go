@@ -181,12 +181,14 @@ func extractHostCertsMap(nodeDefs *cbgt.NodeDefs) (map[string]interface{}, error
 			if bindGRPCstr, ok := extrasBindGRPC.(string); ok {
 				host = bindGRPCstr
 			}
-
 		}
-		hostCertsMap[host] = nil
-		extrasCertPEM, er := v.GetFromParsedExtras("tlsCertPEM")
-		if er == nil && extrasCertPEM != nil {
-			hostCertsMap[host] = extrasCertPEM
+
+		if host != "" {
+			hostCertsMap[host] = nil
+			extrasCertPEM, er := v.GetFromParsedExtras("tlsCertPEM")
+			if er == nil && extrasCertPEM != nil {
+				hostCertsMap[host] = extrasCertPEM
+			}
 		}
 	}
 
