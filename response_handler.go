@@ -69,12 +69,13 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 			}
 			waitGroup.Done()
 			atomic.AddInt64(&backfillFin, 1)
-			logging.Infof(
-				"%v %q finished backfill for %v ...", logPrefix, r.requestID, name)
+			logging.Infof("response_handler: %v %q finished backfill for %v ",
+				logPrefix, r.requestID, name)
 			recover() // need this because entryChannel() would have closed
 		}()
 
-		logging.Infof("%v %q started backfill for %v ...", logPrefix, r.requestID, name)
+		logging.Infof("response_handler: %v %q started backfill for %v",
+			logPrefix, r.requestID, name)
 
 		for {
 			if pending := atomic.LoadInt64(&backfillEntries); pending > 0 {
@@ -87,30 +88,34 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 				continue
 			}
 
-			cummsize := float64(atomic.LoadInt64(&r.i.indexer.stats.CurBackFillSize)) / defaultSizeInMB // make constant
-			logging.Infof("atomic.LoadInt64(&i.indexer.stats.CurBackfillSize) %d cummsize %f", atomic.LoadInt64(&r.i.indexer.stats.CurBackFillSize), cummsize)
+			cummsize := float64(atomic.LoadInt64(
+				&r.i.indexer.stats.CurBackFillSize)) / defaultSizeInMB
+			logging.Infof("response_handler: %d cummsize %f",
+				atomic.LoadInt64(&r.i.indexer.stats.CurBackFillSize), cummsize)
 			if cummsize > float64(backfillLimit) {
 				fmsg := "%q backfill size: %d exceeded limit: %d"
 				err := fmt.Errorf(fmsg, r.requestID, cummsize, backfillLimit)
-				conn.Error(n1qlError(err))
+				conn.Error(n1qlError(err, ""))
 				return
 			}
 
 			if err := dec.Decode(&hits); err != nil {
-				fmsg := "%v %q decoding from backfill file: %v: err: %v\n"
+				fmsg := "%v %q decoding from backfill file: %v: err: %v"
 				err = fmt.Errorf(fmsg, logPrefix, r.requestID, name, err)
-				conn.Error(n1qlError(err))
+				conn.Error(n1qlError(err, ""))
 				return
 			}
 
-			logging.Infof("%v backfill read %v entries\n", logPrefix, len(hits))
+			logging.Infof("response_handler: %v backfill read %v entries",
+				logPrefix, len(hits))
 
 			for _, hit := range hits {
 				r.sendEntry(hit, conn)
 			}
 
 			if firstResponseByte == false {
-				atomic.AddInt64(&r.i.indexer.stats.TotalTTFBDuration, int64(time.Since(starttm)))
+				atomic.AddInt64(&r.i.indexer.stats.TotalTTFBDuration,
+					int64(time.Since(starttm)))
 				firstResponseByte = true
 			}
 		}
@@ -124,66 +129,73 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 		}
 
 		if err != nil {
-			logging.Infof("response_handler: stream.Recv, err: %v", err)
-			conn.Error(n1qlError(err))
+			conn.Error(n1qlError(err, "response_handler: stream.Recv, err "))
+			return
 		}
 
-		if results.GetHits() != nil {
-			var hits []*search.DocumentMatch
-			switch r := results.PayLoad.(type) {
-			case *pb.StreamSearchResults_Hits:
-				err = json.Unmarshal(r.Hits.Bytes, &hits)
+		var hits []*search.DocumentMatch
+		switch r := results.PayLoad.(type) {
+		case *pb.StreamSearchResults_Hits:
+			err = json.Unmarshal(r.Hits.Bytes, &hits)
+			if err != nil {
+				logging.Infof("response_handler: json.Unmarshal, err: %v", err)
+				continue
+			}
+
+		case *pb.StreamSearchResults_Results:
+			if r.Results.Hits != nil {
+				err = json.Unmarshal(r.Results.Hits, &hits)
 				if err != nil {
 					logging.Infof("response_handler: json.Unmarshal, err: %v", err)
 					continue
 				}
 			}
+		}
 
-			ln := len(entryCh)
-			cp := cap(entryCh)
+		ln := len(entryCh)
+		cp := cap(entryCh)
 
-			if backfillLimit > 0 && tmpfile == nil &&
-				((cp - ln) < len(hits)) {
-				logging.Infof("Buffer outflow observed!!  cap %d len %d", cp, ln)
-				enc, dec, tmpfile, err = initBackFill(logPrefix, r.requestID, r)
-				if err != nil {
-					conn.Error(n1qlError(err))
-					return
-				}
-				waitGroup.Add(1)
-				go backfill()
+		if backfillLimit > 0 && tmpfile == nil &&
+			((cp - ln) < len(hits)) {
+			logging.Infof("response_handler: buffer outflow observed, cap %d len %d", cp, ln)
+			enc, dec, tmpfile, err = initBackFill(logPrefix, r.requestID, r)
+			if err != nil {
+				conn.Error(n1qlError(err, "initBackFill failed, err:"))
+				return
+			}
+			waitGroup.Add(1)
+			go backfill()
+		}
+
+		// slow reader found and hence start dumping the results to the backfill file
+		if tmpfile != nil {
+			// whether temp-file is exhausted the limit.
+			cummsize := float64(atomic.LoadInt64(
+				&r.i.indexer.stats.CurBackFillSize)) / defaultSizeInMB
+			logging.Infof("response_handler: CurBackfillSize %d cummsize %f",
+				atomic.LoadInt64(&r.i.indexer.stats.CurBackFillSize), cummsize)
+			if cummsize > float64(backfillLimit) {
+				fmsg := "%q backfill exceeded limit %v, %v"
+				err := fmt.Errorf(fmsg, r.requestID, backfillLimit, cummsize)
+				conn.Error(n1qlError(err, ""))
+				return
 			}
 
-			// slow reader found and hence start dumping the results to the backfill file
-			if tmpfile != nil {
-				// whether temp-file is exhausted the limit.
-				cummsize := float64(atomic.LoadInt64(&r.i.indexer.stats.CurBackFillSize)) / defaultSizeInMB
-				logging.Infof("atomic.LoadInt64(&i.indexer.stats.CurBackfillSize) %d cummsize %f", atomic.LoadInt64(&r.i.indexer.stats.CurBackFillSize), cummsize)
-				if cummsize > float64(backfillLimit) {
-					fmsg := "%q backfill exceeded limit %v, %v"
-					err := fmt.Errorf(fmsg, r.requestID, backfillLimit, cummsize)
-					conn.Error(n1qlError(err))
-					return
-				}
+			if atomic.LoadInt64(&backfillFin) > 0 {
+				return
+			}
 
-				if atomic.LoadInt64(&backfillFin) > 0 {
-					return
-				}
+			err := writeToBackfill(hits, enc)
+			if err != nil {
+				conn.Error(n1qlError(err, "writeToBackfill err:"))
+				return
+			}
 
-				err := writeToBackfill(hits, enc)
-				if err != nil {
-					logging.Infof("writeToBackfill err: %v", err)
-					conn.Error(n1qlError(err))
-					return
-				}
+			atomic.AddInt64(&backfillEntries, 1)
 
-				atomic.AddInt64(&backfillEntries, 1)
-
-			} else if hits != nil {
-				logging.Infof("sent back %d items", len(hits))
-				for _, hit := range hits {
-					r.sendEntry(hit, conn)
-				}
+		} else if hits != nil {
+			for _, hit := range hits {
+				r.sendEntry(hit, conn)
 			}
 		}
 	}
@@ -244,8 +256,8 @@ func backfillMonitor(period time.Duration, i *FTSIndexer) {
 	}
 }
 
-func n1qlError(err error) errors.Error {
-	return errors.NewError(err /*client.DescribeError(err)*/, "")
+func n1qlError(err error, desc string) errors.Error {
+	return errors.NewError(err /*client.DescribeError(err)*/, desc)
 }
 
 func initBackFill(logPrefix, requestID string, rh *responseHandler) (*gob.Encoder,
@@ -285,12 +297,10 @@ func cleanupBackfills(tmpfile *os.File, requestID string) {
 	if tmpfile != nil {
 		tmpfile.Close()
 		fname := tmpfile.Name()
-		fmsg := "request(%v) removing backfill file %v ...\n"
-		err := fmt.Errorf(fmsg, requestID, fname)
-		logging.Infof("\ncleaning files -> %v", err)
-		if err = os.Remove(fname); err != nil {
+		if err := os.Remove(fname); err != nil {
 			fmsg := "%v remove backfill file %v unexpected failure: %v\n"
-			logging.Errorf("cleanupBackfills, err: %v", fmt.Errorf(fmsg, fname, err))
+			logging.Errorf("response_handler: cleanupBackfills, err: %v",
+				fmt.Errorf(fmsg, fname, err))
 		}
 	}
 }
