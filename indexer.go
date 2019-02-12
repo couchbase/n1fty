@@ -209,7 +209,7 @@ func (i *FTSIndexer) IndexByName(name string) (datastore.Index, errors.Error) {
 }
 
 func (i *FTSIndexer) PrimaryIndexes() ([]datastore.PrimaryIndex, errors.Error) {
-	return nil, errors.NewError(nil, "not supported")
+	return nil, nil
 }
 
 func (i *FTSIndexer) Indexes() ([]datastore.Index, errors.Error) {
