@@ -121,8 +121,8 @@ func fetchSearchableFields(path string, typeMapping *mapping.DocumentMapping) []
 
 // -----------------------------------------------------------------------------
 
-func FetchFieldsToSearch(field, q, options string) ([]string, error) {
-	que, err := BuildQuery(field, q, options)
+func FetchFieldsToSearch(q []byte) ([]string, error) {
+	que, err := query.ParseQuery(q)
 	if err != nil {
 		return nil, err
 	}

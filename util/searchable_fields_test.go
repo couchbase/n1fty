@@ -216,7 +216,11 @@ func TestFieldsToSearch(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		fields, err := FetchFieldsToSearch(test.field, test.query, test.options)
+		qBytes, err := BuildQueryBytes(test.field, test.query, test.options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fields, err := FetchFieldsToSearch(qBytes)
 		if err != nil {
 			t.Fatal(err)
 		}

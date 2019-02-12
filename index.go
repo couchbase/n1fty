@@ -149,6 +149,21 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 		return
 	}
 
+	fieldStr := ""
+	if searchInfo.Field != nil {
+		fieldStr = searchInfo.Field.Actual().(string)
+	}
+
+	// this sargable(...) check is to ensure that the query is indeed "sargable"
+	// at search time, as when the Sargable(..) API is invoked during the
+	// prepare time, the query/options may not have been available.
+	_, ok, qBytes, er := i.buildQueryAndCheckIfSargable(
+		fieldStr, searchInfo.Query, searchInfo.Options)
+	if !ok || er != nil {
+		conn.Error(errors.NewError(er.Cause(), "not sargable"))
+		return
+	}
+
 	starttm := time.Now()
 	entryCh := conn.EntryChannel()
 
@@ -164,25 +179,8 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 		cleanupBackfills(rh.backfillFile, requestId)
 	}()
 
-	fieldStr := ""
-	if searchInfo.Field != nil {
-		fieldStr = searchInfo.Field.Actual().(string)
-	}
-	optionsStr := ""
-	if searchInfo.Options != nil {
-		optionsStr = searchInfo.Options.Actual().(string)
-	}
-
-	query, err := util.BuildQueryBytes(fieldStr,
-		searchInfo.Query.Actual().(string),
-		optionsStr)
-	if err != nil {
-		conn.Error(errors.NewError(err, ""))
-		return
-	}
-
 	searchRequest := &pb.SearchRequest{
-		Query:     query,
+		Query:     qBytes,
 		Stream:    true,
 		From:      searchInfo.Offset,
 		Size:      searchInfo.Limit,
@@ -207,31 +205,56 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 
 // -----------------------------------------------------------------------------
 
-func (i *FTSIndex) Sargable(field string, query, options value.Value) (
+func (i *FTSIndex) Sargable(field string, query, options expression.Expression) (
 	int, bool, errors.Error) {
-	// TODO: len of supported fields may not be needed?
-	if i.defaultMappingDynamic {
-		return 0, true, nil
+	count, sargable, _, err := i.buildQueryAndCheckIfSargable(
+		field, query.Value(), options.Value())
+	return count, sargable, err
+}
+
+func (i *FTSIndex) buildQueryAndCheckIfSargable(field string, query, options value.Value) (
+	int, bool, []byte, errors.Error) {
+	// TODO: Check compatibility of query's analyzer and index's analyzer,
+	// so as to let N1QL decide which index to choose from.
+	var fieldsToSearch []string
+	var qBytes []byte
+	var err error
+
+	if query != nil {
+		optionsStr := ""
+		if options != nil {
+			optionsStr = options.Actual().(string)
+		}
+
+		qBytes, err = util.BuildQueryBytes(field, query.Actual().(string), optionsStr)
+		if err != nil {
+			return 0, false, nil, errors.NewError(err, "")
+		}
+
+		fieldsToSearch, err = util.FetchFieldsToSearch(qBytes)
+		if err != nil {
+			return 0, false, qBytes, errors.NewError(err, "")
+		}
+	} else {
+		fieldsToSearch = []string{field}
 	}
 
-	fieldsToSearch, err := util.FetchFieldsToSearch(field, query.String(),
-		options.String())
-	if err != nil {
-		return 0, false, errors.NewError(err, "")
+	if i.defaultMappingDynamic {
+		return 1, true, qBytes, nil
 	}
 
 	for _, field := range fieldsToSearch {
 		if _, exists := i.searchableFields[field]; !exists {
-			return 0, false, nil
+			return 0, false, qBytes, nil
 		}
 	}
 
-	return 0, true, nil
+	return 1, true, qBytes, nil
 }
 
 // -----------------------------------------------------------------------------
 
-func (i *FTSIndex) Pagination(order []string, offset, limit int64) bool {
+func (i *FTSIndex) Pageable(order []string, offset, limit int64) bool {
 	// FIXME
 	return false
 }

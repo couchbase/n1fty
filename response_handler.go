@@ -50,7 +50,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 
 	entryCh := conn.EntryChannel()
 	backfillLimit := getBackfillSpaceLimit()
-	firstResponseByte, starttm, ticktm := false, time.Now(), time.Now()
+	firstResponseByte, starttm := false, time.Now()
 
 	var enc *gob.Encoder
 	var dec *gob.Decoder
@@ -113,8 +113,6 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 				atomic.AddInt64(&r.i.indexer.stats.TotalTTFBDuration, int64(time.Since(starttm)))
 				firstResponseByte = true
 			}
-
-			ticktm = time.Now()
 		}
 	}
 
