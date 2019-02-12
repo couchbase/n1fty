@@ -221,12 +221,21 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string, query, options val
 	var err error
 
 	if query != nil {
-		optionsStr := ""
-		if options != nil {
-			optionsStr = options.Actual().(string)
+		queryStr, ok := query.Actual().(string)
+		if !ok {
+			return 0, false, nil, errors.NewError(nil, "query provided not a string")
 		}
 
-		qBytes, err = util.BuildQueryBytes(field, query.Actual().(string), optionsStr)
+		var optionsBytes []byte
+		if options != nil {
+			// TODO: retrieve index name/mapping here as well, to establish sargable-ity
+			optionsBytes, err = options.MarshalJSON()
+			if err != nil {
+				return 0, false, nil, errors.NewError(err, "")
+			}
+		}
+
+		qBytes, err = util.BuildQueryBytes(field, queryStr, optionsBytes)
 		if err != nil {
 			return 0, false, nil, errors.NewError(err, "")
 		}

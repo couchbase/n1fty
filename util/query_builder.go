@@ -52,7 +52,7 @@ type Options struct {
 
 // -----------------------------------------------------------------------------
 
-func BuildQuery(field, input, options string) (query.Query, error) {
+func BuildQuery(field, input string, options []byte) (query.Query, error) {
 	qBytes, err := BuildQueryBytes(field, input, options)
 	if err != nil {
 		return nil, fmt.Errorf("BuildQuery err: %v", err)
@@ -61,10 +61,10 @@ func BuildQuery(field, input, options string) (query.Query, error) {
 	return query.ParseQuery(qBytes)
 }
 
-func BuildQueryBytes(field, input, options string) ([]byte, error) {
+func BuildQueryBytes(field, input string, options []byte) ([]byte, error) {
 	opt := Options{}
-	if options != "" {
-		err := json.Unmarshal([]byte(options), &opt)
+	if len(options) > 0 {
+		err := json.Unmarshal(options, &opt)
 		if err != nil {
 			return nil, fmt.Errorf("err: %v", err)
 		}

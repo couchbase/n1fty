@@ -12,11 +12,7 @@
 package verify
 
 import (
-	"encoding/json"
-
 	"github.com/blevesearch/bleve"
-	"github.com/blevesearch/bleve/mapping"
-	"github.com/couchbase/cbft"
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
@@ -25,31 +21,32 @@ import (
 
 func NewVerify(keyspace, field string, query, options value.Value) (
 	datastore.Verify, errors.Error) {
-	q, err := util.BuildQuery(field, query.Actual().(string), options.Actual().(string))
+	if query == nil {
+		return nil, errors.NewError(nil, "query not provided")
+	}
+	queryStr, ok := query.Actual().(string)
+	if !ok {
+		return nil, errors.NewError(nil, "query provided not a string")
+	}
+
+	var err error
+	var optionsBytes []byte
+	if options != nil {
+		// TODO: fetch index name/mapping here as well, to apply on the
+		// in-memory index that we're about to build.
+		optionsBytes, err = options.MarshalJSON()
+		if err != nil {
+			return nil, errors.NewError(err, "")
+		}
+	}
+
+	q, err := util.BuildQuery(field, queryStr, optionsBytes)
 	if err != nil {
 		return nil, errors.NewError(err, "")
 	}
 
-	var idxMapping mapping.IndexMapping
-
-	// check if index mapping is available within the options
-	idxParams, available := options.Field("index")
-	if available {
-		buf, er := json.Marshal(idxParams.Actual())
-		if er != nil {
-			return nil, errors.NewError(er, "")
-		}
-
-		bleveParams := cbft.NewBleveParams()
-		er = json.Unmarshal(buf, bleveParams)
-		if er != nil {
-			return nil, errors.NewError(er, "")
-		}
-
-		idxMapping = bleveParams.Mapping
-	} else {
-		idxMapping = bleve.NewIndexMapping()
-	}
+	// TODO: use custom mapping, if available/provided
+	idxMapping := bleve.NewIndexMapping()
 
 	idx, err := bleve.NewMemOnly(idxMapping)
 	if err != nil {

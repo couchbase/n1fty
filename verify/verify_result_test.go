@@ -19,13 +19,11 @@ import (
 
 func TestVerifyResult(t *testing.T) {
 	q := struct {
-		field   string
-		query   string
-		options string
+		field string
+		query string
 	}{
-		field:   "",
-		query:   `+name:"stark" +dept:"hand"`,
-		options: "",
+		field: "",
+		query: `+name:"stark" +dept:"hand"`,
 	}
 
 	tests := []struct {
@@ -50,10 +48,7 @@ func TestVerifyResult(t *testing.T) {
 		},
 	}
 
-	v, err := NewVerify("",
-		q.field,
-		value.NewValue(q.query),
-		value.NewValue(q.options))
+	v, err := NewVerify("", q.field, value.NewValue(q.query), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

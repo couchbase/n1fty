@@ -22,27 +22,27 @@ func TestBuildQuery(t *testing.T) {
 	tests := []struct {
 		field   string
 		query   string
-		options string
+		options []byte
 	}{
 		{
 			field:   "title",
 			query:   "+Avengers~2 company:marvel",
-			options: "",
+			options: []byte(""),
 		},
 		{
 			field:   "title",
 			query:   "avengers",
-			options: `{"type": "match", "fuzziness": 2}`,
+			options: []byte(`{"type": "match", "fuzziness": 2}`),
 		},
 		{
 			field:   "title",
 			query:   "Avengers: Infinity War",
-			options: `{"type": "match_phrase", "analyzer": "en", "boost": 10}`,
+			options: []byte(`{"type": "match_phrase", "analyzer": "en", "boost": 10}`),
 		},
 		{
 			field:   "title",
 			query:   "Avengers*",
-			options: `{"type": "wildcard"}`,
+			options: []byte(`{"type": "wildcard"}`),
 		},
 	}
 

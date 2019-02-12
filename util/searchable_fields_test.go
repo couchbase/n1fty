@@ -178,37 +178,37 @@ func TestFieldsToSearch(t *testing.T) {
 	tests := []struct {
 		field   string
 		query   string
-		options string
+		options []byte
 		expect  []string
 	}{
 		{
 			field:   "title",
 			query:   "+Avengers~2 company:marvel",
-			options: "",
+			options: []byte(""),
 			expect:  []string{"company", "title"},
 		},
 		{
 			field:   "title",
 			query:   "avengers",
-			options: `{"type": "match", "fuzziness": 2}`,
+			options: []byte(`{"type": "match", "fuzziness": 2}`),
 			expect:  []string{"title"},
 		},
 		{
 			field:   "title",
 			query:   "Avengers: Infinity War",
-			options: `{"type": "match_phrase", "analyzer": "en", "boost": 10}`,
+			options: []byte(`{"type": "match_phrase", "analyzer": "en", "boost": 10}`),
 			expect:  []string{"title"},
 		},
 		{
 			field:   "title",
 			query:   "Avengers*",
-			options: `{"type": "wildcard"}`,
+			options: []byte(`{"type": "wildcard"}`),
 			expect:  []string{"title"},
 		},
 		{
 			field:   "title",
 			query:   "+movie:Avengers +sequel.id:3 +company:marvel",
-			options: ``,
+			options: []byte(``),
 			expect:  []string{"company", "movie", "sequel.id", "sequel.id"},
 			// Expect 2 sequel.id entries above as the number look up above is
 			// considered as a disjunction of a match and a numeric range.
