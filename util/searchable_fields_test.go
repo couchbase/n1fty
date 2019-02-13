@@ -166,8 +166,8 @@ func TestIndexDefConversion(t *testing.T) {
 
 	expect := map[string][]string{}
 	expect["hotel"] = []string{"country", "reviews.author", "reviews.content", "state"}
-	expect["landmark"] = []string{"_all", "country"}
-	expect["default"] = []string{"_all"}
+	expect["landmark"] = []string{"country"}
+	expect["default"] = []string{}
 
 	if !reflect.DeepEqual(expect, got) {
 		t.Fatalf("Expected: %v, Got: %v", expect, got)

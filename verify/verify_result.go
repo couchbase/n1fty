@@ -21,6 +21,8 @@ import (
 
 func NewVerify(keyspace, field string, query, options value.Value) (
 	datastore.Verify, errors.Error) {
+	field = util.CleanseField(field)
+
 	if query == nil {
 		return nil, errors.NewError(nil, "query not provided")
 	}

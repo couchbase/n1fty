@@ -51,13 +51,16 @@ func SearchableFieldsForIndexDef(indexDef *cbgt.IndexDef) (
 		return nil, false
 	}
 
+	// FIXME: Choose a better data structure here for identifying the
+	// correct searchable fields if incase of dynamic child mappings,
+	// and "searchable as" settings.
 	searchableFieldsMap := map[string][]string{}
 
 	for typeName, typeMapping := range bm.TypeMapping {
 		if typeMapping.Enabled {
 			if typeMapping.Dynamic {
 				// everything under document type is indexed
-				searchableFieldsMap[typeName] = []string{"_all"}
+				searchableFieldsMap[typeName] = []string{}
 			} else {
 				searchableFieldsMap[typeName] = fetchSearchableFields("", typeMapping)
 			}
@@ -67,7 +70,7 @@ func SearchableFieldsForIndexDef(indexDef *cbgt.IndexDef) (
 	defaultMappingDynamic := false
 	if bm.DefaultMapping != nil && bm.DefaultMapping.Enabled {
 		if bm.DefaultMapping.Dynamic {
-			searchableFieldsMap["default"] = []string{"_all"}
+			searchableFieldsMap["default"] = []string{}
 			defaultMappingDynamic = true
 		} else {
 			rv := fetchSearchableFields("", bm.DefaultMapping)
@@ -83,7 +86,6 @@ func fetchSearchableFields(path string, typeMapping *mapping.DocumentMapping) []
 
 	if len(typeMapping.Fields) == 0 && len(typeMapping.Properties) == 0 &&
 		typeMapping.Enabled && typeMapping.Dynamic {
-		rv = append(rv, "_all")
 		return rv
 	}
 
@@ -107,9 +109,7 @@ func fetchSearchableFields(path string, typeMapping *mapping.DocumentMapping) []
 			}
 		}
 		if typeMapping.Enabled {
-			if typeMapping.Dynamic {
-				rv = append(rv, "_all")
-			} else {
+			if !typeMapping.Dynamic {
 				extra := fetchSearchableFields(newPath, childMapping)
 				rv = append(rv, extra...)
 			}

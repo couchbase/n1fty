@@ -86,7 +86,7 @@ func BuildQueryBytes(field, input string, options []byte) ([]byte, error) {
 			return nil, fmt.Errorf("BuildQueryBytes Parse, err: %v", err)
 		}
 
-		if field != "" && field != "_all" {
+		if field != "" {
 			updateFieldsInQuery(q, field)
 		}
 
@@ -107,7 +107,7 @@ func BuildQueryBytes(field, input string, options []byte) ([]byte, error) {
 		fallthrough
 	case "term":
 		output := map[string]interface{}{}
-		if field != "" && field != "_all" {
+		if field != "" {
 			output["field"] = field
 		}
 		output[opt.Type] = input

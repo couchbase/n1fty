@@ -216,6 +216,9 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string, query, options val
 	int, bool, []byte, errors.Error) {
 	// TODO: Check compatibility of query's analyzer and index's analyzer,
 	// so as to let N1QL decide which index to choose from.
+
+	field = util.CleanseField(field)
+
 	var fieldsToSearch []string
 	var qBytes []byte
 	var err error
