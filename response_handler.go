@@ -223,7 +223,7 @@ func (r *responseHandler) sendEntry(hit *search.DocumentMatch,
 
 	select {
 	case entryCh <- &datastore.IndexEntry{PrimaryKey: hit.ID,
-		MetaData: value.NewValue(hit.Score)}:
+		MetaData: value.NewValue(map[string]interface{}{"score": hit.Score})}:
 		// NO-OP.
 	case <-stopCh:
 		return false
