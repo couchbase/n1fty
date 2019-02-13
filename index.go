@@ -14,6 +14,7 @@ package n1fty
 import (
 	"context"
 	"encoding/base64"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -24,7 +25,6 @@ import (
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/expression"
-	"github.com/couchbase/query/expression/parser"
 	"github.com/couchbase/query/timestamp"
 	"github.com/couchbase/query/value"
 )
@@ -38,38 +38,28 @@ type FTSIndex struct {
 	name     string
 	indexDef *cbgt.IndexDef
 
-	searchableFields      map[string]struct{} // map of searchable fields
-	defaultMappingDynamic bool
-	rangeKeyExpressions   expression.Expressions
+	searchableFields map[string]*util.FieldDescription // map of searchable fields
+	dynamicMapping   bool
 }
 
 // -----------------------------------------------------------------------------
 
-func newFTSIndex(searchableFieldsMap map[string][]string,
-	defaultMappingDynamic bool,
+func newFTSIndex(searchableFieldsTypeMap map[string][]*util.FieldDescription,
+	dynamicMapping bool,
 	indexDef *cbgt.IndexDef,
 	indexer *FTSIndexer) (*FTSIndex, error) {
 	index := &FTSIndex{
-		indexer:               indexer,
-		id:                    indexDef.UUID,
-		name:                  indexDef.Name,
-		indexDef:              indexDef,
-		searchableFields:      map[string]struct{}{},
-		defaultMappingDynamic: defaultMappingDynamic,
-		rangeKeyExpressions:   expression.Expressions{},
+		indexer:          indexer,
+		id:               indexDef.UUID,
+		name:             indexDef.Name,
+		indexDef:         indexDef,
+		searchableFields: map[string]*util.FieldDescription{},
+		dynamicMapping:   dynamicMapping,
 	}
 
-	v := struct{}{}
-
-	for _, fields := range searchableFieldsMap {
+	for _, fields := range searchableFieldsTypeMap {
 		for _, entry := range fields {
-			index.searchableFields[entry] = v
-			rangeKeyExpr, err := parser.Parse(entry)
-			if err != nil {
-				return nil, err
-			}
-			index.rangeKeyExpressions = append(index.rangeKeyExpressions,
-				rangeKeyExpr)
+			index.searchableFields[entry.Name] = entry
 		}
 	}
 
@@ -104,7 +94,8 @@ func (i *FTSIndex) SeekKey() expression.Expressions {
 }
 
 func (i *FTSIndex) RangeKey() expression.Expressions {
-	return i.rangeKeyExpressions
+	// not supported
+	return nil
 }
 
 func (i *FTSIndex) Condition() expression.Expression {
@@ -205,23 +196,45 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 
 // -----------------------------------------------------------------------------
 
+// Sargable checks if the provided request is applicable for the index.
+// Return parameters:
+// - count:    This is the number of fields whose names along with analyzers
+//             matched with that of the index definition
+// - sargable: True if all the fields from the query, are supported by the index
+// Note: it is possible for the API to return true on sargable, but 0 as count.
+// The caller will have to make the decision on which index to choose based
+// on the count and the flag returned.
 func (i *FTSIndex) Sargable(field string, query, options expression.Expression) (
 	int, bool, errors.Error) {
+	var queryVal, optionsVal value.Value
+	if query != nil {
+		queryVal = query.Value()
+	}
+	if options != nil {
+		optionsVal = options.Value()
+	}
+
 	count, sargable, _, err := i.buildQueryAndCheckIfSargable(
-		field, query.Value(), options.Value())
+		field, queryVal, optionsVal)
+
 	return count, sargable, err
 }
 
 func (i *FTSIndex) buildQueryAndCheckIfSargable(field string, query, options value.Value) (
 	int, bool, []byte, errors.Error) {
-	// TODO: Check compatibility of query's analyzer and index's analyzer,
-	// so as to let N1QL decide which index to choose from.
-
 	field = util.CleanseField(field)
 
-	var fieldsToSearch []string
+	var fieldsToSearch []*util.FieldDescription
 	var qBytes []byte
 	var err error
+
+	var optionsBytes []byte
+	if options != nil {
+		optionsBytes, err = options.MarshalJSON()
+		if err != nil {
+			return 0, false, nil, errors.NewError(err, "")
+		}
+	}
 
 	if query != nil {
 		queryStr, ok := query.Actual().(string)
@@ -229,39 +242,83 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string, query, options val
 			return 0, false, nil, errors.NewError(nil, "query provided not a string")
 		}
 
-		var optionsBytes []byte
-		if options != nil {
-			// TODO: retrieve index name/mapping here as well, to establish sargable-ity
-			optionsBytes, err = options.MarshalJSON()
-			if err != nil {
-				return 0, false, nil, errors.NewError(err, "")
-			}
-		}
-
 		qBytes, err = util.BuildQueryBytes(field, queryStr, optionsBytes)
 		if err != nil {
 			return 0, false, nil, errors.NewError(err, "")
 		}
 
-		fieldsToSearch, err = util.FetchFieldsToSearch(qBytes)
+		fieldsToSearch, err = util.FetchFieldsToSearchFromQuery(qBytes)
 		if err != nil {
 			return 0, false, qBytes, errors.NewError(err, "")
 		}
 	} else {
-		fieldsToSearch = []string{field}
+		var analyzer string
+		if analyzerVal, exists := options.Field("analyzer"); exists {
+			if val, ok := analyzerVal.Actual().(string); ok {
+				analyzer = val
+			}
+		}
+		fieldsToSearch = []*util.FieldDescription{{
+			Name:     field,
+			Analyzer: analyzer,
+		}}
 	}
 
-	if i.defaultMappingDynamic {
+	if i.dynamicMapping {
 		return 1, true, qBytes, nil
 	}
 
-	for _, field := range fieldsToSearch {
-		if _, exists := i.searchableFields[field]; !exists {
+	var sargableCount int
+	for _, f := range fieldsToSearch {
+		desc, exists := i.searchableFields[f.Name]
+		if exists && desc.Dynamic {
+			// if searched field contains nested fields, then this field is not
+			// searchable, and the query not sargable.
 			return 0, false, qBytes, nil
+		}
+
+		if exists {
+			if f.Analyzer == desc.Analyzer {
+				sargableCount++
+			}
+		} else {
+			// check if a prefix of this field name is searchable.
+			// - (prefix being delimited by ".")
+			// e.g.: potential candidates for "reviews.review.content.author" are:
+			// - reviews
+			// - reviews.review
+			// - reviews.review.content
+			// .. only if any of the above mappings are dynamic.
+			fieldSplitAtDot := strings.Split(f.Name, ".")
+			if len(fieldSplitAtDot) <= 1 {
+				// not sargable
+				return 0, false, qBytes, nil
+			}
+
+			var matched bool
+			entry := fieldSplitAtDot[0]
+			for k := 1; k < len(fieldSplitAtDot); k++ {
+				if desc1, exists1 := i.searchableFields[entry]; exists1 {
+					if desc1.Dynamic {
+						if f.Analyzer == desc1.Analyzer {
+							sargableCount++
+						}
+						matched = true
+						break
+					}
+				}
+
+				entry += "." + fieldSplitAtDot[k]
+			}
+
+			if !matched {
+				// not sargable
+				return 0, false, qBytes, nil
+			}
 		}
 	}
 
-	return 1, true, qBytes, nil
+	return sargableCount, true, qBytes, nil
 }
 
 // -----------------------------------------------------------------------------

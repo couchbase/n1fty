@@ -21,8 +21,14 @@ import (
 	"github.com/couchbase/query/logging"
 )
 
+type FieldDescription struct {
+	Name     string
+	Analyzer string
+	Dynamic  bool
+}
+
 func SearchableFieldsForIndexDef(indexDef *cbgt.IndexDef) (
-	map[string][]string, bool) {
+	map[string][]*FieldDescription, bool) {
 	bp := cbft.NewBleveParams()
 	err := json.Unmarshal([]byte(indexDef.Params), bp)
 	if err != nil {
@@ -51,50 +57,62 @@ func SearchableFieldsForIndexDef(indexDef *cbgt.IndexDef) (
 		return nil, false
 	}
 
-	// FIXME: Choose a better data structure here for identifying the
-	// correct searchable fields if incase of dynamic child mappings,
-	// and "searchable as" settings.
-	searchableFieldsMap := map[string][]string{}
+	searchableFieldsMap := map[string][]*FieldDescription{}
 
+	var dynamicMapping bool
 	for typeName, typeMapping := range bm.TypeMapping {
 		if typeMapping.Enabled {
 			if typeMapping.Dynamic {
 				// everything under document type is indexed
-				searchableFieldsMap[typeName] = []string{}
+				searchableFieldsMap[typeName] = []*FieldDescription{}
+				dynamicMapping = true
 			} else {
 				searchableFieldsMap[typeName] = fetchSearchableFields("", typeMapping)
 			}
 		}
 	}
 
-	defaultMappingDynamic := false
 	if bm.DefaultMapping != nil && bm.DefaultMapping.Enabled {
 		if bm.DefaultMapping.Dynamic {
-			searchableFieldsMap["default"] = []string{}
-			defaultMappingDynamic = true
+			searchableFieldsMap["default"] = []*FieldDescription{}
+			dynamicMapping = true
 		} else {
-			rv := fetchSearchableFields("", bm.DefaultMapping)
-			searchableFieldsMap["default"] = rv
+			searchableFieldsMap["default"] = fetchSearchableFields("", bm.DefaultMapping)
 		}
 	}
 
-	return searchableFieldsMap, defaultMappingDynamic
+	return searchableFieldsMap, dynamicMapping
 }
 
-func fetchSearchableFields(path string, typeMapping *mapping.DocumentMapping) []string {
-	rv := []string{}
+func fetchSearchableFields(path string,
+	typeMapping *mapping.DocumentMapping) []*FieldDescription {
+	rv := []*FieldDescription{}
 
-	if len(typeMapping.Fields) == 0 && len(typeMapping.Properties) == 0 &&
-		typeMapping.Enabled && typeMapping.Dynamic {
+	if !typeMapping.Enabled {
+		return rv
+	}
+
+	if typeMapping.Dynamic {
+		rv = append(rv, &FieldDescription{
+			Name:     path,
+			Dynamic:  true,
+			Analyzer: typeMapping.DefaultAnalyzer,
+		})
 		return rv
 	}
 
 	for _, field := range typeMapping.Fields {
 		if field.Index {
 			if len(path) == 0 {
-				rv = append(rv, field.Name)
+				rv = append(rv, &FieldDescription{
+					Name:     field.Name,
+					Analyzer: field.Analyzer,
+				})
 			} else {
-				rv = append(rv, path+"."+field.Name)
+				rv = append(rv, &FieldDescription{
+					Name:     path + "." + field.Name,
+					Analyzer: field.Analyzer,
+				})
 			}
 		}
 	}
@@ -108,12 +126,8 @@ func fetchSearchableFields(path string, typeMapping *mapping.DocumentMapping) []
 				newPath += "." + childMappingName
 			}
 		}
-		if typeMapping.Enabled {
-			if !typeMapping.Dynamic {
-				extra := fetchSearchableFields(newPath, childMapping)
-				rv = append(rv, extra...)
-			}
-		}
+		extra := fetchSearchableFields(newPath, childMapping)
+		rv = append(rv, extra...)
 	}
 
 	return rv
@@ -121,13 +135,13 @@ func fetchSearchableFields(path string, typeMapping *mapping.DocumentMapping) []
 
 // -----------------------------------------------------------------------------
 
-func FetchFieldsToSearch(q []byte) ([]string, error) {
+func FetchFieldsToSearchFromQuery(q []byte) ([]*FieldDescription, error) {
 	que, err := query.ParseQuery(q)
 	if err != nil {
 		return nil, err
 	}
 
-	fields := []string{}
+	fields := []*FieldDescription{}
 	var walk func(que query.Query)
 
 	walk = func(que query.Query) {
@@ -146,7 +160,19 @@ func FetchFieldsToSearch(q []byte) ([]string, error) {
 			}
 		default:
 			if fq, ok := que.(query.FieldableQuery); ok {
-				fields = append(fields, fq.Field())
+
+				fieldDesc := &FieldDescription{
+					Name: fq.Field(),
+				}
+
+				// Read analyzers for MatchQuery, MatchPhraseQuery
+				if mq, ok := que.(*query.MatchQuery); ok {
+					fieldDesc.Analyzer = mq.Analyzer
+				} else if mpq, ok := que.(*query.MatchPhraseQuery); ok {
+					fieldDesc.Analyzer = mpq.Analyzer
+				}
+
+				fields = append(fields, fieldDesc)
 			}
 		}
 	}

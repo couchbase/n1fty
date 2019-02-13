@@ -21,156 +21,32 @@ import (
 )
 
 func TestIndexDefConversion(t *testing.T) {
-	sampleIndexDef := []byte(`{
-		"type": "fulltext-index",
-		"name": "travel",
-		"uuid": "xyz",
-		"sourceType": "couchbase",
-		"sourceName": "travel-sample",
-		"sourceUUID": "",
-		"planParams": {
-			"maxPartitionsPerPIndex": 171
-		},
-		"params": {
-			"doc_config": {
-				"docid_prefix_delim": "",
-				"docid_regexp": "",
-				"mode": "type_field",
-				"type_field": "type"
-			},
-			"mapping": {
-				"analysis": {},
-				"default_analyzer": "standard",
-				"default_datetime_parser": "dateTimeOptional",
-				"default_field": "_all",
-				"default_mapping": {
-					"dynamic": true,
-					"enabled": true
-				},
-				"default_type": "_default",
-				"docvalues_dynamic": true,
-				"index_dynamic": true,
-				"store_dynamic": false,
-				"type_field": "_type",
-				"types": {
-					"hotel": {
-						"dynamic": false,
-						"enabled": true,
-						"properties": {
-							"country": {
-								"dynamic": false,
-								"enabled": true,
-								"fields": [{
-									"docvalues": true,
-									"include_in_all": true,
-									"include_term_vectors": true,
-									"index": true,
-									"name": "country",
-									"store": true,
-									"type": "text"
-								}]
-							},
-							"reviews": {
-								"dynamic": false,
-								"enabled": true,
-								"properties": {
-									"author": {
-										"dynamic": false,
-										"enabled": true,
-										"fields": [{
-											"docvalues": true,
-											"include_in_all": true,
-											"include_term_vectors": true,
-											"index": true,
-											"name": "author",
-											"store": true,
-											"type": "text"
-										}]
-									},
-									"content": {
-										"dynamic": false,
-										"enabled": true,
-										"fields": [{
-											"docvalues": true,
-											"include_in_all": true,
-											"include_term_vectors": true,
-											"index": true,
-											"name": "content",
-											"store": true,
-											"type": "text"
-										}]
-									}
-								}
-							},
-							"state": {
-								"dynamic": false,
-								"enabled": true,
-								"fields": [{
-									"docvalues": true,
-									"include_in_all": true,
-									"include_term_vectors": true,
-									"index": true,
-									"name": "state",
-									"store": true,
-									"type": "text"
-								}]
-							}
-						}
-					},
-					"landmark": {
-						"dynamic": false,
-						"enabled": true,
-						"properties": {
-							"country": {
-								"dynamic": false,
-								"enabled": true,
-								"fields": [{
-									"docvalues": true,
-									"include_in_all": true,
-									"include_term_vectors": true,
-									"index": true,
-									"name": "country",
-									"store": true,
-									"type": "text"
-								}]
-							},
-							"reviews": {
-								"dynamic": true,
-								"enabled": true
-							}
-						}
-					}
-				}
-			},
-			"store": {
-				"indexType": "scorch",
-				"kvStoreName": ""
-			}
-		}
-	}`)
-
-	var id *cbgt.IndexDef
-	err := json.Unmarshal(sampleIndexDef, &id)
+	var indexDef *cbgt.IndexDef
+	err := json.Unmarshal(SampleIndexDef, &indexDef)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	got, _ := SearchableFieldsForIndexDef(id)
+	got, _ := SearchableFieldsForIndexDef(indexDef)
 	if got == nil {
 		t.Fatalf("expected a set of searchable fields")
 	}
 
-	for _, value := range got {
-		sort.Strings(value)
+	gotMap := map[string][]string{}
+	for k, v := range got {
+		gotMap[k] = []string{}
+		for _, entry := range v {
+			gotMap[k] = append(gotMap[k], entry.Name)
+		}
+		sort.Strings(gotMap[k])
 	}
 
 	expect := map[string][]string{}
-	expect["hotel"] = []string{"country", "reviews.author", "reviews.content", "state"}
-	expect["landmark"] = []string{"country"}
-	expect["default"] = []string{}
+	expect["landmark"] = []string{"countryX", "reviews.id", "reviews.review"}
+	expect["hotel"] = []string{"country"}
 
-	if !reflect.DeepEqual(expect, got) {
-		t.Fatalf("Expected: %v, Got: %v", expect, got)
+	if !reflect.DeepEqual(expect, gotMap) {
+		t.Fatalf("Expected: %v, Got: %v", expect, gotMap)
 	}
 }
 
@@ -220,9 +96,14 @@ func TestFieldsToSearch(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		fields, err := FetchFieldsToSearch(qBytes)
+		fieldDescs, err := FetchFieldsToSearchFromQuery(qBytes)
 		if err != nil {
 			t.Fatal(err)
+		}
+
+		fields := []string{}
+		for _, entry := range fieldDescs {
+			fields = append(fields, entry.Name)
 		}
 
 		sort.Strings(fields)
