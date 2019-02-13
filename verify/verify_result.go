@@ -72,6 +72,10 @@ func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
 		return false, errors.NewError(err, "could not insert doc into index")
 	}
 
+	defer func() {
+		v.idx.Delete("temp_doc")
+	}()
+
 	res, err := v.idx.Search(v.sr)
 	if err != nil {
 		return false, errors.NewError(err, "search failed")
