@@ -88,10 +88,6 @@ type FieldTracks map[FieldTrack]int
 type FieldInfo struct {
 	FieldPath []string // Ex: ["name"], ["addr", "city"], [].
 	FieldType string   // Ex: "string", "number".
-
-	// TODO: One day when we support multiple type mappings...
-	// AllowedDocTypes    []string // Ex: { "type": "beer", ... }.
-	// DisallowedDocTypes []string
 }
 
 type FieldInfos []*FieldInfo

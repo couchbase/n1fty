@@ -24,18 +24,17 @@ var CmpReverse = map[string]string{
 // Allows apps to declare supported expressions to FlexSargable().
 type SupportedExpr interface {
 	// Checks whether the SupportedExpr can handle an expr.
-	Supports(fi *FlexIndex, identifiers Identifiers,
-		expr expression.Expression, exprFieldTypes FieldTypes) (
-		matches bool, fieldTracks FieldTracks, needsFiltering bool,
-		flexBuild *FlexBuild, err error)
+	Supports(fi *FlexIndex, ids Identifiers,
+		expr expression.Expression, exprFTs FieldTypes) (matches bool,
+		ft FieldTracks, needsFiltering bool, fb *FlexBuild, err error)
 }
 
 // ----------------------------------------------------------------------
 
 type SupportedExprNoop struct{} // A supported expression that never matches.
 
-func (s *SupportedExprNoop) Supports(fi *FlexIndex, identifiers Identifiers,
-	expr expression.Expression, exprFieldTypes FieldTypes) (
+func (s *SupportedExprNoop) Supports(fi *FlexIndex, ids Identifiers,
+	expr expression.Expression, exprFTs FieldTypes) (
 	bool, FieldTracks, bool, *FlexBuild, error) {
 	fmt.Printf("SupportedExprNoop, expr: %+v, %#v\n", expr, expr)
 	return false, nil, false, nil, nil
@@ -60,12 +59,12 @@ type SupportedExprCmpFieldConstant struct {
 	FieldPathPartial bool
 
 	// When FieldTypeCheck is true, additional type checks on the
-	// FieldPath are performed based on the gathered exprFieldTypes.
+	// FieldPath are done based on FieldTypes gathered from the expr.
 	FieldTypeCheck bool
 }
 
 func (s *SupportedExprCmpFieldConstant) Supports(fi *FlexIndex, ids Identifiers,
-	expr expression.Expression, exprFieldTypes FieldTypes) (
+	expr expression.Expression, exprFTs FieldTypes) (
 	bool, FieldTracks, bool, *FlexBuild, error) {
 	f, ok := expr.(expression.BinaryFunction)
 	if !ok ||
@@ -75,18 +74,16 @@ func (s *SupportedExprCmpFieldConstant) Supports(fi *FlexIndex, ids Identifiers,
 	}
 
 	matches, fieldTracks, needsFiltering, flexBuild, err :=
-		s.SupportsXY(fi, ids, f.Name(),
-			f.First(), f.Second(), exprFieldTypes)
+		s.SupportsXY(fi, ids, f.Name(), f.First(), f.Second(), exprFTs)
 	if err != nil || matches {
 		return matches, fieldTracks, needsFiltering, flexBuild, err
 	}
 
-	return s.SupportsXY(fi, ids, CmpReverse[f.Name()],
-		f.Second(), f.First(), exprFieldTypes)
+	return s.SupportsXY(fi, ids, CmpReverse[f.Name()], f.Second(), f.First(), exprFTs)
 }
 
 func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifiers,
-	fName string, exprX, exprY expression.Expression, exprFieldTypes FieldTypes) (
+	fName string, exprX, exprY expression.Expression, exprFTs FieldTypes) (
 	bool, FieldTracks, bool, *FlexBuild, error) {
 	suffix, ok := ExpressionFieldPathSuffix(ids, exprX, s.FieldPath, nil)
 	if !ok {
@@ -130,15 +127,14 @@ func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifier
 	}
 
 	if exprFieldTypesCheck {
-		fieldType, ok := exprFieldTypes.Lookup(FieldTrack(fieldTrack))
+		fieldType, ok := exprFTs.Lookup(FieldTrack(fieldTrack))
 		if !ok || fieldType != s.ValueType {
 			return true, nil, false, nil, nil // Wrong field type, not-sargable.
 		}
 	}
 
 	return true, FieldTracks{FieldTrack(fieldTrack): 1}, false, &FlexBuild{
-		Kind: "expr",
-		Data: []string{
+		Kind: "expr", Data: []string{
 			fName + "FieldConstant", fieldTrack, s.ValueType, exprY.String(),
 		},
 	}, nil

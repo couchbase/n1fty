@@ -70,16 +70,23 @@ TODO...
 
 - conversion/translation of FlexBuild to a bleve query.
 
-- multiple doc type mappings
-  - 1st release can start by only supporting a single type mapping.
-  - approaches...
-    - each doc type mapping becomes another flexible index.
-      - each with its own Cond(), which needs support.
-      - this disallows queries that involve multiple types.
-    - enhance IndexedFields with allowed/disallowed doc types.
-      - these can checked as top-level AND conditions.
-
 - expression - SEARCH().
+
+- multiple doc type mappings.
+  - 1st release can start by only supporting the default type mapping.
+    - possibly on fields that are only in the default type mapping.
+  - 2nd version might support only a single type mapping,
+    - possibly on fields that are only in that type mapping.
+    - BUT, can be false-negative in perverse N1QL that is filtering
+      for `... OR myBucket.type = "someOtherType"`.
+    - BUT, this can be false-positive inefficient in perverse N1QL
+      that is filtering `... AND myBucket.type != "myType"`.
+  - also need to support the default type mapping.
+  - an approach is that IndexedFields / FieldInfos can be
+    hierarchical, where the top-level FieldInfo represents the default
+    type mapping.
+    - the doc type field can be checked as part of AND conditions.
+    - the doc type may be based on docId regexp or prefix delimeter.
 
 - expression - CONTAINS.
 

@@ -44,16 +44,15 @@ func (f FieldTypes) Lookup(k FieldTrack) (string, bool) {
 // copy-on-write fashion onto the provided exprFieldTypes.  This
 // allows field-type info from deeper levels in the expr tree to
 // shadow or override field-type info from parent levels.
-func ProcessConjunctFieldTypes(
-	indexedFields FieldInfos, identifiers Identifiers,
-	exprs expression.Expressions, exprFieldTypes FieldTypes) (
-	exprsOut expression.Expressions, exprFieldTypesOut FieldTypes,
+func ProcessConjunctFieldTypes(indexedFields FieldInfos, ids Identifiers,
+	exprs expression.Expressions, exprFTs FieldTypes) (
+	exprsOut expression.Expressions, exprFTsOut FieldTypes,
 	needsFiltering bool, ok bool) {
 	p := &ConjunctFieldTypes{
 		IndexedFields:  indexedFields,
-		Identifiers:    identifiers,
+		Identifiers:    ids,
 		Exprs:          exprs,
-		ExprFieldTypes: exprFieldTypes,
+		ExprFieldTypes: exprFTs,
 	}
 
 OUTER:
@@ -176,9 +175,9 @@ func (p *ConjunctFieldTypes) CheckFieldTypeLoHi(
 		return NotMatch
 	}
 
-	// Check (loValue <= `t`.`a`).
 	exprLo := p.ExprsOut[len(p.ExprsOut)-1]
 
+	// Check (loValue <= `t`.`a`).
 	bfLo, ok := exprLo.(expression.BinaryFunction)
 	if !ok || !strings.Contains(loComp, bfLo.Name()) {
 		return NotMatch
@@ -204,6 +203,11 @@ func (p *ConjunctFieldTypes) CheckFieldTypeLoHi(
 		return NotMatch
 	}
 
+	cHi, ok := bfHi.Second().(*expression.Constant)
+	if !ok {
+		return NotMatch
+	}
+
 	fiHi, suffixHi := p.IndexedFields.Find(p.Identifiers, bfHi.First(), nil)
 	if fiHi == nil {
 		return NotMatch
@@ -217,11 +221,6 @@ func (p *ConjunctFieldTypes) CheckFieldTypeLoHi(
 		if s != suffixLo[si] {
 			return NotMatch
 		}
-	}
-
-	cHi, ok := bfHi.Second().(*expression.Constant)
-	if !ok {
-		return NotMatch
 	}
 
 	if cLo.Value().Equals(loValue).Truth() && strings.HasPrefix(loComp, bfLo.Name()) &&
@@ -238,7 +237,7 @@ func (p *ConjunctFieldTypes) CheckFieldTypeLoHi(
 	}
 
 	if (cLo.Value().Type().String() == fieldType &&
-		cLo.Value().Type() == cHi.Value().Type() &&
+		cHi.Value().Type().String() == fieldType &&
 		cLo.Value().Collate(cHi.Value()) <= 0) &&
 		p.AddLearning(fiHi.FieldPath, suffixHi, fieldType) {
 		p.ExprsOut = append(p.ExprsOut, exprHi)
