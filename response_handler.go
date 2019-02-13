@@ -110,7 +110,10 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 				logPrefix, len(hits))
 
 			for _, hit := range hits {
-				r.sendEntry(hit, conn)
+				connOk := r.sendEntry(hit, conn)
+				if !connOk {
+					return
+				}
 			}
 
 			if firstResponseByte == false {
@@ -195,7 +198,10 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 
 		} else if hits != nil {
 			for _, hit := range hits {
-				r.sendEntry(hit, conn)
+				connOk := r.sendEntry(hit, conn)
+				if !connOk {
+					return
+				}
 			}
 		}
 	}
