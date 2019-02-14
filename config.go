@@ -29,11 +29,11 @@ import (
 	"github.com/couchbase/query/logging"
 )
 
-const backfillSpaceDir = "backfillSpaceDir"
-const backfillSpaceLimit = "backfillSpaceLimit"
+const backfillSpaceDir = "query_tmpspace_dir"
+const backfillSpaceLimit = "query_tmpspace_limit"
 const searchTimeoutMS = "searchTimeoutMS"
 
-var defaultBackfillLimit = int64(100)      // default tmp space limit
+var defaultBackfillLimit = int64(200)      // default tmp space limit
 var defaultSearchTimeoutMS = int64(120000) // 2min
 
 const backfillPrefix = "search-results"

@@ -50,7 +50,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 
 	entryCh := conn.EntryChannel()
 	backfillLimit := getBackfillSpaceLimit()
-	firstResponseByte, starttm := false, time.Now()
+	firstResponseByte, starttm, ftsDur := false, time.Now(), time.Now()
 
 	var enc *gob.Encoder
 	var dec *gob.Decoder
@@ -90,8 +90,6 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 
 			cummsize := float64(atomic.LoadInt64(
 				&r.i.indexer.stats.CurBackFillSize)) / defaultSizeInMB
-			logging.Infof("response_handler: %d cummsize %f",
-				atomic.LoadInt64(&r.i.indexer.stats.CurBackFillSize), cummsize)
 			if cummsize > float64(backfillLimit) {
 				fmsg := "%q backfill size: %d exceeded limit: %d"
 				err := fmt.Errorf(fmsg, r.requestID, cummsize, backfillLimit)
@@ -106,21 +104,19 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 				return
 			}
 
-			logging.Infof("response_handler: %v backfill read %v entries",
-				logPrefix, len(hits))
+			atomic.AddInt64(&r.i.indexer.stats.TotalThrottledFtsDuration,
+				int64(time.Since(ftsDur)))
 
-			for _, hit := range hits {
-				connOk := r.sendEntry(hit, conn)
+			for i := range hits {
+				connOk := r.sendEntry(hits[i], conn)
 				if !connOk {
 					return
 				}
 			}
 
-			if firstResponseByte == false {
-				atomic.AddInt64(&r.i.indexer.stats.TotalTTFBDuration,
-					int64(time.Since(starttm)))
-				firstResponseByte = true
-			}
+			// reset the time taken by fts
+			ftsDur = time.Now()
+
 		}
 	}
 
@@ -134,6 +130,13 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 		if err != nil {
 			conn.Error(n1qlError(err, "response_handler: stream.Recv, err "))
 			return
+		}
+
+		// account the time to first byte response from fts
+		if firstResponseByte == false {
+			atomic.AddInt64(&r.i.indexer.stats.TotalTTFBDuration,
+				int64(time.Since(starttm)))
+			firstResponseByte = true
 		}
 
 		var hits []*search.DocumentMatch
@@ -175,8 +178,6 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 			// whether temp-file is exhausted the limit.
 			cummsize := float64(atomic.LoadInt64(
 				&r.i.indexer.stats.CurBackFillSize)) / defaultSizeInMB
-			logging.Infof("response_handler: CurBackfillSize %d cummsize %f",
-				atomic.LoadInt64(&r.i.indexer.stats.CurBackFillSize), cummsize)
 			if cummsize > float64(backfillLimit) {
 				fmsg := "%q backfill exceeded limit %v, %v"
 				err := fmt.Errorf(fmsg, r.requestID, backfillLimit, cummsize)
@@ -197,15 +198,34 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 			atomic.AddInt64(&backfillEntries, 1)
 
 		} else if hits != nil {
-			for _, hit := range hits {
-				connOk := r.sendEntry(hit, conn)
+
+			atomic.AddInt64(&r.i.indexer.stats.TotalThrottledFtsDuration,
+				int64(time.Since(ftsDur)))
+
+			for i := range hits {
+				connOk := r.sendEntry(hits[i], conn)
 				if !connOk {
 					return
 				}
 			}
+
+			// reset the time taken by fts
+			ftsDur = time.Now()
 		}
 	}
+}
 
+func (r *responseHandler) cleanupBackfill() {
+	if r.backfillFile != nil {
+		r.backfillFile.Close()
+		fname := r.backfillFile.Name()
+		if err := os.Remove(fname); err != nil {
+			fmsg := "%v remove backfill file %v unexpected failure: %v\n"
+			logging.Errorf("response_handler: cleanupBackfills, err: %v",
+				fmt.Errorf(fmsg, fname, err))
+		}
+		atomic.AddInt64(&r.i.indexer.stats.TotalBackFills, 1)
+	}
 }
 
 func (r *responseHandler) sendEntry(hit *search.DocumentMatch,
@@ -254,19 +274,19 @@ func logStats(logtick time.Duration, i *FTSIndexer) {
 			n1qlDur := atomic.LoadInt64(&i.stats.TotalThrottledN1QLDuration)
 			ftsDur := atomic.LoadInt64(&i.stats.TotalThrottledFtsDuration)
 			ttfbDur := atomic.LoadInt64(&i.stats.TotalTTFBDuration)
-			totalsearch := atomic.LoadInt64(&i.stats.TotalSearch)
-			totalbackfills := atomic.LoadInt64(&i.stats.TotalBackFills)
-			if totalsearch > sofar {
+			totalSearch := atomic.LoadInt64(&i.stats.TotalSearch)
+			totalBackfills := atomic.LoadInt64(&i.stats.TotalBackFills)
+			if totalSearch > sofar {
 				fmsg := `n1fty keyspace: %q {` +
 					`"n1fty_search_count":%v,"n1fty_search_duration":%v,` +
 					`"n1fty_fts_duration":%v,` +
 					`"n1fty_ttfb_duration":%v,"n1fty_n1ql_duration":%v,` +
 					`"n1fty_totalbackfills":%v}`
 				logging.Infof(
-					fmsg, i.keyspace, totalsearch, searchDur,
-					ftsDur, ttfbDur, n1qlDur, totalbackfills)
+					fmsg, i.keyspace, totalSearch, searchDur,
+					ftsDur, ttfbDur, n1qlDur, totalBackfills)
 			}
-			sofar = totalsearch
+			sofar = totalSearch
 		}
 	}
 }
@@ -336,16 +356,4 @@ func writeToBackfill(hits []*search.DocumentMatch, enc *gob.Encoder) error {
 		return err
 	}
 	return nil
-}
-
-func cleanupBackfills(tmpfile *os.File, requestID string) {
-	if tmpfile != nil {
-		tmpfile.Close()
-		fname := tmpfile.Name()
-		if err := os.Remove(fname); err != nil {
-			fmsg := "%v remove backfill file %v unexpected failure: %v\n"
-			logging.Errorf("response_handler: cleanupBackfills, err: %v",
-				fmt.Errorf(fmsg, fname, err))
-		}
-	}
 }

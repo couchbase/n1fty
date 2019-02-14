@@ -119,7 +119,7 @@ func NewFTSIndexer(serverIn, namespace, keyspace string) (datastore.Indexer,
 
 	go backfillMonitor(1*time.Second, indexer)
 	// configurable interval later
-	go logStats(300*time.Millisecond, indexer)
+	go logStats(60*time.Second, indexer)
 
 	return indexer, nil
 }

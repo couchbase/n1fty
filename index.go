@@ -176,7 +176,7 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 		atomic.StoreInt64(&backfillSync, doneRequest)
 		waitGroup.Wait()
 		close(entryCh)
-		cleanupBackfills(rh.backfillFile, requestId)
+		rh.cleanupBackfill()
 	}()
 
 	searchRequest := &pb.SearchRequest{
