@@ -47,9 +47,8 @@ The FlexIndex.Sargable() implementation currently supports...
 - string inequality comparisons (i.e., lastName <= "t").
   - NOTE: FTS does not generically support string inequality searches,
     but some narrow edge cases might be implemented as prefix searches.
-
-  - ">" and ">=" comparisons are handled as N1QL's planner.DNF
-    rewrites them into < and <=
+  - ">" and ">=" comparisons are also handled as N1QL's
+     planner.DNF rewrites them into < and <=.
 
 - handling LIKE expressions, as LIKE is rewritten by N1QL's
   planner.DNF as...
@@ -73,20 +72,53 @@ TODO...
 - expression - SEARCH().
 
 - multiple doc type mappings.
-  - 1st release can start by only supporting the default type mapping.
-    - possibly on fields that are only in the default type mapping.
-  - 2nd version might support only a single type mapping,
-    - possibly on fields that are only in that type mapping.
-    - BUT, can be false-negative in perverse N1QL that is filtering
-      for `... OR myBucket.type = "someOtherType"`.
-    - BUT, this can be false-positive inefficient in perverse N1QL
-      that is filtering `... AND myBucket.type != "myType"`.
-  - also need to support the default type mapping.
+  - 1st version can start by only supporting the default type mapping,
+    ensuring that no other type mappings are defined.
+  - otherwise, need to check the WHERE clause for all type mappings
+    (ex: type="beer"), because if you don't, there can be false negatives.
+    - example: FTS index has type mapping where type="beer", but the N1QL is
+      looking for WHERE name="coors" -- false negative as the FTS index will
+      be missing entries for brewery docs whose name is "coors".
+    - to be safe, it has to be WHERE name="coors" AND type="beer".
+    - this can be done on a conjunction level, a'la...
+      ((type = "beer" AND
+        beer_name = "coors" AND
+        expressions-with-fields-that-only-appear-in-beer-type-mapping) OR
+       (type = "brewery" AND
+        brewery_name = coors" AND
+        expressions-with-fields-that-only-appear-in-brewery-type-mapping)).
+    - fields indexed by the default type mapping need its
+      own type discriminator, like...
+      ((type != "beer" AND type != "brewery") AND
+       exprs-that-use-default-type-mapping-fields-only).
   - an approach is that IndexedFields / FieldInfos can be
     hierarchical, where the top-level FieldInfo represents the default
     type mapping.
     - the doc type field can be checked as part of AND conditions.
-    - the doc type may be based on docId regexp or prefix delimeter.
+    - the doc type may be based on docId regexp or prefix delimiter.
+
+- ISSUE: consider this expression - does it produce false negatives?
+  - ((ISNUMBER(a) AND a > 100) OR (ISSTRING(a) AND a = "hi"))
+  - this would be treated as not-sargable if there was an explicit
+      FieldInfo that listed an explicit type, like "string".
+  - but, what about dynamic indexing?
+    - a dynamic field is indexed by its value's type, except...
+      number becomes number, bool becomes bool,
+      string becomes either text or datetime (!!!).
+    - ISSUE!!! strings that look and parse like a datetime are
+      indexed as type "datetime" instead of "text", so this can
+      lead to a FALSE-NEGATIVE (!!!).  For example, if we use
+      a term search at search time (instead of a standard analyzer),
+      it might miss the docs with string values that
+      look like (or parse as) datetime.
+    - one solution is possible bleve bug fix or enhancement needed with:
+      bleve/mapping/document.go DocumentMapping.processProperty().
+    - 2nd solution (better?) is that cbft registers a datetime parser
+      called "none" or "never-a-datetime" that always returns an
+      error, forcing bleve dynamic indexing to use type "text".
+
+- issue: what about fields that have a null value?
+  ANS: they are not indexed by FTS.
 
 - expression - CONTAINS.
 
