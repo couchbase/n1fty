@@ -23,20 +23,29 @@ func NewVerify(keyspace, field string, query, options value.Value) (
 	datastore.Verify, errors.Error) {
 	field = util.CleanseField(field)
 
-	if query == nil {
-		return nil, errors.NewError(nil, "query not provided")
+	if query == nil || options == nil {
+		return nil, errors.NewError(nil, "query/options not provided")
 	}
 
-	// TODO: fetch index name/mapping here as well, to apply on the
-	// in-memory index that we're about to build.
+	indexNameVal, found := options.Field("index")
+	if !found {
+		return nil, errors.NewError(nil, "index not specified in options")
+	}
+
+	indexName, ok := indexNameVal.Actual().(string)
+	if !ok {
+		return nil, errors.NewError(nil, "index name provided not a string")
+	}
+
+	idxMapping, err := util.FetchIndexMapping(indexName)
+	if err != nil {
+		return nil, errors.NewError(nil, "index mapping not found")
+	}
 
 	q, err := util.BuildQuery(field, query, options)
 	if err != nil {
 		return nil, errors.NewError(err, "")
 	}
-
-	// TODO: use custom mapping, if available/provided
-	idxMapping := bleve.NewIndexMapping()
 
 	idx, err := bleve.NewMemOnly(idxMapping)
 	if err != nil {

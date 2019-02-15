@@ -12,8 +12,34 @@
 package util
 
 import (
+	"fmt"
 	"strings"
+	"sync"
+
+	"github.com/blevesearch/bleve/mapping"
 )
+
+var indexMappingsLock sync.RWMutex
+var indexMappings map[string]mapping.IndexMapping
+
+func init() {
+	indexMappings = make(map[string]mapping.IndexMapping)
+}
+
+func SetIndexMapping(name string, iMapping mapping.IndexMapping) {
+	indexMappingsLock.Lock()
+	indexMappings[name] = iMapping
+	indexMappingsLock.Unlock()
+}
+
+func FetchIndexMapping(name string) (mapping.IndexMapping, error) {
+	indexMappingsLock.RLock()
+	defer indexMappingsLock.RUnlock()
+	if iMapping, exists := indexMappings[name]; exists {
+		return iMapping, nil
+	}
+	return nil, fmt.Errorf("index mapping not found for: %v", name)
+}
 
 func CleanseField(field string) string {
 	// The field string provided by N1QL will be enclosed within

@@ -14,16 +14,22 @@ package verify
 import (
 	"testing"
 
+	"github.com/blevesearch/bleve"
+	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/value"
 )
 
 func TestVerifyResult(t *testing.T) {
 	q := struct {
-		field string
-		query string
+		field   string
+		query   value.Value
+		options value.Value
 	}{
 		field: "",
-		query: `+name:"stark" +dept:"hand"`,
+		query: value.NewValue(`+name:"stark" +dept:"hand"`),
+		options: value.NewValue(map[string]interface{}{
+			"index": "temp",
+		}),
 	}
 
 	tests := []struct {
@@ -48,7 +54,9 @@ func TestVerifyResult(t *testing.T) {
 		},
 	}
 
-	v, err := NewVerify("", q.field, value.NewValue(q.query), nil)
+	util.SetIndexMapping("temp", bleve.NewIndexMapping())
+
+	v, err := NewVerify("", q.field, q.query, q.options)
 	if err != nil {
 		t.Fatal(err)
 	}

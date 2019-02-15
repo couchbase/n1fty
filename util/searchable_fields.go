@@ -57,6 +57,9 @@ func SearchableFieldsForIndexDef(indexDef *cbgt.IndexDef) (
 		return nil, false
 	}
 
+	// set this index mapping into the indexMappings cache
+	SetIndexMapping(indexDef.Name, bp.Mapping)
+
 	searchableFieldsMap := map[string][]*FieldDescription{}
 
 	var dynamicMapping bool
