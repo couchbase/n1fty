@@ -22,7 +22,7 @@ import (
 )
 
 func parseStatement(t *testing.T, stmt string) *algebra.Subselect {
-	s, err := n1ql.ParseStatement(stmt)
+	s, err := n1ql.ParseStatement(stmt, "" /* namespace */)
 	if err != nil {
 		t.Errorf("got err: %v", err)
 	}
