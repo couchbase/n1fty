@@ -16,6 +16,7 @@ import (
 	"fmt"
 
 	"github.com/blevesearch/bleve/search/query"
+	"github.com/couchbase/query/value"
 )
 
 func updateFieldsInQuery(q query.Query, field string) {
@@ -52,7 +53,7 @@ type Options struct {
 
 // -----------------------------------------------------------------------------
 
-func BuildQuery(field, input string, options []byte) (query.Query, error) {
+func BuildQuery(field string, input, options value.Value) (query.Query, error) {
 	qBytes, err := BuildQueryBytes(field, input, options)
 	if err != nil {
 		return nil, fmt.Errorf("BuildQuery err: %v", err)
@@ -61,7 +62,31 @@ func BuildQuery(field, input string, options []byte) (query.Query, error) {
 	return query.ParseQuery(qBytes)
 }
 
-func BuildQueryBytes(field, input string, options []byte) ([]byte, error) {
+func BuildQueryBytes(field string, input, options value.Value) (
+	[]byte, error) {
+	if input == nil {
+		return nil, fmt.Errorf("query not provided")
+	}
+
+	var err error
+	var optionBytes []byte
+	if options != nil {
+		optionBytes, err = options.MarshalJSON()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if input.Type() == value.STRING {
+		return buildQueryBytes(field, input.Actual().(string), optionBytes)
+	} else if input.Type() == value.OBJECT {
+		return input.MarshalJSON()
+	}
+
+	return nil, fmt.Errorf("unsupported query type: %v", input.Type().String())
+}
+
+func buildQueryBytes(field, input string, options []byte) ([]byte, error) {
 	opt := Options{}
 	if len(options) > 0 {
 		err := json.Unmarshal(options, &opt)

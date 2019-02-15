@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/couchbase/cbgt"
+	"github.com/couchbase/query/value"
 )
 
 func TestIndexDefConversion(t *testing.T) {
@@ -53,38 +54,47 @@ func TestIndexDefConversion(t *testing.T) {
 func TestFieldsToSearch(t *testing.T) {
 	tests := []struct {
 		field   string
-		query   string
-		options []byte
+		query   value.Value
+		options value.Value
 		expect  []string
 	}{
 		{
 			field:   "title",
-			query:   "+Avengers~2 company:marvel",
-			options: []byte(""),
+			query:   value.NewValue(`+Avengers~2 company:marvel`),
+			options: nil,
 			expect:  []string{"company", "title"},
 		},
 		{
-			field:   "title",
-			query:   "avengers",
-			options: []byte(`{"type": "match", "fuzziness": 2}`),
-			expect:  []string{"title"},
+			field: "title",
+			query: value.NewValue(`avengers`),
+			options: value.NewValue(map[string]interface{}{
+				"type":      "match",
+				"fuzziness": 2,
+			}),
+			expect: []string{"title"},
+		},
+		{
+			field: "title",
+			query: value.NewValue(`Avengers: Infinity War`),
+			options: value.NewValue(map[string]interface{}{
+				"type":     "match_phrase",
+				"analyzer": "en",
+				"boost":    10,
+			}),
+			expect: []string{"title"},
+		},
+		{
+			field: "title",
+			query: value.NewValue(`Avengers*`),
+			options: value.NewValue(map[string]interface{}{
+				"type": "wildcard",
+			}),
+			expect: []string{"title"},
 		},
 		{
 			field:   "title",
-			query:   "Avengers: Infinity War",
-			options: []byte(`{"type": "match_phrase", "analyzer": "en", "boost": 10}`),
-			expect:  []string{"title"},
-		},
-		{
-			field:   "title",
-			query:   "Avengers*",
-			options: []byte(`{"type": "wildcard"}`),
-			expect:  []string{"title"},
-		},
-		{
-			field:   "title",
-			query:   "+movie:Avengers +sequel.id:3 +company:marvel",
-			options: []byte(``),
+			query:   value.NewValue(`+movie:Avengers +sequel.id:3 +company:marvel`),
+			options: nil,
 			expect:  []string{"company", "movie", "sequel.id", "sequel.id"},
 			// Expect 2 sequel.id entries above as the number look up above is
 			// considered as a disjunction of a match and a numeric range.

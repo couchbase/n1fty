@@ -26,23 +26,11 @@ func NewVerify(keyspace, field string, query, options value.Value) (
 	if query == nil {
 		return nil, errors.NewError(nil, "query not provided")
 	}
-	queryStr, ok := query.Actual().(string)
-	if !ok {
-		return nil, errors.NewError(nil, "query provided not a string")
-	}
 
-	var err error
-	var optionsBytes []byte
-	if options != nil {
-		// TODO: fetch index name/mapping here as well, to apply on the
-		// in-memory index that we're about to build.
-		optionsBytes, err = options.MarshalJSON()
-		if err != nil {
-			return nil, errors.NewError(err, "")
-		}
-	}
+	// TODO: fetch index name/mapping here as well, to apply on the
+	// in-memory index that we're about to build.
 
-	q, err := util.BuildQuery(field, queryStr, optionsBytes)
+	q, err := util.BuildQuery(field, query, options)
 	if err != nil {
 		return nil, errors.NewError(err, "")
 	}

@@ -220,29 +220,16 @@ func (i *FTSIndex) Sargable(field string, query, options expression.Expression) 
 	return count, sargable, err
 }
 
-func (i *FTSIndex) buildQueryAndCheckIfSargable(field string, query, options value.Value) (
-	int, bool, []byte, errors.Error) {
+func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
+	query, options value.Value) (int, bool, []byte, errors.Error) {
 	field = util.CleanseField(field)
 
 	var fieldsToSearch []*util.FieldDescription
 	var qBytes []byte
 	var err error
 
-	var optionsBytes []byte
-	if options != nil {
-		optionsBytes, err = options.MarshalJSON()
-		if err != nil {
-			return 0, false, nil, errors.NewError(err, "")
-		}
-	}
-
 	if query != nil {
-		queryStr, ok := query.Actual().(string)
-		if !ok {
-			return 0, false, nil, errors.NewError(nil, "query provided not a string")
-		}
-
-		qBytes, err = util.BuildQueryBytes(field, queryStr, optionsBytes)
+		qBytes, err = util.BuildQueryBytes(field, query, options)
 		if err != nil {
 			return 0, false, nil, errors.NewError(err, "")
 		}

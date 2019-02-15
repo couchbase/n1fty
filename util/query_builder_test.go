@@ -16,33 +16,58 @@ import (
 	"testing"
 
 	"github.com/blevesearch/bleve/search/query"
+	"github.com/couchbase/query/value"
 )
 
 func TestBuildQuery(t *testing.T) {
 	tests := []struct {
 		field   string
-		query   string
-		options []byte
+		query   value.Value
+		options value.Value
 	}{
 		{
 			field:   "title",
-			query:   "+Avengers~2 company:marvel",
-			options: []byte(""),
+			query:   value.NewValue(`+Avengers~2 company:marvel`),
+			options: nil,
 		},
 		{
-			field:   "title",
-			query:   "avengers",
-			options: []byte(`{"type": "match", "fuzziness": 2}`),
+			field: "title",
+			query: value.NewValue(`avengers`),
+			options: value.NewValue(map[string]interface{}{
+				"type":      "match",
+				"fuzziness": 2,
+			}),
 		},
 		{
-			field:   "title",
-			query:   "Avengers: Infinity War",
-			options: []byte(`{"type": "match_phrase", "analyzer": "en", "boost": 10}`),
+			field: "title",
+			query: value.NewValue(`Avengers: Infinity War`),
+			options: value.NewValue(map[string]interface{}{
+				"type":     "match_phrase",
+				"analyzer": "en",
+				"boost":    10,
+			}),
 		},
 		{
-			field:   "title",
-			query:   "Avengers*",
-			options: []byte(`{"type": "wildcard"}`),
+			field: "title",
+			query: value.NewValue(`Avengers*`),
+			options: value.NewValue(map[string]interface{}{
+				"type": "wildcard",
+			}),
+		},
+		{
+			field: "not-used",
+			query: value.NewValue(map[string]interface{}{
+				"conjuncts": []interface{}{
+					map[string]interface{}{
+						"match": "abc",
+						"field": "cba",
+					},
+					map[string]interface{}{
+						"match": "xyz",
+						"field": "zyx",
+					}},
+			}),
+			options: nil,
 		},
 	}
 
@@ -52,10 +77,9 @@ func TestBuildQuery(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		switch q.(type) {
+		switch qq := q.(type) {
 		case *query.BooleanQuery:
-			bq := q.(*query.BooleanQuery)
-			cq := bq.Must.(*query.ConjunctionQuery)
+			cq := qq.Must.(*query.ConjunctionQuery)
 			if len(cq.Conjuncts) != 1 {
 				t.Fatalf("Exception in boolean query, number of must clauses: %v",
 					len(cq.Conjuncts))
@@ -65,7 +89,7 @@ func TestBuildQuery(t *testing.T) {
 				t.Fatalf("Exception in boolean must query: %v, %v, %v",
 					mcq.Match, mcq.FieldVal, mcq.Fuzziness)
 			}
-			dq := bq.Should.(*query.DisjunctionQuery)
+			dq := qq.Should.(*query.DisjunctionQuery)
 			if len(dq.Disjuncts) != 1 {
 				t.Fatalf("Exception in boolean query, number of should clauses: %v",
 					len(dq.Disjuncts))
@@ -76,25 +100,46 @@ func TestBuildQuery(t *testing.T) {
 					mdq.Match, mdq.FieldVal)
 			}
 		case *query.MatchQuery:
-			mq := q.(*query.MatchQuery)
-			if mq.Match != "avengers" || mq.FieldVal != "title" || mq.Fuzziness != 2 {
+			if qq.Match != "avengers" || qq.FieldVal != "title" || qq.Fuzziness != 2 {
 				t.Fatalf("Exception in match query: %v, %v, %v",
-					mq.Match, mq.FieldVal, mq.Fuzziness)
+					qq.Match, qq.FieldVal, qq.Fuzziness)
 			}
 		case *query.MatchPhraseQuery:
-			mpq := q.(*query.MatchPhraseQuery)
-			if mpq.MatchPhrase != "Avengers: Infinity War" || mpq.FieldVal != "title" ||
-				mpq.Analyzer != "en" || float64(*mpq.BoostVal) != float64(10) {
+			if qq.MatchPhrase != "Avengers: Infinity War" || qq.FieldVal != "title" ||
+				qq.Analyzer != "en" || float64(*qq.BoostVal) != float64(10) {
 				t.Fatalf("Exception in match phrase query: %v, %v, %v, %v",
-					mpq.MatchPhrase, mpq.FieldVal, mpq.Analyzer, *mpq.BoostVal)
+					qq.MatchPhrase, qq.FieldVal, qq.Analyzer, *qq.BoostVal)
 			}
 		case *query.WildcardQuery:
-			wq := q.(*query.WildcardQuery)
-			if wq.Wildcard != "Avengers*" || wq.FieldVal != "title" {
-				t.Fatalf("Exception in wildcard query: %v, %v", wq.Wildcard, wq.FieldVal)
+			if qq.Wildcard != "Avengers*" || qq.FieldVal != "title" {
+				t.Fatalf("Exception in wildcard query: %v, %v", qq.Wildcard, qq.FieldVal)
+			}
+		case *query.ConjunctionQuery:
+			if len(qq.Conjuncts) != 2 {
+				t.Fatalf("Exception in conjunction query: %v", len(qq.Conjuncts))
+			}
+			_, ok := qq.Conjuncts[0].(*query.MatchQuery)
+			if !ok {
+				t.Fatalf("Exception in conjunction query: didn't find a match")
+			}
+			_, ok = qq.Conjuncts[1].(*query.MatchQuery)
+			if !ok {
+				t.Fatalf("Exception in conjunction query: didn't find a match")
 			}
 		default:
 			t.Fatalf("Unexpected query type: %v, for entry: %v", reflect.TypeOf(q), i)
 		}
+	}
+}
+
+func TestBuildBadQuery(t *testing.T) {
+	q := value.NewValue(map[string]interface{}{
+		"this": "is",
+		"a":    "very",
+		"bad":  "example",
+	})
+
+	if _, err := BuildQuery("", q, nil); err == nil {
+		t.Fatal("Expected an error, but didn't see one")
 	}
 }
