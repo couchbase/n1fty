@@ -10,9 +10,12 @@
 package flex
 
 import (
+	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/blevesearch/bleve/mapping"
+	"github.com/blevesearch/bleve/search/query"
 )
 
 // BleveToFlexIndex creates a FlexIndex from a bleve index mapping.
@@ -21,24 +24,17 @@ func BleveToFlexIndex(im *mapping.IndexMappingImpl) (*FlexIndex, error) {
 		return nil, fmt.Errorf("BleveToFlexIndex: currently only supports default mapping")
 	}
 
-	fi := &FlexIndex{}
-
-	err := fi.init(im, nil, nil, im.DefaultMapping)
-	if err != nil {
-		return nil, err
-	}
-
-	return fi, nil
+	return bleveToFlexIndex(&FlexIndex{}, im, nil, nil, im.DefaultMapping)
 }
 
 // Recursively initializes a FlexIndex from a given bleve document
 // mapping.  Note: the backing arrays for parents & path are volatile
 // as the recursion proceeds.
-func (fi *FlexIndex) init(im *mapping.IndexMappingImpl,
+func bleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 	parents []*mapping.DocumentMapping, path []string,
-	dm *mapping.DocumentMapping) error {
+	dm *mapping.DocumentMapping) (rv *FlexIndex, err error) {
 	if !dm.Enabled {
-		return nil
+		return fi, nil
 	}
 
 	lineage := append(parents, dm)
@@ -53,45 +49,69 @@ func (fi *FlexIndex) init(im *mapping.IndexMappingImpl,
 			continue
 		}
 
+		// Make own copy of volatile path.
+		fieldPath := append(append([]string(nil), path...), f.Name)
+
 		fi.IndexedFields = append(fi.IndexedFields, &FieldInfo{
-			// Make own copy of volatile path.
-			FieldPath: append(append([]string(nil), path...), f.Name),
+			FieldPath: fieldPath,
 			FieldType: "string",
 		})
 
-		// TODO: Currently support only default mapping.
-		// TODO: Currently support only keyword fields.
-		// TODO: numeric & datetime field types.
+		fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
+			Cmp:       "eq",
+			FieldPath: fieldPath,
+			ValueType: "string",
+		})
+
+		// TODO: Currently supports only default mapping.
+		// TODO: Currently supports only keyword fields.
+		// TODO: Need to support numeric & datetime field types.
+		// TODO: Need to support inequality comparisons.
 		// TODO: f.Store IncludeTermVectors, IncludeInAll, DateFormat, DocValues
-		// TODO: f.SupportedExprs
 	}
 
-	for pName, p := range dm.Properties {
-		if pName != "" {
-			err := fi.init(im, append(parents, dm), append(path, pName), p)
-			if err != nil {
-				return err
-			}
+	ns := make([]string, 0, len(dm.Properties))
+	for n := range dm.Properties {
+		if n != "" {
+			ns = append(ns, n)
 		}
 	}
 
-	if dm.Dynamic {
-		// Support dynamic fields only when default datetime parser is
-		// disabled, otherwise the usual "dateTimeOptional" parser on
-		// a dynamic field will covert text strings that parse as a
-		// date into datetime representation.
-		if im.DefaultDateTimeParser == "disabled" {
-			analyzer := findAnalyzer(im, lineage, "")
-			if analyzer == "keyword" {
-				fi.IndexedFields = append(fi.IndexedFields, &FieldInfo{
-					FieldPath: append([]string(nil), path...), // Make own copy.
-					FieldType: "string",
-				})
-			}
+	sort.Strings(ns)
+
+	for _, n := range ns {
+		fi, err = bleveToFlexIndex(fi, im, lineage, append(path, n), dm.Properties[n])
+		if err != nil {
+			return nil, err
 		}
 	}
 
-	return nil
+	// Support dynamic indexing only when default datetime parser
+	// is disabled, otherwise the usual "dateTimeOptional" parser
+	// on a dynamic field will covert text strings that look like
+	// or parse as a date-time into datetime representation.
+	if dm.Dynamic && im.DefaultDateTimeParser == "disabled" {
+		analyzer := findAnalyzer(im, lineage, "")
+		if analyzer == "keyword" {
+			dynamicPath := append([]string(nil), path...) // Copy.
+
+			// Register the dynamic path prefix into the indexed
+			// fields so complex expressions will be not-sargable.
+			fi.IndexedFields = append(fi.IndexedFields, &FieldInfo{
+				FieldPath: dynamicPath,
+				FieldType: "string",
+			})
+
+			fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
+				Cmp:              "eq",
+				FieldPath:        dynamicPath,
+				ValueType:        "string",
+				FieldPathPartial: true,
+			})
+		}
+	}
+
+	return fi, nil
 }
 
 // Walk up the document mappings to find an analyzer name.
@@ -108,4 +128,158 @@ func findAnalyzer(im *mapping.IndexMappingImpl,
 	}
 
 	return im.DefaultAnalyzer
+}
+
+// --------------------------------------
+
+// FlexBuildToBleveQuery translates a flex build tree into a bleve
+// query tree.
+func FlexBuildToBleveQuery(fb *FlexBuild, prevSibling query.Query) (
+	q query.Query, err error) {
+	if fb == nil {
+		return nil, nil
+	}
+
+	isConjunct := fb.Kind == "conjunct"
+	if isConjunct || fb.Kind == "disjunct" {
+		qs := make([]query.Query, 0, len(fb.Children))
+
+		var prev query.Query
+
+		for _, c := range fb.Children {
+			q, err = FlexBuildToBleveQuery(c, prev)
+			if err != nil {
+				return nil, err
+			}
+
+			if q != nil {
+				qs = append(qs, q)
+
+				if isConjunct {
+					prev = q // Prev sibling optimization only when conjunct.
+				}
+			}
+		}
+
+		if isConjunct {
+			return query.NewConjunctionQuery(qs), nil
+		}
+
+		return query.NewDisjunctionQuery(qs), nil
+	}
+
+	if fb.Kind == "cmpFieldConstant" {
+		// Ex: fb.Data: {"eq", "city", "string", `"nyc"`}.
+		args, ok := fb.Data.([]string)
+		if ok && len(args) == 4 {
+			if args[2] == "string" {
+				var v string
+				err := json.Unmarshal([]byte(args[3]), &v)
+				if err != nil {
+					return nil, err
+				}
+
+				switch args[0] {
+				case "eq":
+					q := query.NewTermQuery(v)
+					q.SetField(args[1])
+					return q, nil
+
+				case "lt":
+					return MaxTermRangeQuery(args[1], v, &falseVal, prevSibling)
+				case "le":
+					return MaxTermRangeQuery(args[1], v, &trueVal, prevSibling)
+				case "gt":
+					return MinTermRangeQuery(args[1], v, &falseVal, prevSibling)
+				case "ge":
+					return MinTermRangeQuery(args[1], v, &trueVal, prevSibling)
+				}
+			}
+
+			if args[2] == "number" {
+				var v float64
+				err := json.Unmarshal([]byte(args[3]), &v)
+				if err != nil {
+					return nil, err
+				}
+
+				switch args[0] {
+				case "eq":
+					q := query.NewNumericRangeInclusiveQuery(&v, &v, &trueVal, &trueVal)
+					q.SetField(args[1])
+					return q, nil
+
+				case "lt":
+					return MaxNumericRangeQuery(args[1], &v, &falseVal, prevSibling)
+				case "le":
+					return MaxNumericRangeQuery(args[1], &v, &trueVal, prevSibling)
+				case "gt":
+					return MinNumericRangeQuery(args[1], &v, &falseVal, prevSibling)
+				case "ge":
+					return MinNumericRangeQuery(args[1], &v, &trueVal, prevSibling)
+				}
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("FlexBuildToBleveQuery: could not convert: %+v", fb)
+}
+
+var trueVal = true
+var falseVal = false
+
+func MinTermRangeQuery(f string, v string, inclusive *bool, prev query.Query) (
+	query.Query, error) {
+	if trq, ok := prev.(*query.TermRangeQuery); ok &&
+		trq != nil && trq.Field() == f && trq.Min == "" && v <= trq.Max {
+		trq.Min = v
+		trq.InclusiveMin = inclusive
+		return nil, nil
+	}
+
+	q := query.NewTermRangeInclusiveQuery(v, "", inclusive, &falseVal)
+	q.SetField(f)
+	return q, nil
+}
+
+func MaxTermRangeQuery(f string, v string, inclusive *bool, prev query.Query) (
+	query.Query, error) {
+	if trq, ok := prev.(*query.TermRangeQuery); ok &&
+		trq != nil && trq.Field() == f && trq.Max == "" && trq.Min <= v {
+		trq.Max = v
+		trq.InclusiveMax = inclusive
+		return nil, nil
+	}
+
+	q := query.NewTermRangeInclusiveQuery("", v, &falseVal, inclusive)
+	q.SetField(f)
+	return q, nil
+}
+
+func MinNumericRangeQuery(f string, v *float64, inclusive *bool, prev query.Query) (
+	query.Query, error) {
+	if trq, ok := prev.(*query.NumericRangeQuery); ok &&
+		trq != nil && trq.Field() == f && trq.Min == nil && *v <= *trq.Max {
+		trq.Min = v
+		trq.InclusiveMin = inclusive
+		return nil, nil
+	}
+
+	q := query.NewNumericRangeInclusiveQuery(v, nil, inclusive, &falseVal)
+	q.SetField(f)
+	return q, nil
+}
+
+func MaxNumericRangeQuery(f string, v *float64, inclusive *bool, prev query.Query) (
+	query.Query, error) {
+	if trq, ok := prev.(*query.NumericRangeQuery); ok &&
+		trq != nil && trq.Field() == f && trq.Max == nil && *trq.Min <= *v {
+		trq.Max = v
+		trq.InclusiveMax = inclusive
+		return nil, nil
+	}
+
+	q := query.NewNumericRangeInclusiveQuery(nil, v, &falseVal, inclusive)
+	q.SetField(f)
+	return q, nil
 }

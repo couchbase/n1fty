@@ -59,7 +59,8 @@ type SupportedExprCmpFieldConstant struct {
 	FieldPathPartial bool
 
 	// When FieldTypeCheck is true, additional type checks on the
-	// FieldPath are done based on FieldTypes gathered from the expr.
+	// FieldPath are done based on field types that were learned from
+	// the expr (e.g., ISSTRING(a), ISNUMBER(a)).
 	FieldTypeCheck bool
 }
 
@@ -134,8 +135,8 @@ func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifier
 	}
 
 	return true, FieldTracks{FieldTrack(fieldTrack): 1}, false, &FlexBuild{
-		Kind: "expr", Data: []string{
-			"cmpFieldConstant", fName, fieldTrack, s.ValueType, exprY.String(),
+		Kind: "cmpFieldConstant", Data: []string{
+			fName, fieldTrack, s.ValueType, exprY.String(),
 		},
 	}, nil
 }
