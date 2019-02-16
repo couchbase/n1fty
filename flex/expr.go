@@ -135,7 +135,7 @@ func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifier
 
 	return true, FieldTracks{FieldTrack(fieldTrack): 1}, false, &FlexBuild{
 		Kind: "expr", Data: []string{
-			fName + "FieldConstant", fieldTrack, s.ValueType, exprY.String(),
+			"cmpFieldConstant", fName, fieldTrack, s.ValueType, exprY.String(),
 		},
 	}, nil
 }

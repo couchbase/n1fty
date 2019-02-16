@@ -136,6 +136,16 @@ func TestFieldInfosFind(t *testing.T) {
 		&FieldInfo{FieldPath: []string{"m", "n"}},
 	}
 
+	fieldInfosTopLevelDynamic := FieldInfos{
+		&FieldInfo{FieldPath: []string{"b"}},
+		&FieldInfo{FieldPath: nil},
+	}
+
+	fieldInfosTopLevelDynamic2 := FieldInfos{
+		&FieldInfo{FieldPath: []string{"b"}},
+		&FieldInfo{FieldPath: nil},
+	}
+
 	tests := []struct {
 		exprStr         string
 		fieldInfos      FieldInfos
@@ -175,6 +185,12 @@ func TestFieldInfosFind(t *testing.T) {
 
 		{"m.n[ROUND(1)]", fieldInfosABM, nil, nil},
 		{"m.n[ROUND(1)].x", fieldInfosABM, nil, nil},
+
+		{"a", fieldInfosTopLevelDynamic, &FieldInfo{FieldPath: nil}, []string{"a"}},
+		{"b", fieldInfosTopLevelDynamic, &FieldInfo{FieldPath: []string{"b"}}, nil},
+
+		{"a", fieldInfosTopLevelDynamic2, &FieldInfo{FieldPath: nil}, []string{"a"}},
+		{"b", fieldInfosTopLevelDynamic2, &FieldInfo{FieldPath: []string{"b"}}, nil},
 	}
 
 	for _, test := range tests {
@@ -210,6 +226,11 @@ func TestCheckFieldsUsed(t *testing.T) {
 	fieldInfos2 := FieldInfos{
 		&FieldInfo{FieldPath: []string{"a"}},
 		&FieldInfo{FieldPath: []string{"b"}},
+	}
+
+	fieldInfosTopLevelDynamic := FieldInfos{
+		&FieldInfo{FieldPath: []string{"b"}},
+		&FieldInfo{FieldPath: nil},
 	}
 
 	tests := []struct {
@@ -258,6 +279,13 @@ func TestCheckFieldsUsed(t *testing.T) {
 		{"a.x.y", fieldInfos1, true},
 		{"x.a", fieldInfos1, false},
 
+		// For top-level dynamic indexing, test prefix matches.
+		{"a", fieldInfosTopLevelDynamic, true},
+		{"a.x", fieldInfosTopLevelDynamic, true},
+		{"a.x.y", fieldInfosTopLevelDynamic, true},
+		{"x.a", fieldInfosTopLevelDynamic, true},
+		{"b", fieldInfosTopLevelDynamic, true},
+
 		{"ROUND(a)", fieldInfos1, true},
 		{"ROUND(a.x)", fieldInfos1, true},
 		{"ROUND(a.x.y)", fieldInfos1, true},
@@ -304,20 +332,20 @@ func TestCheckFieldsUsed(t *testing.T) {
 		found, err := CheckFieldsUsed(test.fieldInfos,
 			Identifiers{Identifier{Name: "bucket"}}, expr)
 		if err != nil {
-			t.Errorf("unexpected err: %v", err)
+			t.Fatalf("unexpected err: %v", err)
 		}
 		if found != test.expect {
-			t.Errorf("found (%t) != test.expect (%#v), fieldInfos: %s, expr: %v",
+			t.Fatalf("found (%t) != test.expect (%#v), fieldInfos: %s, expr: %v",
 				found, test, j, expr)
 		}
 
 		found, err = CheckFieldsUsed(test.fieldInfos,
 			Identifiers{Identifier{Name: "wrongBucket"}}, expr)
 		if err != nil {
-			t.Errorf("unexpected err: %v", err)
+			t.Fatalf("unexpected err: %v", err)
 		}
 		if found {
-			t.Errorf("expecting not found due to wrong bucket")
+			t.Fatalf("expecting not found due to wrong bucket")
 		}
 	}
 }

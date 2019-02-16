@@ -79,16 +79,16 @@ TODO...
     - example: FTS index has type mapping where type="beer", but the N1QL is
       looking for WHERE name="coors" -- false negative as the FTS index will
       be missing entries for brewery docs whose name is "coors".
-    - to be safe, it has to be WHERE name="coors" AND type="beer".
-    - this can be done on a conjunction level, a'la...
+    - to have no false negatives, it has to be WHERE name="coors" AND type="beer".
+    - this be done carefully on a conjunction level, a'la...
       ((type = "beer" AND
         beer_name = "coors" AND
-        expressions-with-fields-that-only-appear-in-beer-type-mapping) OR
+        exprs-with-fields-that-only-appear-in-beer-type-mapping) OR
        (type = "brewery" AND
         brewery_name = coors" AND
-        expressions-with-fields-that-only-appear-in-brewery-type-mapping)).
+        exprs-with-fields-that-only-appear-in-brewery-type-mapping)).
     - fields indexed by the default type mapping need its
-      own type discriminator, like...
+      own more complex type discriminator, like...
       ((type != "beer" AND type != "brewery") AND
        exprs-that-use-default-type-mapping-fields-only).
   - an approach is that IndexedFields / FieldInfos can be
@@ -113,9 +113,9 @@ TODO...
       look like (or parse as) datetime.
     - one solution is possible bleve bug fix or enhancement needed with:
       bleve/mapping/document.go DocumentMapping.processProperty().
-    - 2nd solution (better?) is that cbft registers a datetime parser
-      called "none" or "never-a-datetime" that always returns an
-      error, forcing bleve dynamic indexing to use type "text".
+    - 2nd solution (better) is that cbft registers a datetime parser
+      called "disabled" that always returns an error, forcing bleve
+      dynamic indexing to use type "text".
 
 - issue: what about fields that have a null value?
   ANS: they are not indexed by FTS.

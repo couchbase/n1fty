@@ -22,7 +22,7 @@ import (
 )
 
 func parseStatement(t *testing.T, stmt string) *algebra.Subselect {
-	s, err := n1ql.ParseStatement(stmt, "" /* namespace */)
+	s, err := n1ql.ParseStatement(stmt)
 	if err != nil {
 		t.Errorf("got err: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact:       true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "expr",
-				Data: []string{"eqFieldConstant", "a", "string", `"hi"`},
+				Data: []string{"cmpFieldConstant", "eq", "a", "string", `"hi"`},
 			},
 		},
 
@@ -159,7 +159,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact:       true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "expr",
-				Data: []string{"eqFieldConstant", "a", "string", `"hi"`},
+				Data: []string{"cmpFieldConstant", "eq", "a", "string", `"hi"`},
 			},
 		},
 
@@ -187,7 +187,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "expr",
-				Data: []string{"eqFieldConstant", "a", "string", `"hello"`},
+				Data: []string{"cmpFieldConstant", "eq", "a", "string", `"hello"`},
 			},
 		},
 
@@ -205,7 +205,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a", "string", `"hello"`},
+						Data: []string{"cmpFieldConstant", "eq", "a", "string", `"hello"`},
 					},
 				},
 			},
@@ -233,11 +233,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a", "string", `"hello"`},
+						Data: []string{"cmpFieldConstant", "eq", "a", "string", `"hello"`},
 					},
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "b", "number", `123`},
+						Data: []string{"cmpFieldConstant", "eq", "b", "number", `123`},
 					},
 				},
 			},
@@ -265,11 +265,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a", "string", `"hello"`},
+						Data: []string{"cmpFieldConstant", "eq", "a", "string", `"hello"`},
 					},
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "b", "number", `123`},
+						Data: []string{"cmpFieldConstant", "eq", "b", "number", `123`},
 					},
 				},
 			},
@@ -357,18 +357,18 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a", "string", `"hello"`},
+						Data: []string{"cmpFieldConstant", "eq", "a", "string", `"hello"`},
 					},
 					{
 						Kind: "disjunct",
 						Children: []*FlexBuild{
 							{
 								Kind: "expr",
-								Data: []string{"eqFieldConstant", "b", "number", `123`},
+								Data: []string{"cmpFieldConstant", "eq", "b", "number", `123`},
 							},
 							{
 								Kind: "expr",
-								Data: []string{"eqFieldConstant", "b", "number", `222`},
+								Data: []string{"cmpFieldConstant", "eq", "b", "number", `222`},
 							},
 						},
 					},
@@ -414,18 +414,18 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a", "string", `"hello"`},
+						Data: []string{"cmpFieldConstant", "eq", "a", "string", `"hello"`},
 					},
 					{
 						Kind: "disjunct",
 						Children: []*FlexBuild{
 							{
 								Kind: "expr",
-								Data: []string{"eqFieldConstant", "b", "number", `123`},
+								Data: []string{"cmpFieldConstant", "eq", "b", "number", `123`},
 							},
 							{
 								Kind: "expr",
-								Data: []string{"eqFieldConstant", "b", "number", `222`},
+								Data: []string{"cmpFieldConstant", "eq", "b", "number", `222`},
 							},
 						},
 					},
@@ -456,25 +456,25 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a", "string", `"hello"`},
+						Data: []string{"cmpFieldConstant", "eq", "a", "string", `"hello"`},
 					},
 					{
 						Kind: "disjunct",
 						Children: []*FlexBuild{
 							{
 								Kind: "expr",
-								Data: []string{"eqFieldConstant", "b", "number", `123`},
+								Data: []string{"cmpFieldConstant", "eq", "b", "number", `123`},
 							},
 							{
 								Kind: "conjunct",
 								Children: []*FlexBuild{
 									{
 										Kind: "expr",
-										Data: []string{"eqFieldConstant", "b", "number", `222`},
+										Data: []string{"cmpFieldConstant", "eq", "b", "number", `222`},
 									},
 									{
 										Kind: "expr",
-										Data: []string{"eqFieldConstant", "a", "string", `"y"`},
+										Data: []string{"cmpFieldConstant", "eq", "a", "string", `"y"`},
 									},
 								},
 							},
@@ -504,11 +504,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a", "string", `"hello"`},
+						Data: []string{"cmpFieldConstant", "eq", "a", "string", `"hello"`},
 					},
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "c", "string", `"yay"`},
+						Data: []string{"cmpFieldConstant", "eq", "c", "string", `"yay"`},
 					},
 				},
 			},
@@ -534,11 +534,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a", "string", `"hello"`},
+						Data: []string{"cmpFieldConstant", "eq", "a", "string", `"hello"`},
 					},
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "addr.city", "string", `"yay"`},
+						Data: []string{"cmpFieldConstant", "eq", "addr.city", "string", `"yay"`},
 					},
 				},
 			},
@@ -576,11 +576,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "addr.state", "string", `"ny"`},
+						Data: []string{"cmpFieldConstant", "eq", "addr.state", "string", `"ny"`},
 					},
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "addr.city", "string", `"nyc"`},
+						Data: []string{"cmpFieldConstant", "eq", "addr.city", "string", `"nyc"`},
 					},
 				},
 			},
@@ -606,18 +606,18 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "addr.state", "string", `"ny"`},
+						Data: []string{"cmpFieldConstant", "eq", "addr.state", "string", `"ny"`},
 					},
 					{
 						Kind: "disjunct",
 						Children: []*FlexBuild{
 							{
 								Kind: "expr",
-								Data: []string{"eqFieldConstant", "addr.city", "string", `"nyc"`},
+								Data: []string{"cmpFieldConstant", "eq", "addr.city", "string", `"nyc"`},
 							},
 							{
 								Kind: "expr",
-								Data: []string{"eqFieldConstant", "addr.city", "string", `"buffalo"`},
+								Data: []string{"cmpFieldConstant", "eq", "addr.city", "string", `"buffalo"`},
 							},
 						},
 					},
@@ -644,7 +644,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "addr.city", "string", `"nyc"`},
+						Data: []string{"cmpFieldConstant", "eq", "addr.city", "string", `"nyc"`},
 					},
 				},
 			},
@@ -674,11 +674,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a", "string", `"hello"`},
+						Data: []string{"cmpFieldConstant", "eq", "a", "string", `"hello"`},
 					},
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "addr.city", "string", `"nyc"`},
+						Data: []string{"cmpFieldConstant", "eq", "addr.city", "string", `"nyc"`},
 					},
 				},
 			},
@@ -708,11 +708,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a", "string", `"hello"`},
+						Data: []string{"cmpFieldConstant", "eq", "a", "string", `"hello"`},
 					},
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "addr.city", "string", `"nyc"`},
+						Data: []string{"cmpFieldConstant", "eq", "addr.city", "string", `"nyc"`},
 					},
 				},
 			},
@@ -741,11 +741,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a", "string", `"hello"`},
+						Data: []string{"cmpFieldConstant", "eq", "a", "string", `"hello"`},
 					},
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "addr.city", "string", `"nyc"`},
+						Data: []string{"cmpFieldConstant", "eq", "addr.city", "string", `"nyc"`},
 					},
 				},
 			},
@@ -773,7 +773,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a", "string", `"hello"`},
+						Data: []string{"cmpFieldConstant", "eq", "a", "string", `"hello"`},
 					},
 				},
 			},
@@ -868,7 +868,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a", "string", `"hello"`},
+						Data: []string{"cmpFieldConstant", "eq", "a", "string", `"hello"`},
 					},
 				},
 			},
@@ -1023,7 +1023,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a", "string", `"hello"`},
+						Data: []string{"cmpFieldConstant", "eq", "a", "string", `"hello"`},
 					},
 				},
 			},
@@ -1178,7 +1178,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a", "string", `$paramX`},
+						Data: []string{"cmpFieldConstant", "eq", "a", "string", `$paramX`},
 					},
 				},
 			},
@@ -1214,7 +1214,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a", "string", `$1`},
+						Data: []string{"cmpFieldConstant", "eq", "a", "string", `$1`},
 					},
 				},
 			},
@@ -1237,7 +1237,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "expr",
-				Data: []string{"eqFieldConstant", "a.b.city", "string", `"nyc"`},
+				Data: []string{"cmpFieldConstant", "eq", "a.b.city", "string", `"nyc"`},
 			},
 		},
 
@@ -1256,7 +1256,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: false, // Due to the AND EVERY.
 			expectFlexBuild: &FlexBuild{
 				Kind: "expr",
-				Data: []string{"eqFieldConstant", "a.b.city", "string", `"nyc"`},
+				Data: []string{"cmpFieldConstant", "eq", "a.b.city", "string", `"nyc"`},
 			},
 		},
 
@@ -1314,7 +1314,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a.b.city", "string", `"nyc"`},
+						Data: []string{"cmpFieldConstant", "eq", "a.b.city", "string", `"nyc"`},
 					},
 				},
 			},
@@ -1348,7 +1348,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "expr",
-				Data: []string{"eqFieldConstant", "a.b.city", "string", `"nyc"`},
+				Data: []string{"cmpFieldConstant", "eq", "a.b.city", "string", `"nyc"`},
 			},
 		},
 
@@ -1368,7 +1368,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: false,
 			expectFlexBuild: &FlexBuild{
 				Kind: "expr",
-				Data: []string{"eqFieldConstant", "a.b.city", "string", `"nyc"`},
+				Data: []string{"cmpFieldConstant", "eq", "a.b.city", "string", `"nyc"`},
 			},
 		},
 
@@ -1388,7 +1388,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "expr",
-				Data: []string{"eqFieldConstant", "a.b.city", "string", `"nyc"`},
+				Data: []string{"cmpFieldConstant", "eq", "a.b.city", "string", `"nyc"`},
 			},
 		},
 
@@ -1410,11 +1410,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a.b.city", "string", `"nyc"`},
+						Data: []string{"cmpFieldConstant", "eq", "a.b.city", "string", `"nyc"`},
 					},
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a.b.city", "string", `"sf"`},
+						Data: []string{"cmpFieldConstant", "eq", "a.b.city", "string", `"sf"`},
 					},
 				},
 			},
@@ -1443,11 +1443,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a.b.city", "string", `"nyc"`},
+						Data: []string{"cmpFieldConstant", "eq", "a.b.city", "string", `"nyc"`},
 					},
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "b", "string", `"sf"`},
+						Data: []string{"cmpFieldConstant", "eq", "b", "string", `"sf"`},
 					},
 				},
 			},
@@ -1476,11 +1476,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a.b.city", "string", `"nyc"`},
+						Data: []string{"cmpFieldConstant", "eq", "a.b.city", "string", `"nyc"`},
 					},
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "b", "string", `"sf"`},
+						Data: []string{"cmpFieldConstant", "eq", "b", "string", `"sf"`},
 					},
 				},
 			},
@@ -1509,11 +1509,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a.b.city", "string", `"nyc"`},
+						Data: []string{"cmpFieldConstant", "eq", "a.b.city", "string", `"nyc"`},
 					},
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "b", "string", `"sf"`},
+						Data: []string{"cmpFieldConstant", "eq", "b", "string", `"sf"`},
 					},
 				},
 			},
@@ -1542,11 +1542,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a.b.city", "string", `"nyc"`},
+						Data: []string{"cmpFieldConstant", "eq", "a.b.city", "string", `"nyc"`},
 					},
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "b", "string", `"sf"`},
+						Data: []string{"cmpFieldConstant", "eq", "b", "string", `"sf"`},
 					},
 				},
 			},
@@ -1603,7 +1603,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "expr",
-				Data: []string{"eqFieldConstant", "a.b.c.d.city", "string", `"nyc"`},
+				Data: []string{"cmpFieldConstant", "eq", "a.b.c.d.city", "string", `"nyc"`},
 			},
 		},
 
@@ -1622,7 +1622,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: false,
 			expectFlexBuild: &FlexBuild{
 				Kind: "expr",
-				Data: []string{"eqFieldConstant", "a.b.c.d.city", "string", `"nyc"`},
+				Data: []string{"cmpFieldConstant", "eq", "a.b.c.d.city", "string", `"nyc"`},
 			},
 		},
 
@@ -1644,7 +1644,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "expr",
-				Data: []string{"eqFieldConstant", "a", "string", `"hello"`},
+				Data: []string{"cmpFieldConstant", "eq", "a", "string", `"hello"`},
 			},
 		},
 
@@ -1672,11 +1672,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "a", "string", `"hello"`},
+						Data: []string{"cmpFieldConstant", "eq", "a", "string", `"hello"`},
 					},
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "addr.city", "string", `"yay"`},
+						Data: []string{"cmpFieldConstant", "eq", "addr.city", "string", `"yay"`},
 					},
 				},
 			},
@@ -1701,11 +1701,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "addr.city", "string", `"hello"`},
+						Data: []string{"cmpFieldConstant", "eq", "addr.city", "string", `"hello"`},
 					},
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "addr.city", "string", `"yay"`},
+						Data: []string{"cmpFieldConstant", "eq", "addr.city", "string", `"yay"`},
 					},
 				},
 			},
@@ -1740,7 +1740,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "expr",
-				Data: []string{"eqFieldConstant", "a", "string", `"hello"`},
+				Data: []string{"cmpFieldConstant", "eq", "a", "string", `"hello"`},
 			},
 		},
 
@@ -1760,7 +1760,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "expr",
-				Data: []string{"eqFieldConstant", "a.b", "string", `"hello"`},
+				Data: []string{"cmpFieldConstant", "eq", "a.b", "string", `"hello"`},
 			},
 		},
 
@@ -1780,7 +1780,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "expr",
-				Data: []string{"eqFieldConstant", "a.b", "string", `"hello"`},
+				Data: []string{"cmpFieldConstant", "eq", "a.b", "string", `"hello"`},
 			},
 		},
 
@@ -1800,7 +1800,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "expr",
-				Data: []string{"eqFieldConstant", "a.b", "string", `"hello"`},
+				Data: []string{"cmpFieldConstant", "eq", "a.b", "string", `"hello"`},
 			},
 		},
 
@@ -1820,7 +1820,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "expr",
-				Data: []string{"eqFieldConstant", "a.x.y.z", "string", `"hello"`},
+				Data: []string{"cmpFieldConstant", "eq", "a.x.y.z", "string", `"hello"`},
 			},
 		},
 
@@ -1842,7 +1842,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "expr",
-				Data: []string{"eqFieldConstant", "addr.city", "string", `"nyc"`},
+				Data: []string{"cmpFieldConstant", "eq", "addr.city", "string", `"nyc"`},
 			},
 		},
 
@@ -1863,7 +1863,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "expr",
-				Data: []string{"eqFieldConstant", "addr.city", "string", `"nyc"`},
+				Data: []string{"cmpFieldConstant", "eq", "addr.city", "string", `"nyc"`},
 			},
 		},
 
@@ -1883,7 +1883,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "expr",
-				Data: []string{"eqFieldConstant", "addr.phones.areaCode", "number", `650`},
+				Data: []string{"cmpFieldConstant", "eq", "addr.phones.areaCode", "number", `650`},
 			},
 		},
 
@@ -1904,7 +1904,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "expr",
-				Data: []string{"eqFieldConstant", "addr.phones.areaCode", "number", `650`},
+				Data: []string{"cmpFieldConstant", "eq", "addr.phones.areaCode", "number", `650`},
 			},
 		},
 
@@ -1932,11 +1932,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "address.city", "string", `"sf"`},
+						Data: []string{"cmpFieldConstant", "eq", "address.city", "string", `"sf"`},
 					},
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "phones.provider", "string", `"verizon"`},
+						Data: []string{"cmpFieldConstant", "eq", "phones.provider", "string", `"verizon"`},
 					},
 				},
 			},
@@ -1978,7 +1978,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"ltFieldConstant", "b", "number", `100`},
+						Data: []string{"cmpFieldConstant", "lt", "b", "number", `100`},
 					},
 				},
 			},
@@ -2004,7 +2004,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"leFieldConstant", "b", "number", `100`},
+						Data: []string{"cmpFieldConstant", "le", "b", "number", `100`},
 					},
 				},
 			},
@@ -2030,7 +2030,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"gtFieldConstant", "b", "number", `100`},
+						Data: []string{"cmpFieldConstant", "gt", "b", "number", `100`},
 					},
 				},
 			},
@@ -2056,7 +2056,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"geFieldConstant", "b", "number", `100`},
+						Data: []string{"cmpFieldConstant", "ge", "b", "number", `100`},
 					},
 				},
 			},
@@ -2082,7 +2082,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "b", "number", `100`},
+						Data: []string{"cmpFieldConstant", "eq", "b", "number", `100`},
 					},
 				},
 			},
@@ -2124,7 +2124,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"ltFieldConstant", "b", "string", `"hello"`},
+						Data: []string{"cmpFieldConstant", "lt", "b", "string", `"hello"`},
 					},
 				},
 			},
@@ -2150,7 +2150,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"leFieldConstant", "b", "string", `"hello"`},
+						Data: []string{"cmpFieldConstant", "le", "b", "string", `"hello"`},
 					},
 				},
 			},
@@ -2176,7 +2176,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"gtFieldConstant", "b", "string", `"hello"`},
+						Data: []string{"cmpFieldConstant", "gt", "b", "string", `"hello"`},
 					},
 				},
 			},
@@ -2202,7 +2202,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"geFieldConstant", "b", "string", `"hello"`},
+						Data: []string{"cmpFieldConstant", "ge", "b", "string", `"hello"`},
 					},
 				},
 			},
@@ -2228,7 +2228,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"eqFieldConstant", "b", "string", `"hello"`},
+						Data: []string{"cmpFieldConstant", "eq", "b", "string", `"hello"`},
 					},
 				},
 			},
@@ -2259,11 +2259,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"geFieldConstant", "a", "string", `"hello"`},
+						Data: []string{"cmpFieldConstant", "ge", "a", "string", `"hello"`},
 					},
 					{
 						Kind: "expr",
-						Data: []string{"ltFieldConstant", "a", "string", `"hellp"`},
+						Data: []string{"cmpFieldConstant", "lt", "a", "string", `"hellp"`},
 					},
 				},
 			},
@@ -2293,7 +2293,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "expr",
-				Data: []string{"eqFieldConstant", "a", "string", `"hello"`},
+				Data: []string{"cmpFieldConstant", "eq", "a", "string", `"hello"`},
 			},
 		},
 
@@ -2321,11 +2321,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "expr",
-						Data: []string{"geFieldConstant", "a", "number", `10`},
+						Data: []string{"cmpFieldConstant", "ge", "a", "number", `10`},
 					},
 					{
 						Kind: "expr",
-						Data: []string{"leFieldConstant", "a", "number", `100`},
+						Data: []string{"cmpFieldConstant", "le", "a", "number", `100`},
 					},
 				},
 			},
