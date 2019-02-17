@@ -122,7 +122,7 @@ func (fi *FlexIndex) SargableComposite(ids Identifiers,
 
 		if childFlexBuild != nil {
 			if resFlexBuild == nil {
-				resFlexBuild = &FlexBuild{Kind: kind}
+				resFlexBuild = &FlexBuild{Kind: kind, Expr: expr}
 			}
 			resFlexBuild.Children =
 				append(resFlexBuild.Children, childFlexBuild)
@@ -167,5 +167,6 @@ func (fi *FlexIndex) SargableAnySatisfies(ids Identifiers,
 type FlexBuild struct {
 	Kind     string
 	Children []*FlexBuild
+	Expr     expression.Expression
 	Data     interface{} // Depends on the kind.
 }

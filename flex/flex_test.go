@@ -21,6 +21,15 @@ import (
 	"github.com/couchbase/query/planner"
 )
 
+func clearExpr(fb *FlexBuild) { // Destructive, used for tests.
+	if fb != nil {
+		fb.Expr = nil
+		for _, child := range fb.Children {
+			clearExpr(child)
+		}
+	}
+}
+
 func parseStatement(t *testing.T, stmt string) *algebra.Subselect {
 	s, err := n1ql.ParseStatement(stmt)
 	if err != nil {
@@ -2500,6 +2509,8 @@ func TestFlexSargable(t *testing.T) {
 				"  mismatch expected with needsFiltering: %v",
 				testi, test, exprWhereSimplified, needsFiltering)
 		}
+
+		clearExpr(flexBuild)
 
 		if !reflect.DeepEqual(flexBuild, test.expectFlexBuild) {
 			j, _ := json.Marshal(flexBuild)

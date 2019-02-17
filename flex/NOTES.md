@@ -62,12 +62,12 @@ The FlexIndex.Sargable() implementation currently supports...
   is rewritten by N1QL's planner.DNF as...
     (AND (GE x exprA) (LE x exprB)).
 
-------------------------------------------
-TODO...
-
 - conversion/translation of an FTS index definition to a FlexIndex.
 
 - conversion/translation of FlexBuild to a bleve query.
+
+------------------------------------------
+TODO...
 
 - expression - SEARCH().
 
@@ -118,7 +118,8 @@ TODO...
       dynamic indexing to use type "text".
 
 - issue: what about fields that have a null value?
-  ANS: they are not indexed by FTS.
+  - ANS: they are not indexed by FTS -- the index will not
+         have an entry that represents the NULL field value.
 
 - expression - CONTAINS.
 
@@ -165,34 +166,43 @@ Edge cases...
 Notes from examining the processing flow of a N1QL query...
 
 build_select_from  VisitKeyspaceTerm()
-build_scan           selectScan()
-                       buildScan() ==> secondary, primary (and next, return favoring seconary).
+build_scan           selectScan()...
+                       buildScan() ==> secondary, primary (and next, return favoring seconary)...
                          combineFilters() ==> dnfPred computed
 
-                         buildPredicateScan()
+                         buildPredicateScan()...
                            allIndexes() ==> indexes
 
-                           buildSubsetScan(..., indexes) ==> secondary, primary
-                             if OR-operator...
-                               then buildOrScan()
+                           buildSubsetScan(..., indexes) ==> secondary, primary...
+                             if OR-operator /* pred.(*expression.Or) */...
+                               then buildOrScan()...
+                                      for orTerm := range flattenOr(pred).Operands()...
+                                          eventually calls buildTermScan() focused on each orTerm
+                                      and returns plan.NewUnionScan(scansFromOrTerms)
                                else buildTermScan()
 
-  buildTermScan(..., indexes)
+  buildTermScan(..., indexes)...
     sargables := sargableIndexes(indexes, pred, pred, ...)
 
     minimals := minimalIndexes(sargables, shortest false, dnfPred)
 
-    if len(mimimals) > 0:
-      secondary, sargLength := buildSecondaryScan(minimals, ...) // try secondary scan
+    [+++ if !node.IsUnderNL() {
+        searchFns = make(map[string]*search.Search)
+        err = collectFTSSearch(node.Alias(), searchFns, pred) // Populates searchFns.
+        searchSargables, err = this.sargableSearchIndexes(indexes, pred, searchFns)
+    }]
+
+    if len(mimimals) > 0 [+++ || len(searchSarables) > 0]:
+      secondary, sargLength := buildSecondaryScan(minimals, ..., [+++ searchSarables]) // try secondary scan
       if covering, then return
                    else append to scans
 
-	if !join && this.from != nil:                                // try unnest scan
+	if !join && this.from != nil:            // try unnest scan
       ... := buildUnnestScan(...)
       if covering, then return
                    else append to scans
 
-    if !join && len(arrays) > 0:                                 // try dynamic scan
+    if !join && len(arrays) > 0:             // try dynamic scan
       ... := buildDynamicScan(...)
       if covering, then return
                    else append to scans
@@ -203,7 +213,7 @@ build_scan           selectScan()
       return NewOrderedIntersectScan(scans) // preserves order of first scan
 
 
-buildSecondaryScan(indexes, ...):
+buildSecondaryScan(indexes, ..., [+] searchSargables):
   mark the pushDownProperty'ed'ness of each index in indexes w.r.t. the dnfPred
 
   indexes = minimalIndexes(indexes, shortest true, dnfPred)
