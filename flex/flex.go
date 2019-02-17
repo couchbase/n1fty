@@ -150,7 +150,7 @@ func (fi *FlexIndex) SargableAnySatisfies(ids Identifiers,
 	a expression.CollectionPredicate, ftypes FieldTypes,
 	forceNeedsFiltering bool) (FieldTracks, bool, *FlexBuild, error) {
 	// For now, only 1 binding, as chain semantics is underspecified.
-	ids, ok := ids.PushBindings(a.Bindings(), 1)
+	ids, ok := ids.Push(a.Bindings(), 1)
 	if !ok {
 		return nil, false, nil, nil
 	}

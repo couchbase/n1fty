@@ -2379,6 +2379,50 @@ func TestFlexSargable(t *testing.T) {
 				},
 			},
 		},
+
+		// ------------------------------------------------------------------
+
+		{about: "test dynamic string inequality lt",
+			where:         `ISSTRING(a.b) AND a.b < "hello"`,
+			indexedFields: indexedFieldsAB,
+			supportedExprs: []SupportedExpr{
+				&SupportedExprCmpFieldConstant{
+					Cmp:              "lt le gt ge",
+					FieldPath:        []string{"a"},
+					ValueType:        "string",
+					FieldPathPartial: true,
+					FieldTypeCheck:   true,
+				},
+			},
+			expectFieldTracks: FieldTracks{
+				FieldTrack("a.b"): 1,
+			},
+			expectExact: true,
+			expectFlexBuild: &FlexBuild{
+				Kind: "conjunct",
+				Children: []*FlexBuild{
+					{
+						Kind: "cmpFieldConstant",
+						Data: []string{"lt", "a.b", "string", `"hello"`},
+					},
+				},
+			},
+		},
+
+		{about: "test dynamic string inequality lt when type of a.c not learned",
+			where:         `ISSTRING(a.b) AND a.c < "hello"`,
+			indexedFields: indexedFieldsAB,
+			supportedExprs: []SupportedExpr{
+				&SupportedExprCmpFieldConstant{
+					Cmp:              "lt le gt ge",
+					FieldPath:        []string{"a"},
+					ValueType:        "string",
+					FieldPathPartial: true,
+					FieldTypeCheck:   true,
+				},
+			},
+			expectExact: true,
+		},
 	}
 
 	for testi, test := range tests {
@@ -2426,9 +2470,9 @@ func TestFlexSargable(t *testing.T) {
 
 		if test.let != "" {
 			var ok bool
-			identifiers, ok = identifiers.PushBindings(s.Let(), -1)
+			identifiers, ok = identifiers.Push(s.Let(), -1)
 			if !ok {
-				t.Fatalf("identifiers.PushBindings not ok")
+				t.Fatalf("identifiers.Push not ok")
 			}
 		}
 

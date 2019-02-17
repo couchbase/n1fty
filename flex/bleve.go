@@ -27,6 +27,8 @@ func BleveToFlexIndex(im *mapping.IndexMappingImpl) (*FlexIndex, error) {
 	return bleveToFlexIndex(&FlexIndex{}, im, nil, nil, im.DefaultMapping)
 }
 
+var BleveTypeConv = map[string]string{"text": "string", "number": "number"}
+
 // Recursively initializes a FlexIndex from a given bleve document
 // mapping.  Note: the backing arrays for parents & path are volatile
 // as the recursion proceeds.
@@ -40,12 +42,16 @@ func bleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 	lineage := append(parents, dm)
 
 	for _, f := range dm.Fields {
-		if !f.Index || f.Type != "text" {
+		if !f.Index {
 			continue
 		}
 
-		analyzer := findAnalyzer(im, lineage, f.Analyzer)
-		if analyzer != "keyword" {
+		fieldType, ok := BleveTypeConv[f.Type]
+		if !ok {
+			continue
+		}
+
+		if f.Type == "text" && findAnalyzer(im, lineage, f.Analyzer) != "keyword" {
 			continue
 		}
 
@@ -54,19 +60,28 @@ func bleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 
 		fi.IndexedFields = append(fi.IndexedFields, &FieldInfo{
 			FieldPath: fieldPath,
-			FieldType: "string",
+			FieldType: fieldType,
 		})
 
 		fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
 			Cmp:       "eq",
 			FieldPath: fieldPath,
-			ValueType: "string",
+			ValueType: fieldType,
+		})
+
+		fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
+			Cmp:            "lt gt le ge",
+			FieldPath:      fieldPath,
+			ValueType:      fieldType,
+			FieldTypeCheck: true,
 		})
 
 		// TODO: Currently supports only default mapping.
 		// TODO: Currently supports only keyword fields.
-		// TODO: Need to support numeric & datetime field types.
-		// TODO: Need to support inequality comparisons.
+		// TODO: Need to support datetime field types?
+		// TODO: Need to support geopoint field types?
+		// TODO: Need to support bool field types?
+		// TODO: Need to support non-keyword analyzers?
 		// TODO: f.Store IncludeTermVectors, IncludeInAll, DateFormat, DocValues
 	}
 
@@ -91,8 +106,7 @@ func bleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 	// on a dynamic field will covert text strings that look like
 	// or parse as a date-time into datetime representation.
 	if dm.Dynamic && im.DefaultDateTimeParser == "disabled" {
-		analyzer := findAnalyzer(im, lineage, "")
-		if analyzer == "keyword" {
+		if findAnalyzer(im, lineage, "") == "keyword" {
 			dynamicPath := append([]string(nil), path...) // Copy.
 
 			// Register the dynamic path prefix into the indexed
@@ -108,6 +122,16 @@ func bleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 				ValueType:        "string",
 				FieldPathPartial: true,
 			})
+
+			fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
+				Cmp:              "lt gt le ge",
+				FieldPath:        dynamicPath,
+				ValueType:        "string",
+				FieldTypeCheck:   true,
+				FieldPathPartial: true,
+			})
+
+			// TODO: Support dynamic number (and other) types?
 		}
 	}
 

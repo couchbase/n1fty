@@ -22,25 +22,24 @@ type Identifiers []Identifier // A left-pushed stack of identifiers.
 
 // ---------------------------------------------------------------
 
-func (identifiers Identifiers) PushBindings(bs expression.Bindings, max int) (
-	Identifiers, bool) {
-	rootIdentifier := identifiers[len(identifiers)-1].Name
+func (a Identifiers) Push(bs expression.Bindings, max int) (Identifiers, bool) {
+	rootIdentifier := a[len(a)-1].Name
 
 	for i, b := range bs {
 		if max > 0 && max <= i {
 			return nil, false
 		}
 
-		suffix, ok := ExpressionFieldPathSuffix(identifiers, b.Expression(), nil, nil)
+		suffix, ok := ExpressionFieldPathSuffix(a, b.Expression(), nil, nil)
 		if ok {
-			identifiers = append(Identifiers{Identifier{
+			a = append(Identifiers{Identifier{
 				Name:      b.Variable(),
 				Expansion: append([]string{rootIdentifier}, suffix...),
-			}}, identifiers...)
+			}}, a...) // Allocs new stack for left-push / copy-on-write.
 		}
 	}
 
-	return identifiers, true
+	return a, true
 }
 
 // ReverseExpand finds the identifierName in the identifiers and on
@@ -51,9 +50,9 @@ func (identifiers Identifiers) PushBindings(bs expression.Bindings, max int) (
 //     Identifier{"emp", nil} ],
 // and identifierName is "w", and out is [], then returned will be...
 //   ["city", "address", "locations"], true
-func (identifiers Identifiers) ReverseExpand(
+func (a Identifiers) ReverseExpand(
 	identifierName string, out []string) ([]string, bool) {
-	for _, identifier := range identifiers {
+	for _, identifier := range a {
 		if identifier.Name == identifierName {
 			if len(identifier.Expansion) <= 0 {
 				return out, true
@@ -96,12 +95,12 @@ type FieldInfos []*FieldInfo
 
 // Given an expression.Field, finds the first FieldInfo that has a
 // matching field-path prefix.  The suffixOut enables slice reuse.
-func (fieldInfos FieldInfos) Find(identifiers Identifiers,
-	f expression.Expression, suffixOut []string) (*FieldInfo, []string) {
+func (fieldInfos FieldInfos) Find(a Identifiers, f expression.Expression,
+	suffixOut []string) (*FieldInfo, []string) {
 	var ok bool
 
 	for _, fieldInfo := range fieldInfos {
-		suffixOut, ok = ExpressionFieldPathSuffix(identifiers, f,
+		suffixOut, ok = ExpressionFieldPathSuffix(a, f,
 			fieldInfo.FieldPath, suffixOut[:0])
 		if ok {
 			return fieldInfo, suffixOut
@@ -120,7 +119,7 @@ func (fieldInfos FieldInfos) Find(identifiers Identifiers,
 // - `rootIdentifier`.`price` > 100 ==> true.
 // - `unknownIdentifier`.`cost` > 100 ==> false.
 
-func CheckFieldsUsed(fieldInfos FieldInfos, identifiers Identifiers,
+func CheckFieldsUsed(fieldInfos FieldInfos, a Identifiers,
 	expr expression.Expression) (found bool, err error) {
 	var fieldInfo *FieldInfo
 	var suffix []string
@@ -133,7 +132,7 @@ func CheckFieldsUsed(fieldInfos FieldInfos, identifiers Identifiers,
 		if fieldInfo == nil {
 			f, ok := e.(*expression.Field)
 			if ok {
-				fieldInfo, suffix = fieldInfos.Find(identifiers, f, suffix[:0])
+				fieldInfo, suffix = fieldInfos.Find(a, f, suffix[:0])
 			}
 
 			return e, e.MapChildren(m)
@@ -156,15 +155,14 @@ func CheckFieldsUsed(fieldInfos FieldInfos, identifiers Identifiers,
 // remaining field path suffix (e.g., ["address", "city"]).
 // The prefix may be [].  The returned suffix may be [].
 // The suffixOut allows for slice reuse.
-func ExpressionFieldPathSuffix(identifiers Identifiers,
-	expr expression.Expression, prefix []string,
-	suffixOut []string) ([]string, bool) {
-	suffixReverse := suffixOut[:0] // Reuse slice.
+func ExpressionFieldPathSuffix(a Identifiers, expr expression.Expression,
+	prefix []string, suffixOut []string) ([]string, bool) {
+	suffixRev := suffixOut[:0] // Reuse slice for reverse suffix.
 
 	var visit func(e expression.Expression) bool // Declare for recursion.
 
 	visitField := func(f *expression.Field) bool {
-		suffixReverse = append(suffixReverse, f.Second().Alias())
+		suffixRev = append(suffixRev, f.Second().Alias())
 
 		return visit(f.First())
 	}
@@ -172,8 +170,7 @@ func ExpressionFieldPathSuffix(identifiers Identifiers,
 	visitIdentifier := func(e expression.Expression) bool {
 		i, ok := e.(*expression.Identifier)
 		if ok {
-			suffixReverse, ok = identifiers.ReverseExpand(
-				i.Identifier(), suffixReverse)
+			suffixRev, ok = a.ReverseExpand(i.Identifier(), suffixRev)
 
 			return ok
 		}
@@ -195,23 +192,23 @@ func ExpressionFieldPathSuffix(identifiers Identifiers,
 
 	// Compare suffixReverse (["city", "address", "work", "locations"])
 	// with the prefix (["locations", "work"]).
-	if len(prefix) > len(suffixReverse) {
+	if len(prefix) > len(suffixRev) {
 		return suffixOut[:0], false
 	}
 
 	for _, s := range prefix {
-		if s != suffixReverse[len(suffixReverse)-1] {
+		if s != suffixRev[len(suffixRev)-1] {
 			return suffixOut[:0], false
 		}
 
-		suffixReverse = suffixReverse[0 : len(suffixReverse)-1]
+		suffixRev = suffixRev[0 : len(suffixRev)-1]
 	}
 
-	if len(suffixReverse) <= 0 {
+	if len(suffixRev) <= 0 {
 		return suffixOut[:0], true
 	}
 
-	return reverseInPlace(suffixReverse), true
+	return reverseInPlace(suffixRev), true
 }
 
 func reverseInPlace(a []string) []string {
