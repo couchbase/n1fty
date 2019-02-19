@@ -22,8 +22,7 @@ type FieldTypes []map[FieldTrack]string
 
 func (f FieldTypes) Lookup(k FieldTrack) (string, bool) {
 	for _, m := range f {
-		v, ok := m[k]
-		if ok {
+		if v, ok := m[k]; ok {
 			return v, true
 		}
 	}
@@ -194,7 +193,7 @@ func (p *ConjunctFieldTypes) CheckFieldTypeLoHi(
 	}
 
 	if fiLo.FieldType != "" && fiLo.FieldType != fieldType {
-		return NotSargable
+		return NotMatch // Other registered CFT's might match fieldType.
 	}
 
 	// Check (`t`.`a` < hiValue).
@@ -214,12 +213,12 @@ func (p *ConjunctFieldTypes) CheckFieldTypeLoHi(
 	}
 
 	if fiHi != fiLo || len(suffixHi) != len(suffixLo) {
-		return NotMatch
+		return NotMatch // Suffix lengths different.
 	}
 
 	for si, s := range suffixHi {
 		if s != suffixLo[si] {
-			return NotMatch
+			return NotMatch // Suffixes different.
 		}
 	}
 
@@ -233,7 +232,7 @@ func (p *ConjunctFieldTypes) CheckFieldTypeLoHi(
 		// Filter exprLo & exprHi as ISSTRING/NUMBER() was exactly learned().
 		p.ExprsOut = p.ExprsOut[0 : len(p.ExprsOut)-1]
 
-		return Match
+		return Match // Ex: learned via ("" <= fieldLo) AND (fieldHi < []).
 	}
 
 	if (cLo.Value().Type().String() == fieldType &&
@@ -242,7 +241,7 @@ func (p *ConjunctFieldTypes) CheckFieldTypeLoHi(
 		p.AddLearning(fiHi.FieldPath, suffixHi, fieldType) {
 		p.ExprsOut = append(p.ExprsOut, exprHi)
 
-		return Match
+		return Match // Ex: learned via ("A" < fieldLo) AND (fieldHi < "H").
 	}
 
 	return NotMatch

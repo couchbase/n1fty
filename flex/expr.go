@@ -68,23 +68,22 @@ func (s *SupportedExprCmpFieldConstant) Supports(fi *FlexIndex, ids Identifiers,
 	expr expression.Expression, exprFTs FieldTypes) (
 	bool, FieldTracks, bool, *FlexBuild, error) {
 	f, ok := expr.(expression.BinaryFunction)
-	if !ok ||
-		(s.Cmp == "" && f.Name() != "eq") ||
+	if !ok || (s.Cmp == "" && f.Name() != "eq") ||
 		(s.Cmp != "" && !strings.Contains(s.Cmp, f.Name())) {
 		return false, nil, false, nil, nil
 	}
 
 	matches, fieldTracks, needsFiltering, flexBuild, err :=
-		s.SupportsXY(fi, ids, f.Name(), f, f.First(), f.Second(), exprFTs)
+		s.SupportsXY(fi, ids, f.Name(), f.First(), f.Second(), exprFTs)
 	if err != nil || matches {
 		return matches, fieldTracks, needsFiltering, flexBuild, err
 	}
 
-	return s.SupportsXY(fi, ids, CmpReverse[f.Name()], f, f.Second(), f.First(), exprFTs)
+	return s.SupportsXY(fi, ids, CmpReverse[f.Name()], f.Second(), f.First(), exprFTs)
 }
 
 func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifiers,
-	fName string, expr, exprX, exprY expression.Expression, exprFTs FieldTypes) (
+	fName string, exprX, exprY expression.Expression, exprFTs FieldTypes) (
 	bool, FieldTracks, bool, *FlexBuild, error) {
 	suffix, ok := ExpressionFieldPathSuffix(ids, exprX, s.FieldPath, nil)
 	if !ok {
@@ -135,8 +134,7 @@ func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifier
 	}
 
 	return true, FieldTracks{FieldTrack(fieldTrack): 1}, false, &FlexBuild{
-		Kind: "cmpFieldConstant", Expr: expr, Data: []string{
+		Kind: "cmpFieldConstant", Data: []string{
 			fName, fieldTrack, s.ValueType, exprY.String(),
-		},
-	}, nil
+		}}, nil
 }

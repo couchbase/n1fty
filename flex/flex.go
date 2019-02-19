@@ -21,57 +21,54 @@ type FlexIndex struct {
 	SupportedExprs []SupportedExpr
 }
 
-// Sargable() checks if an expr is amenable to a FlexIndex scan.
+// Sargable() checks if expression (e) is amenable to a FlexIndex scan.
 //
 // When len(returned FieldTracks) > 0, then the expr tree is sargable,
 // where the associated per-fieldTrack counts provide more resolution.
 //
-// The returned needsFiltering indicates potential false positives.
+// The returned bool indicates potential false positives.
 //
 // The returned FlexBuild represents hierarchical, gathered state that
 // can be used to formulate index scans and is meant to help avoid
 // re-examinations of the expr.
 //
-// The FieldTypes (exprFTs) represents field-type info about the expr
+// The FieldTypes (eFTs) represents field-type's info about the expr
 // learned during recursion, and can be nil for the initial call.
 //
 // The algorithm tries to recursively find a subset of the expr tree
 // where sub-expressions are either allowed by the SupportedExprs, or
 // are intermediary AND/OR composite expressions, or are expressions
 // that are filterable later for potential false-positives.
-func (fi *FlexIndex) Sargable(ids Identifiers,
-	expr expression.Expression, exprFTs FieldTypes) (
-	ft FieldTracks, needsFiltering bool, fb *FlexBuild, err error) {
+func (fi *FlexIndex) Sargable(ids Identifiers, e expression.Expression,
+	eFTs FieldTypes) (FieldTracks, bool, *FlexBuild, error) {
 	// Check if expr matches one of the supported expressions.
 	for _, se := range fi.SupportedExprs {
-		var matches bool
-		matches, ft, needsFiltering, fb, err = se.Supports(fi, ids, expr, exprFTs)
+		matches, ft, needsFiltering, fb, err := se.Supports(fi, ids, e, eFTs)
 		if err != nil || matches {
 			return ft, needsFiltering, fb, err
 		}
 	}
 
-	if _, ok := expr.(*expression.And); ok { // Handle AND composite.
-		return fi.SargableComposite(ids, expr, exprFTs, "conjunct")
+	if _, ok := e.(*expression.And); ok { // Handle AND composite.
+		return fi.SargableComposite(ids, e.Children(), eFTs, "conjunct")
 	}
 
-	if _, ok := expr.(*expression.Or); ok { // Handle OR composite.
-		return fi.SargableComposite(ids, expr, exprFTs, "disjunct")
+	if _, ok := e.(*expression.Or); ok { // Handle OR composite.
+		return fi.SargableComposite(ids, e.Children(), eFTs, "disjunct")
 	}
 
-	if a, ok := expr.(*expression.Any); ok { // Handle ANY-SATISFIES.
-		return fi.SargableAnySatisfies(ids, a, exprFTs, false)
+	if a, ok := e.(*expression.Any); ok { // Handle ANY-SATISFIES.
+		return fi.SargableAnySatisfies(ids, a, eFTs, false)
 	}
 
-	if a, ok := expr.(*expression.AnyEvery); ok { // ANY-AND-EVERY-SATISFIES.
-		return fi.SargableAnySatisfies(ids, a, exprFTs, true)
+	if a, ok := e.(*expression.AnyEvery); ok { // ANY-AND-EVERY-SATISFIES.
+		return fi.SargableAnySatisfies(ids, a, eFTs, true)
 	}
 
 	// Otherwise, any other expr that references or uses any of our
 	// indexedFields (in a non-supported way) is not-sargable.
 	// Ex: ROUND(myIndexedField) > 100.
-	found, err := CheckFieldsUsed(fi.IndexedFields, ids, expr)
-	if err != nil || found {
+	if used, err := CheckFieldsUsed(fi.IndexedFields, ids, e); err != nil || used {
 		return nil, false, nil, err
 	}
 
@@ -84,17 +81,14 @@ func (fi *FlexIndex) Sargable(ids Identifiers,
 
 // Processes a composite expression (AND's/OR's) via recursion.
 func (fi *FlexIndex) SargableComposite(ids Identifiers,
-	expr expression.Expression, exprFTs FieldTypes, kind string) (
-	resFieldTracks FieldTracks, resNeedsFiltering bool,
-	resFlexBuild *FlexBuild, err error) {
-	exprs := expr.Children()
-
+	exprs expression.Expressions, exprFTs FieldTypes, kind string) (
+	rFieldTracks FieldTracks, rNeedsFiltering bool, rFB *FlexBuild, err error) {
 	conjunct := kind == "conjunct"
 	if conjunct {
 		// A conjunct allows us to build up field-type knowledge from
 		// the children, possibly with filtering out some children.
 		var ok bool
-		exprs, exprFTs, resNeedsFiltering, ok =
+		exprs, exprFTs, rNeedsFiltering, ok =
 			ProcessConjunctFieldTypes(fi.IndexedFields, ids, exprs, exprFTs)
 		if !ok {
 			return nil, false, nil, nil // Type mismatch is not-sargable.
@@ -103,36 +97,34 @@ func (fi *FlexIndex) SargableComposite(ids Identifiers,
 
 	// Loop through the child exprs and recurse.  Return early if we
 	// find a child expr that's not-sargable or that isn't filterable.
-	for _, childExpr := range exprs {
-		childFieldTracks, childNeedsFiltering, childFlexBuild, err :=
-			fi.Sargable(ids, childExpr, exprFTs)
+	for _, cExpr := range exprs {
+		cFieldTracks, cNeedsFiltering, cFB, err := fi.Sargable(ids, cExpr, exprFTs)
 		if err != nil {
 			return nil, false, nil, err
 		}
 
 		// Add child's result to our composite results.
-		for childFieldTrack, n := range childFieldTracks {
-			if resFieldTracks == nil {
-				resFieldTracks = FieldTracks{}
+		for cFieldTrack, n := range cFieldTracks {
+			if rFieldTracks == nil {
+				rFieldTracks = FieldTracks{}
 			}
-			resFieldTracks[childFieldTrack] += n
+			rFieldTracks[cFieldTrack] += n
 		}
 
-		resNeedsFiltering = resNeedsFiltering || childNeedsFiltering
+		rNeedsFiltering = rNeedsFiltering || cNeedsFiltering
 
-		if childFlexBuild != nil {
-			if resFlexBuild == nil {
-				resFlexBuild = &FlexBuild{Kind: kind, Expr: expr}
+		if cFB != nil {
+			if rFB == nil {
+				rFB = &FlexBuild{Kind: kind}
 			}
-			resFlexBuild.Children =
-				append(resFlexBuild.Children, childFlexBuild)
+			rFB.Children = append(rFB.Children, cFB)
 		}
 
-		if len(childFieldTracks) > 0 {
+		if len(cFieldTracks) > 0 {
 			continue // Child is sargable.
 		}
 
-		if childNeedsFiltering && conjunct {
+		if cNeedsFiltering && conjunct {
 			continue // Child ok for filtering when conjunct'ing.
 		}
 
@@ -140,7 +132,7 @@ func (fi *FlexIndex) SargableComposite(ids Identifiers,
 	}
 
 	// All our children were sargable and/or ok for filtering.
-	return resFieldTracks, resNeedsFiltering, resFlexBuild, nil
+	return rFieldTracks, rNeedsFiltering, rFB, nil
 }
 
 // ---------------------------------------------------------------
@@ -167,6 +159,5 @@ func (fi *FlexIndex) SargableAnySatisfies(ids Identifiers,
 type FlexBuild struct {
 	Kind     string
 	Children []*FlexBuild
-	Expr     expression.Expression
 	Data     interface{} // Depends on the kind.
 }

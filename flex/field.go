@@ -30,11 +30,10 @@ func (a Identifiers) Push(bs expression.Bindings, max int) (Identifiers, bool) {
 			return nil, false
 		}
 
-		suffix, ok := ExpressionFieldPathSuffix(a, b.Expression(), nil, nil)
-		if ok {
+		if s, ok := ExpressionFieldPathSuffix(a, b.Expression(), nil, nil); ok {
 			a = append(Identifiers{Identifier{
 				Name:      b.Variable(),
-				Expansion: append([]string{rootIdentifier}, suffix...),
+				Expansion: append([]string{rootIdentifier}, s...),
 			}}, a...) // Allocs new stack for left-push / copy-on-write.
 		}
 	}
@@ -130,8 +129,7 @@ func CheckFieldsUsed(fieldInfos FieldInfos, a Identifiers,
 
 	m.SetMapFunc(func(e expression.Expression) (expression.Expression, error) {
 		if fieldInfo == nil {
-			f, ok := e.(*expression.Field)
-			if ok {
+			if f, ok := e.(*expression.Field); ok {
 				fieldInfo, suffix = fieldInfos.Find(a, f, suffix[:0])
 			}
 
@@ -161,29 +159,18 @@ func ExpressionFieldPathSuffix(a Identifiers, expr expression.Expression,
 
 	var visit func(e expression.Expression) bool // Declare for recursion.
 
-	visitField := func(f *expression.Field) bool {
-		suffixRev = append(suffixRev, f.Second().Alias())
+	visit = func(e expression.Expression) bool {
+		if f, ok := e.(*expression.Field); ok {
+			suffixRev = append(suffixRev, f.Second().Alias())
+			return visit(f.First())
+		}
 
-		return visit(f.First())
-	}
-
-	visitIdentifier := func(e expression.Expression) bool {
-		i, ok := e.(*expression.Identifier)
-		if ok {
+		if i, ok := e.(*expression.Identifier); ok {
 			suffixRev, ok = a.ReverseExpand(i.Identifier(), suffixRev)
-
 			return ok
 		}
 
 		return false
-	}
-
-	visit = func(e expression.Expression) bool {
-		if f, ok := e.(*expression.Field); ok {
-			return visitField(f)
-		}
-
-		return visitIdentifier(e)
 	}
 
 	if !visit(expr) {

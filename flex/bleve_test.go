@@ -15,7 +15,6 @@ import (
 	"testing"
 
 	"github.com/blevesearch/bleve/mapping"
-	"github.com/blevesearch/bleve/search/query"
 )
 
 func TestBleveToFlexIndex(t *testing.T) {
@@ -45,6 +44,7 @@ func TestBleveToFlexIndex(t *testing.T) {
 			},
 			expectErr: "because there isn't a only default mapping",
 		},
+
 		{
 			m: &mapping.IndexMappingImpl{
 				DefaultMapping: &mapping.DocumentMapping{},
@@ -101,14 +101,106 @@ func TestBleveToFlexIndex(t *testing.T) {
 			},
 			expectFlexIndex: &FlexIndex{},
 		},
+
+		// -----------------------------------------------
+
 		{
 			m: &mapping.IndexMappingImpl{
 				DefaultMapping: &mapping.DocumentMapping{
 					Enabled: true,
-					Fields: []*mapping.FieldMapping{
-						{
-							Name: "f1", Type: "text", Analyzer: "keyword",
-							Index: true,
+					Properties: map[string]*mapping.DocumentMapping{
+						"f1": {},
+					},
+				},
+			},
+			expectFlexIndex: &FlexIndex{},
+		},
+		{
+			m: &mapping.IndexMappingImpl{
+				DefaultMapping: &mapping.DocumentMapping{
+					Enabled: true,
+					Properties: map[string]*mapping.DocumentMapping{
+						"f1": {
+							Enabled: true,
+						},
+					},
+				},
+			},
+			expectFlexIndex: &FlexIndex{},
+		},
+		{
+			m: &mapping.IndexMappingImpl{
+				DefaultMapping: &mapping.DocumentMapping{
+					Enabled: true,
+					Properties: map[string]*mapping.DocumentMapping{
+						"f1": {
+							Enabled: true,
+							Fields: []*mapping.FieldMapping{
+								{
+									Name: "f1", Type: "NOT-text", Analyzer: "keyword",
+									Index: true,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectFlexIndex: &FlexIndex{},
+		},
+		{
+			m: &mapping.IndexMappingImpl{
+				DefaultMapping: &mapping.DocumentMapping{
+					Enabled: true,
+					Properties: map[string]*mapping.DocumentMapping{
+						"f1": {
+							Enabled: true,
+							Fields: []*mapping.FieldMapping{
+								{
+									Name: "f1", Type: "text", Analyzer: "NOT-keyword",
+									Index: true,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectFlexIndex: &FlexIndex{},
+		},
+		{
+			m: &mapping.IndexMappingImpl{
+				DefaultMapping: &mapping.DocumentMapping{
+					Enabled: true,
+					Properties: map[string]*mapping.DocumentMapping{
+						"f1": {
+							Enabled: true,
+							Fields: []*mapping.FieldMapping{
+								{
+									Name: "f1", Type: "text", Analyzer: "keyword",
+									Index: false, /* Index FALSE */
+								},
+							},
+						},
+					},
+				},
+			},
+			expectFlexIndex: &FlexIndex{},
+		},
+
+		// -----------------------------------------------
+
+		{
+			m: &mapping.IndexMappingImpl{
+				DefaultMapping: &mapping.DocumentMapping{
+					Enabled: true,
+					Properties: map[string]*mapping.DocumentMapping{
+						"f1": {
+							Enabled: true,
+							Fields: []*mapping.FieldMapping{
+								{
+									Name: "f1", Type: "text", Analyzer: "keyword",
+									Index: true,
+								},
+							},
 						},
 					},
 				},
@@ -139,10 +231,15 @@ func TestBleveToFlexIndex(t *testing.T) {
 			m: &mapping.IndexMappingImpl{
 				DefaultMapping: &mapping.DocumentMapping{
 					Enabled: true,
-					Fields: []*mapping.FieldMapping{
-						{
-							Name: "f1", Type: "text", Analyzer: "",
-							Index: true,
+					Properties: map[string]*mapping.DocumentMapping{
+						"f1": {
+							Enabled: true,
+							Fields: []*mapping.FieldMapping{
+								{
+									Name: "f1", Type: "text", Analyzer: "",
+									Index: true,
+								},
+							},
 						},
 					},
 				},
@@ -154,10 +251,15 @@ func TestBleveToFlexIndex(t *testing.T) {
 			m: &mapping.IndexMappingImpl{
 				DefaultMapping: &mapping.DocumentMapping{
 					Enabled: true,
-					Fields: []*mapping.FieldMapping{
-						{
-							Name: "f1", Type: "text", /* Analyzer: "", */
-							Index: true,
+					Properties: map[string]*mapping.DocumentMapping{
+						"f1": {
+							Enabled: true,
+							Fields: []*mapping.FieldMapping{
+								{
+									Name: "f1", Type: "text", /* Analyzer: "", */
+									Index: true,
+								},
+							},
 						},
 					},
 				},
@@ -189,14 +291,24 @@ func TestBleveToFlexIndex(t *testing.T) {
 			m: &mapping.IndexMappingImpl{
 				DefaultMapping: &mapping.DocumentMapping{
 					Enabled: true,
-					Fields: []*mapping.FieldMapping{
-						{
-							Name: "f1", Type: "text", Analyzer: "keyword",
-							Index: true,
+					Properties: map[string]*mapping.DocumentMapping{
+						"f1": {
+							Enabled: true,
+							Fields: []*mapping.FieldMapping{
+								{
+									Name: "f1", Type: "text", Analyzer: "keyword",
+									Index: true,
+								},
+							},
 						},
-						{
-							Name: "f2", Type: "text", Analyzer: "keyword",
-							Index: false,
+						"f2": {
+							Enabled: true,
+							Fields: []*mapping.FieldMapping{
+								{
+									Name: "f2", Type: "text", Analyzer: "keyword",
+									Index: false,
+								},
+							},
 						},
 					},
 				},
@@ -230,10 +342,15 @@ func TestBleveToFlexIndex(t *testing.T) {
 					Properties: map[string]*mapping.DocumentMapping{
 						"addr": {
 							Enabled: true,
-							Fields: []*mapping.FieldMapping{
-								{
-									Name: "f1", Type: "text", Analyzer: "keyword",
-									Index: true,
+							Properties: map[string]*mapping.DocumentMapping{
+								"f1": {
+									Enabled: true,
+									Fields: []*mapping.FieldMapping{
+										{
+											Name: "f1", Type: "text", Analyzer: "keyword",
+											Index: true,
+										},
+									},
 								},
 							},
 						},
@@ -269,10 +386,15 @@ func TestBleveToFlexIndex(t *testing.T) {
 					Properties: map[string]*mapping.DocumentMapping{
 						"": {
 							Enabled: true,
-							Fields: []*mapping.FieldMapping{
-								{
-									Name: "f1", Type: "text", Analyzer: "keyword",
-									Index: true,
+							Properties: map[string]*mapping.DocumentMapping{
+								"f1": {
+									Enabled: true,
+									Fields: []*mapping.FieldMapping{
+										{
+											Name: "f1", Type: "text", Analyzer: "keyword",
+											Index: true,
+										},
+									},
 								},
 							},
 						},
@@ -288,19 +410,29 @@ func TestBleveToFlexIndex(t *testing.T) {
 					Properties: map[string]*mapping.DocumentMapping{
 						"addr": {
 							Enabled: true,
-							Fields: []*mapping.FieldMapping{
-								{
-									Name: "f1", Type: "text", Analyzer: "keyword",
-									Index: true,
+							Properties: map[string]*mapping.DocumentMapping{
+								"f1": {
+									Enabled: true,
+									Fields: []*mapping.FieldMapping{
+										{
+											Name: "f1", Type: "text", Analyzer: "keyword",
+											Index: true,
+										},
+									},
 								},
 							},
 						},
 						"pets": {
 							Enabled: true,
-							Fields: []*mapping.FieldMapping{
-								{
-									Name: "f1", Type: "text", Analyzer: "keyword",
-									Index: true,
+							Properties: map[string]*mapping.DocumentMapping{
+								"f1": {
+									Enabled: true,
+									Fields: []*mapping.FieldMapping{
+										{
+											Name: "f1", Type: "text", Analyzer: "keyword",
+											Index: true,
+										},
+									},
 								},
 							},
 						},
@@ -427,10 +559,15 @@ func TestBleveToFlexIndex(t *testing.T) {
 						"addr": {
 							Enabled: true,
 							Dynamic: true,
-							Fields: []*mapping.FieldMapping{
-								{
-									Name: "f1", Type: "text", Analyzer: "keyword",
-									Index: true,
+							Properties: map[string]*mapping.DocumentMapping{
+								"f1": {
+									Enabled: true,
+									Fields: []*mapping.FieldMapping{
+										{
+											Name: "f1", Type: "text", Analyzer: "keyword",
+											Index: true,
+										},
+									},
 								},
 							},
 						},
@@ -499,26 +636,20 @@ func TestBleveToFlexIndex(t *testing.T) {
 }
 
 func TestFlexBuildToBleveQuery(t *testing.T) {
-	setField := func(q query.FieldableQuery, f string) query.FieldableQuery {
-		q.SetField(f)
-		return q
-	}
-
-	v100 := float64(100)
-	v200 := float64(200)
-
 	tests := []struct {
 		fb          *FlexBuild
-		expectQuery query.Query
 		expectErr   string
+		expectQuery map[string]interface{}
 	}{
 		{},
 
 		{fb: &FlexBuild{Kind: "conjunct"},
-			expectQuery: query.NewConjunctionQuery([]query.Query{})},
+			expectQuery: nil,
+		},
 
 		{fb: &FlexBuild{Kind: "disjunct"},
-			expectQuery: query.NewDisjunctionQuery([]query.Query{})},
+			expectQuery: nil,
+		},
 
 		// -----------------------------------------------------------
 
@@ -527,42 +658,54 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 				Kind: "cmpFieldConstant",
 				Data: []string{"eq", "a", "string", `"hello"`},
 			},
-			expectQuery: setField(query.NewTermQuery("hello"), "a"),
+			expectQuery: map[string]interface{}{
+				"term": "hello", "field": "a",
+			},
 		},
 		{
 			fb: &FlexBuild{
 				Kind: "cmpFieldConstant",
 				Data: []string{"eq", "a", "string", `""`},
 			},
-			expectQuery: setField(query.NewTermQuery(""), "a"),
+			expectQuery: map[string]interface{}{
+				"term": "", "field": "a",
+			},
 		},
 		{
 			fb: &FlexBuild{
 				Kind: "cmpFieldConstant",
 				Data: []string{"lt", "a", "string", `"hello"`},
 			},
-			expectQuery: setField(query.NewTermRangeInclusiveQuery("", "hello", &falseVal, &falseVal), "a"),
+			expectQuery: map[string]interface{}{
+				"field": "a", "max": "hello", "inclusive_max": false,
+			},
 		},
 		{
 			fb: &FlexBuild{
 				Kind: "cmpFieldConstant",
 				Data: []string{"le", "a", "string", `"hello"`},
 			},
-			expectQuery: setField(query.NewTermRangeInclusiveQuery("", "hello", &falseVal, &trueVal), "a"),
+			expectQuery: map[string]interface{}{
+				"inclusive_max": true, "field": "a", "max": "hello",
+			},
 		},
 		{
 			fb: &FlexBuild{
 				Kind: "cmpFieldConstant",
 				Data: []string{"gt", "a", "string", `"hello"`},
 			},
-			expectQuery: setField(query.NewTermRangeInclusiveQuery("hello", "", &falseVal, &falseVal), "a"),
+			expectQuery: map[string]interface{}{
+				"min": "hello", "inclusive_min": false, "field": "a",
+			},
 		},
 		{
 			fb: &FlexBuild{
 				Kind: "cmpFieldConstant",
 				Data: []string{"ge", "a", "string", `"hello"`},
 			},
-			expectQuery: setField(query.NewTermRangeInclusiveQuery("hello", "", &trueVal, &falseVal), "a"),
+			expectQuery: map[string]interface{}{
+				"inclusive_min": true, "field": "a", "min": "hello",
+			},
 		},
 
 		// -----------------------------------------------------------
@@ -570,37 +713,40 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 		{
 			fb: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"eq", "a", "number", `100`},
+				Data: []string{"eq", "a", "number", `100.1`},
 			},
-			expectQuery: setField(query.NewNumericRangeInclusiveQuery(&v100, &v100, &trueVal, &trueVal), "a"),
+			expectQuery: map[string]interface{}{
+				"field": "a", "min": 100.1, "max": 100.1,
+				"inclusive_min": true, "inclusive_max": true,
+			},
 		},
 		{
 			fb: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"lt", "a", "number", `100`},
+				Data: []string{"lt", "a", "number", `100.1`},
 			},
-			expectQuery: setField(query.NewNumericRangeInclusiveQuery(nil, &v100, &falseVal, &falseVal), "a"),
+			expectQuery: map[string]interface{}{"max": 100.1, "inclusive_max": false, "field": "a"},
 		},
 		{
 			fb: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"le", "a", "number", `100`},
+				Data: []string{"le", "a", "number", `100.1`},
 			},
-			expectQuery: setField(query.NewNumericRangeInclusiveQuery(nil, &v100, &falseVal, &trueVal), "a"),
+			expectQuery: map[string]interface{}{"max": 100.1, "inclusive_max": true, "field": "a"},
 		},
 		{
 			fb: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"gt", "a", "number", `100`},
+				Data: []string{"gt", "a", "number", `100.1`},
 			},
-			expectQuery: setField(query.NewNumericRangeInclusiveQuery(&v100, nil, &falseVal, &falseVal), "a"),
+			expectQuery: map[string]interface{}{"min": 100.1, "inclusive_min": false, "field": "a"},
 		},
 		{
 			fb: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"ge", "a", "number", `100`},
+				Data: []string{"ge", "a", "number", `100.1`},
 			},
-			expectQuery: setField(query.NewNumericRangeInclusiveQuery(&v100, nil, &trueVal, &falseVal), "a"),
+			expectQuery: map[string]interface{}{"min": 100.1, "inclusive_min": true, "field": "a"},
 		},
 
 		// -----------------------------------------------------------
@@ -615,9 +761,7 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 					},
 				},
 			},
-			expectQuery: query.NewConjunctionQuery([]query.Query{
-				setField(query.NewTermQuery("hello"), "a"),
-			}),
+			expectQuery: map[string]interface{}{"term": "hello", "field": "a"},
 		},
 		{
 			fb: &FlexBuild{
@@ -633,10 +777,12 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 					},
 				},
 			},
-			expectQuery: query.NewConjunctionQuery([]query.Query{
-				setField(query.NewTermQuery("hello"), "a"),
-				setField(query.NewTermQuery("hello"), "b"),
-			}),
+			expectQuery: map[string]interface{}{
+				"conjuncts": []interface{}{
+					map[string]interface{}{"term": "hello", "field": "a"},
+					map[string]interface{}{"term": "hello", "field": "b"},
+				},
+			},
 		},
 		{
 			fb: &FlexBuild{
@@ -648,14 +794,21 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "b", "number", `100`},
+						Data: []string{"eq", "b", "number", `100.1`},
 					},
 				},
 			},
-			expectQuery: query.NewConjunctionQuery([]query.Query{
-				setField(query.NewTermQuery("hello"), "a"),
-				setField(query.NewNumericRangeInclusiveQuery(&v100, &v100, &trueVal, &trueVal), "b"),
-			}),
+			expectQuery: map[string]interface{}{
+				"conjuncts": []interface{}{
+					map[string]interface{}{"term": "hello", "field": "a"},
+					map[string]interface{}{
+						"field": "b",
+						"min":   100.1, "max": 100.1,
+						"inclusive_min": true,
+						"inclusive_max": true,
+					},
+				},
+			},
 		},
 
 		// -----------------------------------------------------------
@@ -670,14 +823,18 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"lt", "b", "number", `100`},
+						Data: []string{"lt", "b", "number", `100.1`},
 					},
 				},
 			},
-			expectQuery: query.NewConjunctionQuery([]query.Query{
-				setField(query.NewTermRangeInclusiveQuery("A", "", &falseVal, &falseVal), "a"),
-				setField(query.NewNumericRangeInclusiveQuery(nil, &v100, &falseVal, &falseVal), "b"),
-			}),
+			expectQuery: map[string]interface{}{
+				"conjuncts": []interface{}{
+					map[string]interface{}{
+						"min": "A", "inclusive_min": false, "field": "a"},
+					map[string]interface{}{
+						"max": 100.1, "inclusive_max": false, "field": "b"},
+				},
+			},
 		},
 		{
 			fb: &FlexBuild{
@@ -693,10 +850,12 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 					},
 				},
 			},
-			expectQuery: query.NewConjunctionQuery([]query.Query{
-				setField(query.NewTermRangeInclusiveQuery("A", "", &falseVal, &falseVal), "a"),
-				setField(query.NewTermRangeInclusiveQuery("", "H", &falseVal, &falseVal), "b"),
-			}),
+			expectQuery: map[string]interface{}{
+				"conjuncts": []interface{}{
+					map[string]interface{}{"field": "a", "min": "A", "inclusive_min": false},
+					map[string]interface{}{"field": "b", "max": "H", "inclusive_max": false},
+				},
+			},
 		},
 		{
 			fb: &FlexBuild{
@@ -712,9 +871,13 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 					},
 				},
 			},
-			expectQuery: query.NewConjunctionQuery([]query.Query{
-				setField(query.NewTermRangeInclusiveQuery("A", "H", &falseVal, &falseVal), "a"),
-			}),
+			expectQuery: map[string]interface{}{
+				"field":         "a",
+				"min":           "A",
+				"max":           "H",
+				"inclusive_min": false,
+				"inclusive_max": false,
+			},
 		},
 		{
 			fb: &FlexBuild{
@@ -730,9 +893,11 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 					},
 				},
 			},
-			expectQuery: query.NewConjunctionQuery([]query.Query{
-				setField(query.NewTermRangeInclusiveQuery("A", "H", &falseVal, &falseVal), "a"),
-			}),
+			expectQuery: map[string]interface{}{
+				"field": "a",
+				"min":   "A", "inclusive_min": false,
+				"max": "H", "inclusive_max": false,
+			},
 		},
 		{
 			fb: &FlexBuild{
@@ -748,9 +913,11 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 					},
 				},
 			},
-			expectQuery: query.NewConjunctionQuery([]query.Query{
-				setField(query.NewTermRangeInclusiveQuery("A", "H", &trueVal, &falseVal), "a"),
-			}),
+			expectQuery: map[string]interface{}{
+				"field": "a",
+				"min":   "A", "inclusive_min": true,
+				"max": "H", "inclusive_max": false,
+			},
 		},
 		{
 			fb: &FlexBuild{
@@ -766,9 +933,11 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 					},
 				},
 			},
-			expectQuery: query.NewConjunctionQuery([]query.Query{
-				setField(query.NewTermRangeInclusiveQuery("A", "H", &trueVal, &trueVal), "a"),
-			}),
+			expectQuery: map[string]interface{}{
+				"field": "a",
+				"min":   "A", "inclusive_min": true,
+				"max": "H", "inclusive_max": true,
+			},
 		},
 		{
 			fb: &FlexBuild{
@@ -784,9 +953,11 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 					},
 				},
 			},
-			expectQuery: query.NewConjunctionQuery([]query.Query{
-				setField(query.NewTermRangeInclusiveQuery("A", "H", &falseVal, &trueVal), "a"),
-			}),
+			expectQuery: map[string]interface{}{
+				"field": "a",
+				"min":   "A", "inclusive_min": false,
+				"max": "H", "inclusive_max": true,
+			},
 		},
 
 		// -----------------------------------------------------------
@@ -805,10 +976,12 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 					},
 				},
 			},
-			expectQuery: query.NewDisjunctionQuery([]query.Query{
-				setField(query.NewTermRangeInclusiveQuery("A", "", &falseVal, &falseVal), "a"),
-				setField(query.NewTermRangeInclusiveQuery("", "H", &falseVal, &falseVal), "a"),
-			}),
+			expectQuery: map[string]interface{}{
+				"disjuncts": []interface{}{
+					map[string]interface{}{"min": "A", "inclusive_min": false, "field": "a"},
+					map[string]interface{}{"max": "H", "inclusive_max": false, "field": "a"},
+				},
+			},
 		},
 
 		// -----------------------------------------------------------
@@ -819,18 +992,20 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"gt", "a", "number", `100`},
+						Data: []string{"gt", "a", "number", `100.1`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"lt", "b", "number", `200`},
+						Data: []string{"lt", "b", "number", `200.1`},
 					},
 				},
 			},
-			expectQuery: query.NewConjunctionQuery([]query.Query{
-				setField(query.NewNumericRangeInclusiveQuery(&v100, nil, &falseVal, &falseVal), "a"),
-				setField(query.NewNumericRangeInclusiveQuery(nil, &v200, &falseVal, &falseVal), "b"),
-			}),
+			expectQuery: map[string]interface{}{
+				"conjuncts": []interface{}{
+					map[string]interface{}{"min": 100.1, "inclusive_min": false, "field": "a"},
+					map[string]interface{}{"max": 200.1, "inclusive_max": false, "field": "b"},
+				},
+			},
 		},
 		{
 			fb: &FlexBuild{
@@ -838,17 +1013,19 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"gt", "a", "number", `100`},
+						Data: []string{"gt", "a", "number", `100.1`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"lt", "a", "number", `200`},
+						Data: []string{"lt", "a", "number", `200.1`},
 					},
 				},
 			},
-			expectQuery: query.NewConjunctionQuery([]query.Query{
-				setField(query.NewNumericRangeInclusiveQuery(&v100, &v200, &falseVal, &falseVal), "a"),
-			}),
+			expectQuery: map[string]interface{}{
+				"field": "a",
+				"min":   100.1, "inclusive_min": false,
+				"max": 200.1, "inclusive_max": false,
+			},
 		},
 		{
 			fb: &FlexBuild{
@@ -856,17 +1033,19 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"lt", "a", "number", `200`},
+						Data: []string{"lt", "a", "number", `200.1`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"gt", "a", "number", `100`},
+						Data: []string{"gt", "a", "number", `100.1`},
 					},
 				},
 			},
-			expectQuery: query.NewConjunctionQuery([]query.Query{
-				setField(query.NewNumericRangeInclusiveQuery(&v100, &v200, &falseVal, &falseVal), "a"),
-			}),
+			expectQuery: map[string]interface{}{
+				"inclusive_min": false, "max": 200.1,
+				"inclusive_max": false, "min": 100.1,
+				"field": "a",
+			},
 		},
 		{
 			fb: &FlexBuild{
@@ -874,17 +1053,19 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"ge", "a", "number", `100`},
+						Data: []string{"ge", "a", "number", `100.1`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"lt", "a", "number", `200`},
+						Data: []string{"lt", "a", "number", `200.1`},
 					},
 				},
 			},
-			expectQuery: query.NewConjunctionQuery([]query.Query{
-				setField(query.NewNumericRangeInclusiveQuery(&v100, &v200, &trueVal, &falseVal), "a"),
-			}),
+			expectQuery: map[string]interface{}{
+				"field": "a",
+				"min":   100.1, "inclusive_min": true,
+				"max": 200.1, "inclusive_max": false,
+			},
 		},
 		{
 			fb: &FlexBuild{
@@ -892,17 +1073,19 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"ge", "a", "number", `100`},
+						Data: []string{"ge", "a", "number", `100.1`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"le", "a", "number", `200`},
+						Data: []string{"le", "a", "number", `200.1`},
 					},
 				},
 			},
-			expectQuery: query.NewConjunctionQuery([]query.Query{
-				setField(query.NewNumericRangeInclusiveQuery(&v100, &v200, &trueVal, &trueVal), "a"),
-			}),
+			expectQuery: map[string]interface{}{
+				"field": "a",
+				"max":   200.1, "inclusive_max": true,
+				"min": 100.1, "inclusive_min": true,
+			},
 		},
 		{
 			fb: &FlexBuild{
@@ -910,17 +1093,21 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"gt", "a", "number", `100`},
+						Data: []string{"gt", "a", "number", `100.1`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"le", "a", "number", `200`},
+						Data: []string{"le", "a", "number", `200.1`},
 					},
 				},
 			},
-			expectQuery: query.NewConjunctionQuery([]query.Query{
-				setField(query.NewNumericRangeInclusiveQuery(&v100, &v200, &falseVal, &trueVal), "a"),
-			}),
+			expectQuery: map[string]interface{}{
+				"field":         "a",
+				"min":           100.1,
+				"max":           200.1,
+				"inclusive_min": false,
+				"inclusive_max": true,
+			},
 		},
 
 		// -----------------------------------------------------------
@@ -939,10 +1126,16 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 					},
 				},
 			},
-			expectQuery: query.NewConjunctionQuery([]query.Query{
-				setField(query.NewTermRangeInclusiveQuery("", "C", &falseVal, &falseVal), "a"),
-				setField(query.NewTermRangeInclusiveQuery("H", "", &falseVal, &falseVal), "a"),
-			}),
+			expectQuery: map[string]interface{}{
+				"conjuncts": []interface{}{
+					map[string]interface{}{
+						"max": "C", "inclusive_max": false, "field": "a",
+					},
+					map[string]interface{}{
+						"min": "H", "inclusive_min": false, "field": "a",
+					},
+				},
+			},
 		},
 
 		{
@@ -951,18 +1144,20 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"lt", "a", "number", `100`},
+						Data: []string{"lt", "a", "number", `100.1`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"gt", "a", "number", `200`},
+						Data: []string{"gt", "a", "number", `200.1`},
 					},
 				},
 			},
-			expectQuery: query.NewConjunctionQuery([]query.Query{
-				setField(query.NewNumericRangeInclusiveQuery(nil, &v100, &falseVal, &falseVal), "a"),
-				setField(query.NewNumericRangeInclusiveQuery(&v200, nil, &falseVal, &falseVal), "a"),
-			}),
+			expectQuery: map[string]interface{}{
+				"conjuncts": []interface{}{
+					map[string]interface{}{"max": 100.1, "inclusive_max": false, "field": "a"},
+					map[string]interface{}{"min": 200.1, "inclusive_min": false, "field": "a"},
+				},
+			},
 		},
 	}
 
@@ -978,7 +1173,7 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 			jeq, _ := json.Marshal(test.expectQuery)
 			jq, _ := json.Marshal(q)
 
-			t.Errorf("test: %+v,\n jfb: %s\n expectQuery: %s\n query mismatch, got: %s",
+			t.Errorf("test: %+v,\n jfb: %s\n expectQuery: %s\n mismatch, got: %s",
 				test, jfb, jeq, jq)
 		}
 	}

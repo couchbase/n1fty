@@ -17,18 +17,10 @@ import (
 	"testing"
 
 	"github.com/couchbase/query/algebra"
+	"github.com/couchbase/query/expression"
 	"github.com/couchbase/query/parser/n1ql"
 	"github.com/couchbase/query/planner"
 )
-
-func clearExpr(fb *FlexBuild) { // Destructive, used for tests.
-	if fb != nil {
-		fb.Expr = nil
-		for _, child := range fb.Children {
-			clearExpr(child)
-		}
-	}
-}
 
 func parseStatement(t *testing.T, stmt string) *algebra.Subselect {
 	s, err := n1ql.ParseStatement(stmt)
@@ -2469,16 +2461,15 @@ func TestFlexSargable(t *testing.T) {
 
 		identifiers := Identifiers{Identifier{Name: from0}}
 
-		if len(test.from) > 1 {
-			var err error
-			identifiers, err = PushUnnests(identifiers, s.From())
-			if err != nil {
-				t.Fatalf("PushUnnests err: %v", err)
-			}
+		unnestBindings := gatherUnnestBindings(s.From(), nil)
+
+		var ok bool
+		identifiers, ok = identifiers.Push(unnestBindings, -1)
+		if !ok {
+			t.Fatalf("push unnestBindings not ok")
 		}
 
 		if test.let != "" {
-			var ok bool
 			identifiers, ok = identifiers.Push(s.Let(), -1)
 			if !ok {
 				t.Fatalf("identifiers.Push not ok")
@@ -2510,8 +2501,6 @@ func TestFlexSargable(t *testing.T) {
 				testi, test, exprWhereSimplified, needsFiltering)
 		}
 
-		clearExpr(flexBuild)
-
 		if !reflect.DeepEqual(flexBuild, test.expectFlexBuild) {
 			j, _ := json.Marshal(flexBuild)
 			t.Fatalf("testi: %d, test: %+v\n  exprWhereSimplified: %#v\n"+
@@ -2519,4 +2508,21 @@ func TestFlexSargable(t *testing.T) {
 				testi, test, exprWhereSimplified, flexBuild, j)
 		}
 	}
+}
+
+// Recursively gather UNNEST bindings.
+func gatherUnnestBindings(f algebra.FromTerm, a expression.Bindings) expression.Bindings {
+	if f == nil {
+		return a
+	}
+
+	if j, ok := f.(algebra.JoinTerm); ok {
+		a = gatherUnnestBindings(j.Left(), a) // Left-most first.
+	}
+
+	if u, ok := f.(*algebra.Unnest); ok && !u.Outer() {
+		a = append(a, expression.NewSimpleBinding(u.Alias(), u.Expression()))
+	}
+
+	return a
 }

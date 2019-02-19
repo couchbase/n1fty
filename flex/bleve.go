@@ -15,7 +15,6 @@ import (
 	"sort"
 
 	"github.com/blevesearch/bleve/mapping"
-	"github.com/blevesearch/bleve/search/query"
 )
 
 // BleveToFlexIndex creates a FlexIndex from a bleve index mapping.
@@ -42,7 +41,7 @@ func bleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 	lineage := append(parents, dm)
 
 	for _, f := range dm.Fields {
-		if !f.Index {
+		if !f.Index || len(path) <= 0 {
 			continue
 		}
 
@@ -55,8 +54,8 @@ func bleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 			continue
 		}
 
-		// Make own copy of volatile path.
-		fieldPath := append(append([]string(nil), path...), f.Name)
+		fieldPath := append([]string(nil), path...) // Copy.
+		fieldPath[len(fieldPath)-1] = f.Name
 
 		fi.IndexedFields = append(fi.IndexedFields, &FieldInfo{
 			FieldPath: fieldPath,
@@ -157,18 +156,18 @@ func findAnalyzer(im *mapping.IndexMappingImpl,
 // --------------------------------------
 
 // FlexBuildToBleveQuery translates a flex build tree into a bleve
-// query tree.
-func FlexBuildToBleveQuery(fb *FlexBuild, prevSibling query.Query) (
-	q query.Query, err error) {
+// query tree in map[string]interface{} representation.
+func FlexBuildToBleveQuery(fb *FlexBuild, prevSibling map[string]interface{}) (
+	q map[string]interface{}, err error) {
 	if fb == nil {
 		return nil, nil
 	}
 
 	isConjunct := fb.Kind == "conjunct"
 	if isConjunct || fb.Kind == "disjunct" {
-		qs := make([]query.Query, 0, len(fb.Children))
+		qs := make([]interface{}, 0, len(fb.Children))
 
-		var prev query.Query
+		var prev map[string]interface{}
 
 		for _, c := range fb.Children {
 			q, err = FlexBuildToBleveQuery(c, prev)
@@ -185,62 +184,67 @@ func FlexBuildToBleveQuery(fb *FlexBuild, prevSibling query.Query) (
 			}
 		}
 
-		if isConjunct {
-			return query.NewConjunctionQuery(qs), nil
+		if len(qs) <= 0 {
+			return nil, nil // Optimize case of con/disjuncts empty.
 		}
 
-		return query.NewDisjunctionQuery(qs), nil
+		if m, ok := qs[0].(map[string]interface{}); ok && len(qs) == 1 {
+			return m, nil // Optimize case of con/disjuncts of 1.
+		}
+
+		if isConjunct {
+			return map[string]interface{}{"conjuncts": qs}, nil
+		}
+
+		return map[string]interface{}{"disjuncts": qs}, nil
 	}
 
 	if fb.Kind == "cmpFieldConstant" {
 		// Ex: fb.Data: {"eq", "city", "string", `"nyc"`}.
-		args, ok := fb.Data.([]string)
-		if ok && len(args) == 4 {
+		if args, ok := fb.Data.([]string); ok && len(args) == 4 {
 			if args[2] == "string" {
 				var v string
-				err := json.Unmarshal([]byte(args[3]), &v)
-				if err != nil {
+				if err := json.Unmarshal([]byte(args[3]), &v); err != nil {
 					return nil, err
 				}
 
 				switch args[0] {
 				case "eq":
-					q := query.NewTermQuery(v)
-					q.SetField(args[1])
-					return q, nil
+					return map[string]interface{}{"term": v, "field": args[1]}, nil
 
 				case "lt":
-					return MaxTermRangeQuery(args[1], v, &falseVal, prevSibling)
+					return MaxTermRangeQuery(args[1], v, false, prevSibling)
 				case "le":
-					return MaxTermRangeQuery(args[1], v, &trueVal, prevSibling)
+					return MaxTermRangeQuery(args[1], v, true, prevSibling)
 				case "gt":
-					return MinTermRangeQuery(args[1], v, &falseVal, prevSibling)
+					return MinTermRangeQuery(args[1], v, false, prevSibling)
 				case "ge":
-					return MinTermRangeQuery(args[1], v, &trueVal, prevSibling)
+					return MinTermRangeQuery(args[1], v, true, prevSibling)
 				}
 			}
 
 			if args[2] == "number" {
 				var v float64
-				err := json.Unmarshal([]byte(args[3]), &v)
-				if err != nil {
+				if err := json.Unmarshal([]byte(args[3]), &v); err != nil {
 					return nil, err
 				}
 
 				switch args[0] {
 				case "eq":
-					q := query.NewNumericRangeInclusiveQuery(&v, &v, &trueVal, &trueVal)
-					q.SetField(args[1])
-					return q, nil
+					return map[string]interface{}{
+						"min": v, "max": v,
+						"inclusive_min": true, "inclusive_max": true,
+						"field": args[1],
+					}, nil
 
 				case "lt":
-					return MaxNumericRangeQuery(args[1], &v, &falseVal, prevSibling)
+					return MaxNumericRangeQuery(args[1], v, false, prevSibling)
 				case "le":
-					return MaxNumericRangeQuery(args[1], &v, &trueVal, prevSibling)
+					return MaxNumericRangeQuery(args[1], v, true, prevSibling)
 				case "gt":
-					return MinNumericRangeQuery(args[1], &v, &falseVal, prevSibling)
+					return MinNumericRangeQuery(args[1], v, false, prevSibling)
 				case "ge":
-					return MinNumericRangeQuery(args[1], &v, &trueVal, prevSibling)
+					return MinNumericRangeQuery(args[1], v, true, prevSibling)
 				}
 			}
 		}
@@ -249,61 +253,70 @@ func FlexBuildToBleveQuery(fb *FlexBuild, prevSibling query.Query) (
 	return nil, fmt.Errorf("FlexBuildToBleveQuery: could not convert: %+v", fb)
 }
 
-var trueVal = true
-var falseVal = false
-
-func MinTermRangeQuery(f string, v string, inclusive *bool, prev query.Query) (
-	query.Query, error) {
-	if trq, ok := prev.(*query.TermRangeQuery); ok &&
-		trq != nil && trq.Field() == f && trq.Min == "" && v <= trq.Max {
-		trq.Min = v
-		trq.InclusiveMin = inclusive
-		return nil, nil
+func MinTermRangeQuery(f string, v string, inclusive bool,
+	prev map[string]interface{}) (map[string]interface{}, error) {
+	if prev != nil && prev["field"] == f {
+		_, prevMinOk := prev["min"].(string)
+		prevMax, prevMaxOk := prev["max"].(string)
+		if !prevMinOk && prevMaxOk && v <= prevMax {
+			prev["min"] = v
+			prev["inclusive_min"] = inclusive
+			return nil, nil
+		}
 	}
 
-	q := query.NewTermRangeInclusiveQuery(v, "", inclusive, &falseVal)
-	q.SetField(f)
-	return q, nil
+	return map[string]interface{}{
+		"min": v, "inclusive_min": inclusive, "field": f,
+	}, nil
 }
 
-func MaxTermRangeQuery(f string, v string, inclusive *bool, prev query.Query) (
-	query.Query, error) {
-	if trq, ok := prev.(*query.TermRangeQuery); ok &&
-		trq != nil && trq.Field() == f && trq.Max == "" && trq.Min <= v {
-		trq.Max = v
-		trq.InclusiveMax = inclusive
-		return nil, nil
+func MaxTermRangeQuery(f string, v string, inclusive bool,
+	prev map[string]interface{}) (map[string]interface{}, error) {
+	if prev != nil && prev["field"] == f {
+		_, prevMaxOk := prev["max"].(string)
+		prevMin, prevMinOk := prev["min"].(string)
+		if !prevMaxOk && prevMinOk && prevMin <= v {
+			prev["max"] = v
+			prev["inclusive_max"] = inclusive
+			return nil, nil
+		}
 	}
 
-	q := query.NewTermRangeInclusiveQuery("", v, &falseVal, inclusive)
-	q.SetField(f)
-	return q, nil
+	return map[string]interface{}{
+		"max": v, "inclusive_max": inclusive, "field": f,
+	}, nil
 }
 
-func MinNumericRangeQuery(f string, v *float64, inclusive *bool, prev query.Query) (
-	query.Query, error) {
-	if trq, ok := prev.(*query.NumericRangeQuery); ok &&
-		trq != nil && trq.Field() == f && trq.Min == nil && *v <= *trq.Max {
-		trq.Min = v
-		trq.InclusiveMin = inclusive
-		return nil, nil
+func MinNumericRangeQuery(f string, v float64, inclusive bool,
+	prev map[string]interface{}) (map[string]interface{}, error) {
+	if prev != nil && prev["field"] == f {
+		_, prevMinOk := prev["min"].(float64)
+		prevMax, prevMaxOk := prev["max"].(float64)
+		if !prevMinOk && prevMaxOk && v <= prevMax {
+			prev["min"] = v
+			prev["inclusive_min"] = inclusive
+			return nil, nil
+		}
 	}
 
-	q := query.NewNumericRangeInclusiveQuery(v, nil, inclusive, &falseVal)
-	q.SetField(f)
-	return q, nil
+	return map[string]interface{}{
+		"min": v, "inclusive_min": inclusive, "field": f,
+	}, nil
 }
 
-func MaxNumericRangeQuery(f string, v *float64, inclusive *bool, prev query.Query) (
-	query.Query, error) {
-	if trq, ok := prev.(*query.NumericRangeQuery); ok &&
-		trq != nil && trq.Field() == f && trq.Max == nil && *trq.Min <= *v {
-		trq.Max = v
-		trq.InclusiveMax = inclusive
-		return nil, nil
+func MaxNumericRangeQuery(f string, v float64, inclusive bool,
+	prev map[string]interface{}) (map[string]interface{}, error) {
+	if prev != nil && prev["field"] == f {
+		_, prevMaxOk := prev["max"].(float64)
+		prevMin, prevMinOk := prev["min"].(float64)
+		if !prevMaxOk && prevMinOk && prevMin <= v {
+			prev["max"] = v
+			prev["inclusive_max"] = inclusive
+			return nil, nil
+		}
 	}
 
-	q := query.NewNumericRangeInclusiveQuery(nil, v, &falseVal, inclusive)
-	q.SetField(f)
-	return q, nil
+	return map[string]interface{}{
+		"max": v, "inclusive_max": inclusive, "field": f,
+	}, nil
 }
