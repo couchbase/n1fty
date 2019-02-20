@@ -413,6 +413,12 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 	rv := map[string]datastore.Index{}
 	var err error
 	for _, indexDef := range indexDefs.IndexDefs {
+		if indexDef.SourceName != i.keyspace {
+			// If the source name of the index definition doesn't
+			// match the indexer's keyspace, do not include the
+			// index.
+			continue
+		}
 		searchableFieldsTypeMap, dynamicMapping :=
 			util.SearchableFieldsForIndexDef(indexDef)
 		if searchableFieldsTypeMap != nil || dynamicMapping {
