@@ -42,7 +42,7 @@ func NewVerify(keyspace, field string, query, options value.Value) (
 		return nil, errors.NewError(nil, "index mapping not found")
 	}
 
-	q, err := util.BuildQuery(field, query, options)
+	q, err := util.BuildQuery(field, query)
 	if err != nil {
 		return nil, errors.NewError(err, "")
 	}

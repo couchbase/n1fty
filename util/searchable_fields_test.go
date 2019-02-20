@@ -53,56 +53,53 @@ func TestIndexDefConversion(t *testing.T) {
 
 func TestFieldsToSearch(t *testing.T) {
 	tests := []struct {
-		field   string
-		query   value.Value
-		options value.Value
-		expect  []string
+		field  string
+		query  value.Value
+		expect []string
 	}{
 		{
-			field:   "title",
-			query:   value.NewValue(`+Avengers~2 company:marvel`),
-			options: nil,
-			expect:  []string{"company", "title"},
+			field:  "title",
+			query:  value.NewValue(`+Avengers~2 company:marvel`),
+			expect: []string{"company", "title"},
 		},
 		{
-			field: "title",
-			query: value.NewValue(`avengers`),
-			options: value.NewValue(map[string]interface{}{
-				"type":      "match",
+			field: "not-used",
+			query: value.NewValue(map[string]interface{}{
+				"match":     "avengers",
+				"field":     "title",
 				"fuzziness": 2,
 			}),
 			expect: []string{"title"},
 		},
 		{
-			field: "title",
-			query: value.NewValue(`Avengers: Infinity War`),
-			options: value.NewValue(map[string]interface{}{
-				"type":     "match_phrase",
-				"analyzer": "en",
-				"boost":    10,
+			field: "not-used",
+			query: value.NewValue(map[string]interface{}{
+				"match_phrase": "Avengers: Infinity War",
+				"field":        "title",
+				"analyzer":     "en",
+				"boost":        10,
 			}),
 			expect: []string{"title"},
 		},
 		{
 			field: "title",
-			query: value.NewValue(`Avengers*`),
-			options: value.NewValue(map[string]interface{}{
-				"type": "wildcard",
+			query: value.NewValue(map[string]interface{}{
+				"wildcard": "Avengers*",
+				"field":    "title",
 			}),
 			expect: []string{"title"},
 		},
 		{
-			field:   "title",
-			query:   value.NewValue(`+movie:Avengers +sequel.id:3 +company:marvel`),
-			options: nil,
-			expect:  []string{"company", "movie", "sequel.id", "sequel.id"},
+			field:  "title",
+			query:  value.NewValue(`+movie:Avengers +sequel.id:3 +company:marvel`),
+			expect: []string{"company", "movie", "sequel.id", "sequel.id"},
 			// Expect 2 sequel.id entries above as the number look up above is
 			// considered as a disjunction of a match and a numeric range.
 		},
 	}
 
 	for _, test := range tests {
-		qBytes, err := BuildQueryBytes(test.field, test.query, test.options)
+		qBytes, err := BuildQueryBytes(test.field, test.query)
 		if err != nil {
 			t.Fatal(err)
 		}

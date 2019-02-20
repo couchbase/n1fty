@@ -42,19 +42,10 @@ func updateFieldsInQuery(q query.Query, field string) {
 	}
 }
 
-type Options struct {
-	Type         string  `json:"type"`
-	Analyzer     string  `json:"analyzer"`
-	Boost        float64 `json:"boost"`
-	Fuzziness    int     `json:"fuzziness"`
-	PrefixLength int     `json:"prefix_length"`
-	Operator     string  `json:"operator"`
-}
-
 // -----------------------------------------------------------------------------
 
-func BuildQuery(field string, input, options value.Value) (query.Query, error) {
-	qBytes, err := BuildQueryBytes(field, input, options)
+func BuildQuery(field string, input value.Value) (query.Query, error) {
+	qBytes, err := BuildQueryBytes(field, input)
 	if err != nil {
 		return nil, fmt.Errorf("BuildQuery err: %v", err)
 	}
@@ -62,23 +53,13 @@ func BuildQuery(field string, input, options value.Value) (query.Query, error) {
 	return query.ParseQuery(qBytes)
 }
 
-func BuildQueryBytes(field string, input, options value.Value) (
-	[]byte, error) {
+func BuildQueryBytes(field string, input value.Value) ([]byte, error) {
 	if input == nil {
 		return nil, fmt.Errorf("query not provided")
 	}
 
-	var err error
-	var optionBytes []byte
-	if options != nil {
-		optionBytes, err = options.MarshalJSON()
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	if input.Type() == value.STRING {
-		return buildQueryBytes(field, input.Actual().(string), optionBytes)
+		return buildQueryFromString(field, input.Actual().(string))
 	} else if input.Type() == value.OBJECT {
 		return input.MarshalJSON()
 	}
@@ -86,71 +67,16 @@ func BuildQueryBytes(field string, input, options value.Value) (
 	return nil, fmt.Errorf("unsupported query type: %v", input.Type().String())
 }
 
-func buildQueryBytes(field, input string, options []byte) ([]byte, error) {
-	opt := Options{}
-	if len(options) > 0 {
-		err := json.Unmarshal(options, &opt)
-		if err != nil {
-			return nil, fmt.Errorf("err: %v", err)
-		}
+func buildQueryFromString(field, input string) ([]byte, error) {
+	qsq := query.NewQueryStringQuery(input)
+	q, err := qsq.Parse()
+	if err != nil {
+		return nil, fmt.Errorf("BuildQueryBytes Parse, err: %v", err)
 	}
 
-	switch opt.Type {
-	case "query_string++":
-		fallthrough
-	case "search":
-		fallthrough
-	case "":
-		fallthrough
-	case "query_string":
-		fallthrough
-	case "query":
-		qsq := query.NewQueryStringQuery(input)
-		q, err := qsq.Parse()
-		if err != nil {
-			return nil, fmt.Errorf("BuildQueryBytes Parse, err: %v", err)
-		}
-
-		if field != "" {
-			updateFieldsInQuery(q, field)
-		}
-
-		return json.Marshal(q)
-	case "bool":
-		fallthrough
-	case "match_phrase":
-		fallthrough
-	case "match":
-		fallthrough
-	case "prefix":
-		fallthrough
-	case "regexp":
-		fallthrough
-	case "wildcard":
-		fallthrough
-	case "terms":
-		fallthrough
-	case "term":
-		output := map[string]interface{}{}
-		if field != "" {
-			output["field"] = field
-		}
-		output[opt.Type] = input
-		if opt.Analyzer != "" {
-			output["analyzer"] = opt.Analyzer
-		}
-		output["boost"] = opt.Boost
-		if opt.Fuzziness > 0 {
-			output["fuzziness"] = opt.Fuzziness
-		}
-		if opt.PrefixLength > 0 {
-			output["prefix_length"] = opt.PrefixLength
-		}
-		if opt.Operator != "" {
-			output["operator"] = opt.Operator
-		}
-		return json.Marshal(output)
-	default:
-		return nil, fmt.Errorf("BuildQueryBytes not supported: %v", opt.Type)
+	if field != "" {
+		updateFieldsInQuery(q, field)
 	}
+
+	return json.Marshal(q)
 }

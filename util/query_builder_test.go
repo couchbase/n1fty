@@ -21,37 +21,35 @@ import (
 
 func TestBuildQuery(t *testing.T) {
 	tests := []struct {
-		field   string
-		query   value.Value
-		options value.Value
+		field string
+		query value.Value
 	}{
 		{
-			field:   "title",
-			query:   value.NewValue(`+Avengers~2 company:marvel`),
-			options: nil,
+			field: "title",
+			query: value.NewValue(`+Avengers~2 company:marvel`),
 		},
 		{
-			field: "title",
-			query: value.NewValue(`avengers`),
-			options: value.NewValue(map[string]interface{}{
-				"type":      "match",
+			field: "not-used",
+			query: value.NewValue(map[string]interface{}{
+				"match":     "avengers",
+				"field":     "title",
 				"fuzziness": 2,
 			}),
 		},
 		{
-			field: "title",
-			query: value.NewValue(`Avengers: Infinity War`),
-			options: value.NewValue(map[string]interface{}{
-				"type":     "match_phrase",
-				"analyzer": "en",
-				"boost":    10,
+			field: "not-used",
+			query: value.NewValue(map[string]interface{}{
+				"match_phrase": "Avengers: Infinity War",
+				"field":        "title",
+				"analyzer":     "en",
+				"boost":        10,
 			}),
 		},
 		{
-			field: "title",
-			query: value.NewValue(`Avengers*`),
-			options: value.NewValue(map[string]interface{}{
-				"type": "wildcard",
+			field: "not-used",
+			query: value.NewValue(map[string]interface{}{
+				"wildcard": "Avengers*",
+				"field":    "title",
 			}),
 		},
 		{
@@ -67,12 +65,11 @@ func TestBuildQuery(t *testing.T) {
 						"field": "zyx",
 					}},
 			}),
-			options: nil,
 		},
 	}
 
 	for i, test := range tests {
-		q, err := BuildQuery(test.field, test.query, test.options)
+		q, err := BuildQuery(test.field, test.query)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -118,13 +115,10 @@ func TestBuildQuery(t *testing.T) {
 			if len(qq.Conjuncts) != 2 {
 				t.Fatalf("Exception in conjunction query: %v", len(qq.Conjuncts))
 			}
-			_, ok := qq.Conjuncts[0].(*query.MatchQuery)
-			if !ok {
-				t.Fatalf("Exception in conjunction query: didn't find a match")
-			}
-			_, ok = qq.Conjuncts[1].(*query.MatchQuery)
-			if !ok {
-				t.Fatalf("Exception in conjunction query: didn't find a match")
+			mq1, ok1 := qq.Conjuncts[0].(*query.MatchQuery)
+			mq2, ok2 := qq.Conjuncts[1].(*query.MatchQuery)
+			if !ok1 || !ok2 || mq1.Field() != "cba" || mq2.Field() != "zyx" {
+				t.Fatalf("Exception in conjunction query")
 			}
 		default:
 			t.Fatalf("Unexpected query type: %v, for entry: %v", reflect.TypeOf(q), i)
@@ -139,7 +133,7 @@ func TestBuildBadQuery(t *testing.T) {
 		"bad":  "example",
 	})
 
-	if _, err := BuildQuery("", q, nil); err == nil {
+	if _, err := BuildQuery("", q); err == nil {
 		t.Fatal("Expected an error, but didn't see one")
 	}
 }

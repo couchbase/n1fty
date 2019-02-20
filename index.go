@@ -229,7 +229,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 	var err error
 
 	if query != nil {
-		qBytes, err = util.BuildQueryBytes(field, query, options)
+		qBytes, err = util.BuildQueryBytes(field, query)
 		if err != nil {
 			return 0, false, nil, errors.NewError(err, "")
 		}

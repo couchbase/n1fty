@@ -58,7 +58,7 @@ func initIndexAndDocs(index string, b *testing.B) (
 
 func fetchSearchRequest(b *testing.B) *bleve.SearchRequest {
 	q := value.NewValue(`id:"123"`)
-	qq, err := util.BuildQuery("", q, nil)
+	qq, err := util.BuildQuery("", q)
 	if err != nil {
 		b.Fatal(err)
 	}
