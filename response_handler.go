@@ -322,7 +322,7 @@ func backfillMonitor(period time.Duration, i *FTSIndexer) {
 }
 
 func n1qlError(err error, desc string) errors.Error {
-	return errors.NewError(err /*client.DescribeError(err)*/, desc)
+	return errors.NewError(err, "n1fty: "+desc)
 }
 
 func initBackFill(logPrefix, requestID string, rh *responseHandler) (*gob.Encoder,

@@ -113,17 +113,17 @@ func (i *FTSIndex) State() (datastore.IndexState, string, errors.Error) {
 
 func (i *FTSIndex) Statistics(requestId string, span *datastore.Span) (
 	datastore.Statistics, errors.Error) {
-	return nil, errors.NewError(nil, "not supported yet")
+	return nil, n1qlError(nil, "Statistics not supported yet")
 }
 
 func (i *FTSIndex) Drop(requestId string) errors.Error {
-	return errors.NewError(nil, "not supported")
+	return n1qlError(nil, "Drop not supported")
 }
 
 func (i *FTSIndex) Scan(requestId string, span *datastore.Span, distinct bool,
 	limit int64, cons datastore.ScanConsistency,
 	vector timestamp.Vector, conn *datastore.IndexConnection) {
-	conn.Error(errors.NewError(nil, "n1fty doesn't support the Scan API"))
+	conn.Error(n1qlError(nil, "Scan not supported"))
 	return
 }
 
@@ -136,7 +136,7 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	}
 
 	if searchInfo == nil || searchInfo.Query == nil {
-		conn.Error(errors.NewError(nil, "no search parameters provided"))
+		conn.Error(n1qlError(nil, "no search parameters provided"))
 		return
 	}
 
@@ -151,7 +151,7 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	_, ok, qBytes, er := i.buildQueryAndCheckIfSargable(
 		fieldStr, searchInfo.Query, searchInfo.Options)
 	if !ok || er != nil {
-		conn.Error(errors.NewError(er.Cause(), "not sargable"))
+		conn.Error(n1qlError(er.Cause(), "not sargable"))
 		return
 	}
 
@@ -182,7 +182,7 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 
 	stream, err := client.Search(context.Background(), searchRequest)
 	if err != nil || stream == nil {
-		conn.Error(errors.NewError(err, "search failed"))
+		conn.Error(n1qlError(err, "search failed"))
 		return
 	}
 
@@ -231,12 +231,12 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 	if query != nil {
 		qBytes, err = util.BuildQueryBytes(field, query)
 		if err != nil {
-			return 0, false, nil, errors.NewError(err, "")
+			return 0, false, nil, n1qlError(err, "")
 		}
 
 		fieldsToSearch, err = util.FetchFieldsToSearchFromQuery(qBytes)
 		if err != nil {
-			return 0, false, qBytes, errors.NewError(err, "")
+			return 0, false, qBytes, n1qlError(err, "")
 		}
 	} else {
 		var analyzer string

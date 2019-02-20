@@ -90,8 +90,8 @@ func NewFTSIndexer(serverIn, namespace, keyspace string) (datastore.Indexer,
 
 	svrs := strings.Split(server, ";")
 	if len(svrs) <= 0 {
-		return nil, errors.NewError(fmt.Errorf(
-			"NewFTSIndexer: no servers provided"), "")
+		return nil, n1qlError(fmt.Errorf(
+			"NewFTSIndexer, no servers provided"), "")
 	}
 
 	err := conf.FromConnStr(svrs[0])
@@ -200,8 +200,8 @@ func (i *FTSIndexer) IndexById(id string) (datastore.Index, errors.Error) {
 		}
 	}
 
-	return nil, errors.NewError(nil,
-		fmt.Sprintf("IndexById: fts index with id: %v not found", id))
+	return nil, n1qlError(nil,
+		fmt.Sprintf("IndexById, fts index with id: %v not found", id))
 }
 
 func (i *FTSIndexer) IndexByName(name string) (datastore.Index, errors.Error) {
@@ -215,8 +215,8 @@ func (i *FTSIndexer) IndexByName(name string) (datastore.Index, errors.Error) {
 		}
 	}
 
-	return nil, errors.NewError(nil,
-		fmt.Sprintf("IndexByName: fts index with name: %v not found", name))
+	return nil, n1qlError(nil,
+		fmt.Sprintf("IndexByName, fts index with name: %v not found", name))
 }
 
 func (i *FTSIndexer) PrimaryIndexes() ([]datastore.PrimaryIndex, errors.Error) {
@@ -225,7 +225,7 @@ func (i *FTSIndexer) PrimaryIndexes() ([]datastore.PrimaryIndex, errors.Error) {
 
 func (i *FTSIndexer) Indexes() ([]datastore.Index, errors.Error) {
 	if err := i.Refresh(); err != nil {
-		return nil, errors.NewError(err, "")
+		return nil, n1qlError(err, "")
 	}
 
 	i.m.RLock()
@@ -237,29 +237,29 @@ func (i *FTSIndexer) Indexes() ([]datastore.Index, errors.Error) {
 
 func (i *FTSIndexer) CreatePrimaryIndex(requestId, name string,
 	with value.Value) (datastore.PrimaryIndex, errors.Error) {
-	return nil, errors.NewError(nil, "not supported")
+	return nil, n1qlError(nil, "CreatePrimaryIndex not supported")
 }
 
 func (i *FTSIndexer) CreateIndex(requestId, name string,
 	seekKey, rangeKey expression.Expressions,
 	where expression.Expression, with value.Value) (
 	datastore.Index, errors.Error) {
-	return nil, errors.NewError(nil, "not supported")
+	return nil, n1qlError(nil, "CreateIndex not supported")
 }
 
 func (i *FTSIndexer) BuildIndexes(requestId string, name ...string) errors.Error {
-	return errors.NewError(nil, "not supported")
+	return n1qlError(nil, "BuildIndexes not supported")
 }
 
 func (i *FTSIndexer) Refresh() errors.Error {
 	mapIndexesByID, nodeDefs, err := i.refreshConfigs()
 	if err != nil {
-		return errors.NewError(err, "refresh failed")
+		return n1qlError(err, "refresh failed")
 	}
 
 	err = i.initSrvWrapper(nodeDefs)
 	if err != nil {
-		return errors.NewError(err, "indexer: initSrvWrapper err")
+		return n1qlError(err, "initSrvWrapper failed")
 	}
 
 	numIndexes := len(mapIndexesByID)
@@ -316,7 +316,8 @@ func (i *FTSIndexer) refreshConfigs() (
 	if indexDefs == nil || nodeDefs == nil {
 		ftsEndpoints := i.agent.FtsEps()
 		if len(ftsEndpoints) == 0 {
-			return nil, nil, fmt.Errorf("refreshConfigs: no fts nodes available")
+			logging.Infof("n1fty: no fts nodes available")
+			return nil, nil, nil
 		}
 		now := time.Now().UnixNano()
 		indexDefs, nodeDefs, err = i.retrieveIndexDefs(
@@ -327,11 +328,13 @@ func (i *FTSIndexer) refreshConfigs() (
 	}
 
 	if indexDefs == nil {
-		return nil, nil, fmt.Errorf("no index definitions available")
+		logging.Infof("n1fty: no index definitions available")
+		return nil, nil, nil
 	}
 
 	if nodeDefs == nil {
-		return nil, nil, fmt.Errorf("no node definitions available")
+		logging.Infof("n1fty: no node definitions available")
+		return nil, nil, nil
 	}
 
 	imap, err := i.convertIndexDefs(indexDefs)
@@ -339,14 +342,18 @@ func (i *FTSIndexer) refreshConfigs() (
 }
 
 func (i *FTSIndexer) initSrvWrapper(nodeDefs *cbgt.NodeDefs) error {
+	if nodeDefs == nil {
+		return nil
+	}
+
 	hostMap, err := extractHostCertsMap(nodeDefs)
 	if err != nil {
-		return errors.NewError(err, "indexer: extractHostCertsMap err")
+		return n1qlError(err, "indexer, extractHostCertsMap err")
 	}
 
 	i.srvWrapper, err = initRouter(hostMap, nil)
 	if err != nil {
-		return errors.NewError(err, "indexer: initRouter err")
+		return n1qlError(err, "indexer, initRouter err")
 	}
 
 	return nil
@@ -356,28 +363,28 @@ func (i *FTSIndexer) retrieveIndexDefs(node string) (
 	*cbgt.IndexDefs, *cbgt.NodeDefs, error) {
 	httpClient := i.agent.HttpClient()
 	if httpClient == nil {
-		return nil, nil, fmt.Errorf("retrieveIndexDefs, client not available")
+		return nil, nil, fmt.Errorf("n1fty: retrieveIndexDefs, client not available")
 	}
 
 	cbauthURL, err := cbgt.CBAuthURL(node + "/api/cfg")
 	if err != nil {
-		return nil, nil, fmt.Errorf("retrieveIndexDefs, err: %v", err)
+		return nil, nil, fmt.Errorf("n1fty: retrieveIndexDefs, err: %v", err)
 	}
 
 	resp, err := httpClient.Get(cbauthURL)
 	if err != nil {
-		return nil, nil, fmt.Errorf("retrieveIndexDefs, err: %v", err)
+		return nil, nil, fmt.Errorf("n1fty: retrieveIndexDefs, err: %v", err)
 	}
 
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, nil, fmt.Errorf("retrieveIndexDefs, resp status code: %v",
+		return nil, nil, fmt.Errorf("n1fty: retrieveIndexDefs, resp status code: %v",
 			resp.StatusCode)
 	}
 
 	bodyBuf, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, nil, fmt.Errorf("retrieveIndexDefs, resp body read err: %v", err)
+		return nil, nil, fmt.Errorf("n1fty: retrieveIndexDefs, resp body read err: %v", err)
 	}
 
 	var body struct {
@@ -388,11 +395,12 @@ func (i *FTSIndexer) retrieveIndexDefs(node string) (
 
 	err = json.Unmarshal(bodyBuf, &body)
 	if err != nil {
-		return nil, nil, fmt.Errorf("retrieveIndexDefs, err: %v", err)
+		return nil, nil, fmt.Errorf("retrieveIndexDefs, json err: %v", err)
 	}
 
-	if body.Status != "ok" || body.IndexDefs == nil || body.NodeDefs == nil {
-		return nil, nil, fmt.Errorf("retrieveIndexDefs, error")
+	if body.Status != "ok" {
+		return nil, nil, fmt.Errorf("retrieveIndexDefs, status code: %s",
+			body.Status)
 	}
 
 	return body.IndexDefs, body.NodeDefs, nil
