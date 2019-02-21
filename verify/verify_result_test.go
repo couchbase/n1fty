@@ -54,9 +54,12 @@ func TestVerifyResult(t *testing.T) {
 		},
 	}
 
-	util.SetIndexMapping("temp", bleve.NewIndexMapping())
+	util.SetIndexMapping("temp", &util.MappingDetails{
+		SourceName: "temp_keyspace",
+		IMapping:   bleve.NewIndexMapping(),
+	})
 
-	v, err := NewVerify("", q.field, q.query, q.options)
+	v, err := NewVerify("temp_keyspace", q.field, q.query, q.options)
 	if err != nil {
 		t.Fatal(err)
 	}

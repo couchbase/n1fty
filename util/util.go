@@ -19,24 +19,32 @@ import (
 	"github.com/blevesearch/bleve/mapping"
 )
 
-var indexMappingsLock sync.RWMutex
-var indexMappings map[string]mapping.IndexMapping
+type MappingDetails struct {
+	UUID       string
+	SourceName string
+	IMapping   mapping.IndexMapping
+}
+
+var mappingsCacheLock sync.RWMutex
+var mappingsCache map[string]*MappingDetails
 
 func init() {
-	indexMappings = make(map[string]mapping.IndexMapping)
+	mappingsCache = make(map[string]*MappingDetails)
 }
 
-func SetIndexMapping(name string, iMapping mapping.IndexMapping) {
-	indexMappingsLock.Lock()
-	indexMappings[name] = iMapping
-	indexMappingsLock.Unlock()
+func SetIndexMapping(name string, mappingDetails *MappingDetails) {
+	mappingsCacheLock.Lock()
+	mappingsCache[name] = mappingDetails
+	mappingsCacheLock.Unlock()
 }
 
-func FetchIndexMapping(name string) (mapping.IndexMapping, error) {
-	indexMappingsLock.RLock()
-	defer indexMappingsLock.RUnlock()
-	if iMapping, exists := indexMappings[name]; exists {
-		return iMapping, nil
+func FetchIndexMapping(name, keyspace string) (mapping.IndexMapping, error) {
+	mappingsCacheLock.RLock()
+	defer mappingsCacheLock.RUnlock()
+	if info, exists := mappingsCache[name]; exists {
+		if info.SourceName == keyspace {
+			return info.IMapping, nil
+		}
 	}
 	return nil, fmt.Errorf("index mapping not found for: %v", name)
 }

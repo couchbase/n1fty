@@ -37,7 +37,7 @@ func NewVerify(keyspace, field string, query, options value.Value) (
 		return nil, errors.NewError(nil, "index name provided not a string")
 	}
 
-	idxMapping, err := util.FetchIndexMapping(indexName)
+	idxMapping, err := util.FetchIndexMapping(indexName, keyspace)
 	if err != nil {
 		return nil, errors.NewError(nil, "index mapping not found")
 	}
@@ -64,7 +64,7 @@ type VerifyCtx struct {
 }
 
 func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
-	err := v.idx.Index("temp_doc", item.Actual())
+	err := v.idx.Index("k", item.Actual())
 	if err != nil {
 		return false, errors.NewError(err, "could not insert doc into index")
 	}

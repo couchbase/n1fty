@@ -96,7 +96,7 @@ func benchmarkUpdates(index string, b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		err := idx.Index("temp_doc", docs[i%len(docs)].Actual())
+		err := idx.Index("k", docs[i%len(docs)].Actual())
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -110,7 +110,7 @@ func benchmarkUpdateAndSearch(index string, b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		err := idx.Index("temp_doc", docs[i%len(docs)].Actual())
+		err := idx.Index("k", docs[i%len(docs)].Actual())
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -129,7 +129,7 @@ func benchmarkUpdateSearchAndDelete(index string, b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		err := idx.Index("temp_doc", docs[i%len(docs)].Actual())
+		err := idx.Index("k", docs[i%len(docs)].Actual())
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -139,6 +139,6 @@ func benchmarkUpdateSearchAndDelete(index string, b *testing.B) {
 			b.Fatal(err)
 		}
 
-		idx.Delete("temp_doc")
+		idx.Delete("k")
 	}
 }

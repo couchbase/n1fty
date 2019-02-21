@@ -58,7 +58,11 @@ func SearchableFieldsForIndexDef(indexDef *cbgt.IndexDef) (
 	}
 
 	// set this index mapping into the indexMappings cache
-	SetIndexMapping(indexDef.Name, bp.Mapping)
+	SetIndexMapping(indexDef.Name, &MappingDetails{
+		UUID:       indexDef.UUID,
+		SourceName: indexDef.SourceName,
+		IMapping:   bp.Mapping,
+	})
 
 	searchableFieldsMap := map[string][]*FieldDescription{}
 
