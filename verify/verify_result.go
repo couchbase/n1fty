@@ -13,6 +13,8 @@ package verify
 
 import (
 	"github.com/blevesearch/bleve"
+	"github.com/blevesearch/bleve/index/store/moss"
+	"github.com/blevesearch/bleve/index/upsidedown"
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
@@ -47,7 +49,9 @@ func NewVerify(keyspace, field string, query, options value.Value) (
 		return nil, errors.NewError(err, "")
 	}
 
-	idx, err := bleve.NewMemOnly(idxMapping)
+	// Set up an in-memory bleve index using moss for evaluating
+	// the hits.
+	idx, err := bleve.NewUsing("", idxMapping, upsidedown.Name, moss.Name, nil)
 	if err != nil {
 		return nil, errors.NewError(err, "")
 	}
