@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/blevesearch/bleve"
 	"github.com/blevesearch/bleve/mapping"
 )
 
@@ -39,6 +40,10 @@ func SetIndexMapping(name string, mappingDetails *MappingDetails) {
 }
 
 func FetchIndexMapping(name, keyspace string) (mapping.IndexMapping, error) {
+	if len(keyspace) == 0 {
+		// Return default index mapping if keyspace not provided.
+		return bleve.NewIndexMapping(), nil
+	}
 	mappingsCacheLock.RLock()
 	defer mappingsCacheLock.RUnlock()
 	if info, exists := mappingsCache[name]; exists {
@@ -56,4 +61,18 @@ func CleanseField(field string) string {
 	// To make this searchable, strip the back-ticks from the provided
 	// field strings.
 	return strings.Replace(field, "`", "", -1)
+}
+
+func FetchKeySpace(nameAndKeyspace string) string {
+	// Ex: namePlusKeySpace --> keySpace
+	// - "`travel`" --> travel
+	// - "`default`:`travel`" --> travel
+	// - "`default`:`travel`.`scope`.`collection`" --> travel.scope.collection
+	if len(nameAndKeyspace) == 0 {
+		return ""
+	}
+
+	entriesSplitAtColon := strings.Split(nameAndKeyspace, ":")
+	keyspace := entriesSplitAtColon[len(entriesSplitAtColon)-1]
+	return CleanseField(keyspace)
 }

@@ -21,7 +21,7 @@ import (
 	"github.com/couchbase/query/value"
 )
 
-func NewVerify(keyspace, field string, query, options value.Value) (
+func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 	datastore.Verify, errors.Error) {
 	field = util.CleanseField(field)
 
@@ -39,6 +39,7 @@ func NewVerify(keyspace, field string, query, options value.Value) (
 		return nil, errors.NewError(nil, "index name provided not a string")
 	}
 
+	keyspace := util.FetchKeySpace(nameAndKeyspace)
 	idxMapping, err := util.FetchIndexMapping(indexName, keyspace)
 	if err != nil {
 		return nil, errors.NewError(nil, "index mapping not found")

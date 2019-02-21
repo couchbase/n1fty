@@ -59,7 +59,7 @@ func TestVerifyResult(t *testing.T) {
 		IMapping:   bleve.NewIndexMapping(),
 	})
 
-	v, err := NewVerify("temp_keyspace", q.field, q.query, q.options)
+	v, err := NewVerify("`temp_keyspace`", q.field, q.query, q.options)
 	if err != nil {
 		t.Fatal(err)
 	}
