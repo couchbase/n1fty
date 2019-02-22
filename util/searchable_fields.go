@@ -21,40 +21,39 @@ import (
 	"github.com/couchbase/query/logging"
 )
 
-type FieldDescription struct {
+type SearchField struct {
 	Name     string
 	Analyzer string
-	Dynamic  bool
 }
 
 func SearchableFieldsForIndexDef(indexDef *cbgt.IndexDef) (
-	map[string][]*FieldDescription, bool) {
+	map[SearchField]bool, bool, string) {
 	bp := cbft.NewBleveParams()
 	err := json.Unmarshal([]byte(indexDef.Params), bp)
 	if err != nil {
 		logging.Infof("n1fty: convertIndexDefs skip indexDef: %+v,"+
 			" json unmarshal indexDef.Params, err: %v\n", indexDef, err)
-		return nil, false
+		return nil, false, ""
 	}
 
 	if bp.DocConfig.Mode != "type_field" {
 		logging.Infof("n1fty: convertIndexDefs skip indexDef: %+v,"+
 			" wrong DocConfig.Mode\n", indexDef)
-		return nil, false
+		return nil, false, ""
 	}
 
 	typeField := bp.DocConfig.TypeField
 	if typeField == "" {
 		logging.Infof("n1fty: convertIndexDefs skip indexDef: %+v,"+
 			" wrong DocConfig.TypeField\n", typeField)
-		return nil, false
+		return nil, false, ""
 	}
 
 	bm, ok := bp.Mapping.(*mapping.IndexMappingImpl)
 	if !ok {
 		logging.Infof("n1fty: convertIndexDefs skip indexDef: %+v, "+
 			" not IndexMappingImpl\n", *indexDef)
-		return nil, false
+		return nil, false, ""
 	}
 
 	// set this index mapping into the indexMappings cache
@@ -64,62 +63,83 @@ func SearchableFieldsForIndexDef(indexDef *cbgt.IndexDef) (
 		IMapping:   bp.Mapping,
 	})
 
-	searchableFieldsMap := map[string][]*FieldDescription{}
+	searchFieldsMap := map[SearchField]bool{}
 
 	var dynamicMapping bool
-	for typeName, typeMapping := range bm.TypeMapping {
+	for _, typeMapping := range bm.TypeMapping {
 		if typeMapping.Enabled {
+			analyzer := typeMapping.DefaultAnalyzer
+			if analyzer == "" {
+				analyzer = bm.DefaultAnalyzer
+			}
 			if typeMapping.Dynamic {
-				// everything under document type is indexed
-				searchableFieldsMap[typeName] = []*FieldDescription{}
-				dynamicMapping = true
+				if analyzer == bm.DefaultAnalyzer {
+					// everything under document type is indexed
+					dynamicMapping = true
+				}
 			} else {
-				searchableFieldsMap[typeName] = fetchSearchableFields("", typeMapping)
+				searchFieldsMap = fetchSearchableFields("", typeMapping,
+					searchFieldsMap, analyzer)
 			}
 		}
 	}
 
 	if bm.DefaultMapping != nil && bm.DefaultMapping.Enabled {
+		analyzer := bm.DefaultMapping.DefaultAnalyzer
+		if analyzer == "" {
+			analyzer = bm.DefaultAnalyzer
+		}
 		if bm.DefaultMapping.Dynamic {
-			searchableFieldsMap["default"] = []*FieldDescription{}
-			dynamicMapping = true
+			if analyzer == bm.DefaultAnalyzer {
+				// everything under document type is indexed
+				dynamicMapping = true
+			}
 		} else {
-			searchableFieldsMap["default"] = fetchSearchableFields("", bm.DefaultMapping)
+			searchFieldsMap = fetchSearchableFields("", bm.DefaultMapping,
+				searchFieldsMap, analyzer)
 		}
 	}
 
-	return searchableFieldsMap, dynamicMapping
+	return searchFieldsMap, dynamicMapping, bm.DefaultAnalyzer
 }
 
 func fetchSearchableFields(path string,
-	typeMapping *mapping.DocumentMapping) []*FieldDescription {
-	rv := []*FieldDescription{}
-
+	typeMapping *mapping.DocumentMapping,
+	searchFieldsMap map[SearchField]bool,
+	parentAnalyzer string) map[SearchField]bool {
 	if !typeMapping.Enabled {
-		return rv
+		return searchFieldsMap
 	}
 
 	if typeMapping.Dynamic {
-		rv = append(rv, &FieldDescription{
+		analyzer := typeMapping.DefaultAnalyzer
+		if analyzer == "" {
+			analyzer = parentAnalyzer
+		}
+		searchFieldsMap[SearchField{
 			Name:     path,
-			Dynamic:  true,
-			Analyzer: typeMapping.DefaultAnalyzer,
-		})
-		return rv
+			Analyzer: analyzer,
+		}] = true
+		return searchFieldsMap
 	}
 
 	for _, field := range typeMapping.Fields {
 		if field.Index {
-			if len(path) == 0 {
-				rv = append(rv, &FieldDescription{
-					Name:     field.Name,
-					Analyzer: field.Analyzer,
-				})
-			} else {
-				rv = append(rv, &FieldDescription{
-					Name:     path + "." + field.Name,
-					Analyzer: field.Analyzer,
-				})
+			fieldName := field.Name
+			if len(path) > 0 {
+				fieldName = path + "." + fieldName
+			}
+			analyzer := field.Analyzer
+			if analyzer == "" {
+				// Apply default analyzer if analyzer not specified
+				analyzer = parentAnalyzer
+			}
+			searchField := SearchField{
+				Name:     fieldName,
+				Analyzer: analyzer,
+			}
+			if _, exists := searchFieldsMap[searchField]; !exists {
+				searchFieldsMap[searchField] = false
 			}
 		}
 	}
@@ -133,22 +153,26 @@ func fetchSearchableFields(path string,
 				newPath += "." + childMappingName
 			}
 		}
-		extra := fetchSearchableFields(newPath, childMapping)
-		rv = append(rv, extra...)
+		analyzer := childMapping.DefaultAnalyzer
+		if analyzer == "" {
+			analyzer = parentAnalyzer
+		}
+		searchFieldsMap = fetchSearchableFields(newPath, childMapping,
+			searchFieldsMap, analyzer)
 	}
 
-	return rv
+	return searchFieldsMap
 }
 
 // -----------------------------------------------------------------------------
 
-func FetchFieldsToSearchFromQuery(q []byte) ([]*FieldDescription, error) {
+func FetchFieldsToSearchFromQuery(q []byte) ([]SearchField, error) {
 	que, err := query.ParseQuery(q)
 	if err != nil {
 		return nil, err
 	}
 
-	fields := []*FieldDescription{}
+	fields := []SearchField{}
 	var walk func(que query.Query)
 
 	walk = func(que query.Query) {
@@ -168,7 +192,7 @@ func FetchFieldsToSearchFromQuery(q []byte) ([]*FieldDescription, error) {
 		default:
 			if fq, ok := que.(query.FieldableQuery); ok {
 
-				fieldDesc := &FieldDescription{
+				fieldDesc := SearchField{
 					Name: fq.Field(),
 				}
 

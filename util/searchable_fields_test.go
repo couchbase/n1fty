@@ -28,26 +28,20 @@ func TestIndexDefConversion(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, _ := SearchableFieldsForIndexDef(indexDef)
-	if got == nil {
-		t.Fatalf("expected a set of searchable fields")
+	searchFieldsMap, dynamicMapping, defaultAnalyzer :=
+		SearchableFieldsForIndexDef(indexDef)
+	if searchFieldsMap == nil || dynamicMapping || defaultAnalyzer != "standard" {
+		t.Fatalf("unexpected return values from SearchFieldsForIndexDef")
 	}
 
-	gotMap := map[string][]string{}
-	for k, v := range got {
-		gotMap[k] = []string{}
-		for _, entry := range v {
-			gotMap[k] = append(gotMap[k], entry.Name)
-		}
-		sort.Strings(gotMap[k])
-	}
+	expect := map[SearchField]bool{}
+	expect[SearchField{Name: "reviews.review", Analyzer: "standard"}] = true
+	expect[SearchField{Name: "country", Analyzer: "da"}] = false
+	expect[SearchField{Name: "countryX", Analyzer: "standard"}] = false
+	expect[SearchField{Name: "reviews.id", Analyzer: "standard"}] = false
 
-	expect := map[string][]string{}
-	expect["landmark"] = []string{"countryX", "reviews.id", "reviews.review"}
-	expect["hotel"] = []string{"country"}
-
-	if !reflect.DeepEqual(expect, gotMap) {
-		t.Fatalf("Expected: %v, Got: %v", expect, gotMap)
+	if !reflect.DeepEqual(expect, searchFieldsMap) {
+		t.Fatalf("Expected: %v, Got: %v", expect, searchFieldsMap)
 	}
 }
 

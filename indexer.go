@@ -419,11 +419,11 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 			// index.
 			continue
 		}
-		searchableFieldsTypeMap, dynamicMapping :=
+		searchFieldsMap, dynamicMapping, defaultAnalyzer :=
 			util.SearchableFieldsForIndexDef(indexDef)
-		if searchableFieldsTypeMap != nil || dynamicMapping {
-			rv[indexDef.UUID], err = newFTSIndex(searchableFieldsTypeMap,
-				dynamicMapping, indexDef, i)
+		if searchFieldsMap != nil || dynamicMapping {
+			rv[indexDef.UUID], err = newFTSIndex(searchFieldsMap,
+				dynamicMapping, defaultAnalyzer, indexDef, i)
 			if err != nil {
 				return nil, err
 			}

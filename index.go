@@ -38,29 +38,29 @@ type FTSIndex struct {
 	name     string
 	indexDef *cbgt.IndexDef
 
-	searchableFields map[string]*util.FieldDescription // map of searchable fields
-	dynamicMapping   bool
+	// map of SearchFields to dynamic-ness
+	searchFields map[util.SearchField]bool
+	// true if a top-level dynamic mapping exists on index
+	dynamicMapping bool
+	// default analyzer
+	defaultAnalyzer string
 }
 
 // -----------------------------------------------------------------------------
 
-func newFTSIndex(searchableFieldsTypeMap map[string][]*util.FieldDescription,
+func newFTSIndex(searchFieldsMap map[util.SearchField]bool,
 	dynamicMapping bool,
+	defaultAnalyzer string,
 	indexDef *cbgt.IndexDef,
 	indexer *FTSIndexer) (*FTSIndex, error) {
 	index := &FTSIndex{
-		indexer:          indexer,
-		id:               indexDef.UUID,
-		name:             indexDef.Name,
-		indexDef:         indexDef,
-		searchableFields: map[string]*util.FieldDescription{},
-		dynamicMapping:   dynamicMapping,
-	}
-
-	for _, fields := range searchableFieldsTypeMap {
-		for _, entry := range fields {
-			index.searchableFields[entry.Name] = entry
-		}
+		indexer:         indexer,
+		id:              indexDef.UUID,
+		name:            indexDef.Name,
+		indexDef:        indexDef,
+		searchFields:    searchFieldsMap,
+		dynamicMapping:  dynamicMapping,
+		defaultAnalyzer: defaultAnalyzer,
 	}
 
 	return index, nil
@@ -224,7 +224,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 	query, options value.Value) (int, bool, []byte, errors.Error) {
 	field = util.CleanseField(field)
 
-	var fieldsToSearch []*util.FieldDescription
+	var fieldsToSearch []util.SearchField
 	var qBytes []byte
 	var err error
 
@@ -238,14 +238,19 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		if err != nil {
 			return 0, false, qBytes, n1qlError(err, "")
 		}
+		for k := range fieldsToSearch {
+			if fieldsToSearch[k].Analyzer == "" {
+				fieldsToSearch[k].Analyzer = i.defaultAnalyzer
+			}
+		}
 	} else {
-		var analyzer string
+		analyzer := i.defaultAnalyzer
 		if analyzerVal, exists := options.Field("analyzer"); exists {
 			if val, ok := analyzerVal.Actual().(string); ok {
 				analyzer = val
 			}
 		}
-		fieldsToSearch = []*util.FieldDescription{{
+		fieldsToSearch = []util.SearchField{{
 			Name:     field,
 			Analyzer: analyzer,
 		}}
@@ -257,17 +262,15 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 
 	var sargableCount int
 	for _, f := range fieldsToSearch {
-		desc, exists := i.searchableFields[f.Name]
-		if exists && desc.Dynamic {
+		dynamic, exists := i.searchFields[f]
+		if exists && dynamic {
 			// if searched field contains nested fields, then this field is not
 			// searchable, and the query not sargable.
 			return 0, false, qBytes, nil
 		}
 
 		if exists {
-			if f.Analyzer == desc.Analyzer {
-				sargableCount++
-			}
+			sargableCount++
 		} else {
 			// check if a prefix of this field name is searchable.
 			// - (prefix being delimited by ".")
@@ -285,11 +288,13 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			var matched bool
 			entry := fieldSplitAtDot[0]
 			for k := 1; k < len(fieldSplitAtDot); k++ {
-				if desc1, exists1 := i.searchableFields[entry]; exists1 {
-					if desc1.Dynamic {
-						if f.Analyzer == desc1.Analyzer {
-							sargableCount++
-						}
+				searchField := util.SearchField{
+					Name:     entry,
+					Analyzer: f.Analyzer,
+				}
+				if dynamic1, exists1 := i.searchFields[searchField]; exists1 {
+					if dynamic1 {
+						sargableCount++
 						matched = true
 						break
 					}

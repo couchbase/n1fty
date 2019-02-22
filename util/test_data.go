@@ -64,12 +64,10 @@ var SampleIndexDef = []byte(`
 						"reviews": {
 							"enabled": true,
 							"dynamic": false,
-							"default_analyzer": "ckb",
 							"properties": {
 								"review": {
 									"enabled": true,
 									"dynamic": true,
-									"default_analyzer": "de",
 									"properties": {
 										"author": {
 											"enabled": true,
@@ -81,6 +79,7 @@ var SampleIndexDef = []byte(`
 												"index": true,
 												"include_term_vectors": true,
 												"include_in_all": true,
+												"analyzer": "de",
 												"docvalues": true
 											}]
 										}
@@ -111,8 +110,7 @@ var SampleIndexDef = []byte(`
 								"index": true,
 								"name": "countryX",
 								"store": true,
-								"type": "text",
-								"analyzer": "fa"
+								"type": "text"
 							}]
 						}
 					}
