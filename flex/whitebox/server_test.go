@@ -529,6 +529,31 @@ func TestOrdersDataDynamicIndex(t *testing.T) {
 			false,
 			`{"disjuncts":[{"field":"custId","term":"ccc"},{"field":"custId","term":"abc"}]}`,
 		},
+
+		// ---------------------------------------------------------------
+
+		{
+			`SELECT *
+               FROM data:orders as o
+              WHERE ANY ol IN o.orderlines
+                        SATISFIES ol.instructions = "expedite" END`,
+			0,
+			flex.FieldTracks{
+				flex.FieldTrack("orderlines.instructions"): 1,
+			},
+			false,
+			`{"field":"orderlines.instructions","term":"expedite"}`,
+		},
+		{
+			`SELECT *
+               FROM data:orders as o
+              WHERE ANY ol IN o.orderlines
+                        SATISFIES ol.qty = 100 END`,
+			0,
+			flex.FieldTracks{},
+			false,
+			``,
+		},
 	})
 }
 
@@ -651,6 +676,11 @@ func testOrdersData(t *testing.T, s *server.Server, indexesById map[string]*Inde
 
 		last := idx.lastSargableFlexOk
 		if last == nil {
+			if len(test.expectFieldTracks) <= 0 {
+				idx.lastSargableFlexErr = nil
+				continue // On to next test if we were expecting not-sargable flex.
+			}
+
 			t.Fatalf("testi: %d, test: %+v, expected lastSargableFlexOk",
 				testi, test)
 		}

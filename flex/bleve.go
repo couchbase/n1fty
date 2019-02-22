@@ -130,7 +130,10 @@ func bleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 				FieldPathPartial: true,
 			})
 
-			// TODO: Support dynamic number (and other) types?
+			// TODO: Support dynamic number (and other) types?  This
+			// is difficult since we should remember and check types
+			// as the examination proceeds and return not-sargable.
+			// Ex: WHERE dynamicField = "hi" AND dynamicField = 123.
 		}
 	}
 
