@@ -40,7 +40,7 @@ func SetIndexMapping(name string, mappingDetails *MappingDetails) {
 }
 
 func FetchIndexMapping(name, keyspace string) (mapping.IndexMapping, error) {
-	if len(keyspace) == 0 {
+	if len(keyspace) == 0 || len(name) == 0 {
 		// Return default index mapping if keyspace not provided.
 		return bleve.NewIndexMapping(), nil
 	}

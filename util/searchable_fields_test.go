@@ -23,7 +23,7 @@ import (
 
 func TestIndexDefConversion(t *testing.T) {
 	var indexDef *cbgt.IndexDef
-	err := json.Unmarshal(SampleIndexDef, &indexDef)
+	err := json.Unmarshal(SampleCustomIndexDef, &indexDef)
 	if err != nil {
 		t.Fatal(err)
 	}

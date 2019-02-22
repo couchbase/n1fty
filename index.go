@@ -14,6 +14,7 @@ package n1fty
 import (
 	"context"
 	"encoding/base64"
+	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -148,10 +149,10 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	// this sargable(...) check is to ensure that the query is indeed "sargable"
 	// at search time, as when the Sargable(..) API is invoked during the
 	// prepare time, the query/options may not have been available.
-	_, ok, qBytes, er := i.buildQueryAndCheckIfSargable(
-		fieldStr, searchInfo.Query, searchInfo.Options)
-	if !ok || er != nil {
-		conn.Error(n1qlError(er.Cause(), "not sargable"))
+	sargRV := i.buildQueryAndCheckIfSargable(
+		fieldStr, searchInfo.Query, searchInfo.Options, nil)
+	if sargRV.err != nil || sargRV.count == 0 {
+		conn.Error(n1qlError(nil, "not sargable"))
 		return
 	}
 
@@ -171,7 +172,7 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	}()
 
 	searchRequest := &pb.SearchRequest{
-		Query:     qBytes,
+		Query:     sargRV.queryBytes,
 		Stream:    true,
 		From:      searchInfo.Offset,
 		Size:      searchInfo.Limit,
@@ -196,16 +197,32 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 
 // -----------------------------------------------------------------------------
 
+type sargableRV struct {
+	count        int
+	indexedCount int64
+	queryFields  interface{}
+	queryBytes   []byte
+	err          errors.Error
+}
+
 // Sargable checks if the provided request is applicable for the index.
 // Return parameters:
-// - count:    This is the number of fields whose names along with analyzers
-//             matched with that of the index definition
-// - sargable: True if all the fields from the query, are supported by the index
-// Note: it is possible for the API to return true on sargable, but 0 as count.
+// - sargable_count: This is the number of fields whose names along with
+//                   analyzers from the built query matched with that of
+//                   the index definition, for now all of query fields or 0.
+// - indexed_count:  This is the total number of indexed fields within the
+//                   the FTS index.
+// - exact:          True if query & options not nil, for now.
+// - queryFields:    The custom map of fields/analyzers obtained from the
+//                   query for checking it's sargability.
 // The caller will have to make the decision on which index to choose based
-// on the count and the flag returned.
-func (i *FTSIndex) Sargable(field string, query, options expression.Expression) (
-	int, bool, errors.Error) {
+// on the sargable_count (higher the better), indexed_count (lower the better),
+// and exact (if true) returned.
+func (i *FTSIndex) Sargable(field string, query,
+	options expression.Expression, customFields interface{}) (
+	int, int64, bool, interface{}, errors.Error) {
+	exact := query != nil && options != nil
+
 	var queryVal, optionsVal value.Value
 	if query != nil {
 		queryVal = query.Value()
@@ -214,64 +231,78 @@ func (i *FTSIndex) Sargable(field string, query, options expression.Expression) 
 		optionsVal = options.Value()
 	}
 
-	count, sargable, _, err := i.buildQueryAndCheckIfSargable(
-		field, queryVal, optionsVal)
+	rv := i.buildQueryAndCheckIfSargable(field, queryVal, optionsVal, customFields)
 
-	return count, sargable, err
+	return rv.count, rv.indexedCount, exact, rv.queryFields, rv.err
 }
 
 func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
-	query, options value.Value) (int, bool, []byte, errors.Error) {
-	field = util.CleanseField(field)
-
-	var fieldsToSearch []util.SearchField
+	query, options value.Value, customFields interface{}) *sargableRV {
 	var qBytes []byte
 	var err error
 
-	if query != nil {
-		qBytes, err = util.BuildQueryBytes(field, query)
-		if err != nil {
-			return 0, false, nil, n1qlError(err, "")
-		}
+	queryFields, ok := customFields.([]util.SearchField)
 
-		fieldsToSearch, err = util.FetchFieldsToSearchFromQuery(qBytes)
-		if err != nil {
-			return 0, false, qBytes, n1qlError(err, "")
-		}
-		for k := range fieldsToSearch {
-			if fieldsToSearch[k].Analyzer == "" {
-				fieldsToSearch[k].Analyzer = i.defaultAnalyzer
+	if !ok {
+		field = util.CleanseField(field)
+		if query != nil {
+			qBytes, err = util.BuildQueryBytes(field, query)
+			if err != nil {
+				return &sargableRV{
+					err: n1qlError(err, ""),
+				}
 			}
-		}
-	} else {
-		analyzer := i.defaultAnalyzer
-		if analyzerVal, exists := options.Field("analyzer"); exists {
-			if val, ok := analyzerVal.Actual().(string); ok {
-				analyzer = val
+
+			queryFields, err = util.FetchFieldsToSearchFromQuery(qBytes)
+			if err != nil {
+				return &sargableRV{
+					queryBytes: qBytes,
+					err:        n1qlError(err, ""),
+				}
 			}
+		} else {
+			queryFields = []util.SearchField{{
+				Name: field,
+			}}
 		}
-		fieldsToSearch = []util.SearchField{{
-			Name:     field,
-			Analyzer: analyzer,
-		}}
 	}
 
 	if i.dynamicMapping {
-		return 1, true, qBytes, nil
+		// sargable, only if all query fields' analyzers are the same
+		// as default analyzer.
+		compatibleWithDynamicMapping := true
+		for k := range queryFields {
+			if queryFields[k].Analyzer != "" &&
+				queryFields[k].Analyzer != i.defaultAnalyzer {
+				compatibleWithDynamicMapping = false
+				break
+			}
+		}
+		if compatibleWithDynamicMapping {
+			return &sargableRV{
+				count:        len(queryFields),
+				indexedCount: math.MaxInt64,
+				queryFields:  queryFields,
+				queryBytes:   qBytes,
+			}
+		}
 	}
 
-	var sargableCount int
-	for _, f := range fieldsToSearch {
+	for _, f := range queryFields {
+		if f.Analyzer == "" {
+			f.Analyzer = i.defaultAnalyzer
+		}
 		dynamic, exists := i.searchFields[f]
 		if exists && dynamic {
 			// if searched field contains nested fields, then this field is not
 			// searchable, and the query not sargable.
-			return 0, false, qBytes, nil
+			return &sargableRV{
+				queryFields: queryFields,
+				queryBytes:  qBytes,
+			}
 		}
 
-		if exists {
-			sargableCount++
-		} else {
+		if !exists {
 			// check if a prefix of this field name is searchable.
 			// - (prefix being delimited by ".")
 			// e.g.: potential candidates for "reviews.review.content.author" are:
@@ -282,7 +313,10 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			fieldSplitAtDot := strings.Split(f.Name, ".")
 			if len(fieldSplitAtDot) <= 1 {
 				// not sargable
-				return 0, false, qBytes, nil
+				return &sargableRV{
+					queryFields: queryFields,
+					queryBytes:  qBytes,
+				}
 			}
 
 			var matched bool
@@ -294,7 +328,6 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 				}
 				if dynamic1, exists1 := i.searchFields[searchField]; exists1 {
 					if dynamic1 {
-						sargableCount++
 						matched = true
 						break
 					}
@@ -305,12 +338,21 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 
 			if !matched {
 				// not sargable
-				return 0, false, qBytes, nil
+				return &sargableRV{
+					queryFields: queryFields,
+					queryBytes:  qBytes,
+				}
 			}
 		}
 	}
 
-	return sargableCount, true, qBytes, nil
+	// sargable
+	return &sargableRV{
+		count:        len(queryFields),
+		indexedCount: int64(len(i.searchFields)),
+		queryFields:  queryFields,
+		queryBytes:   qBytes,
+	}
 }
 
 // -----------------------------------------------------------------------------
