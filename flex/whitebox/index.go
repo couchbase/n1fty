@@ -32,6 +32,19 @@ import (
 	_ "github.com/blevesearch/bleve/index/store/moss"
 )
 
+type LastSargableFlex struct {
+	nodeAlias string
+	bindings  expression.Bindings
+	where     expression.Expression
+
+	identifiers    flex.Identifiers
+	fieldTracks    flex.FieldTracks
+	needsFiltering bool
+
+	flexBuild  *flex.FlexBuild
+	bleveQuery map[string]interface{}
+}
+
 type Index struct {
 	Parent  *Indexer
 	IdStr   string
@@ -39,6 +52,9 @@ type Index struct {
 
 	IndexMapping *mapping.IndexMappingImpl
 	FlexIndex    *flex.FlexIndex
+
+	lastSargableFlexOk  *LastSargableFlex // For testing.
+	lastSargableFlexErr error
 }
 
 func (i *Index) KeyspaceId() string {
@@ -220,21 +236,30 @@ func (i *Index) SargableFlex(nodeAlias string, bindings expression.Bindings,
 	fmt.Printf("  identifiers: %+v\n", identifiers)
 
 	if i.FlexIndex == nil {
+		fmt.Printf("   FlexIndex nil\n")
 		return 0, false, nil, nil, nil
 	}
 
 	fieldTracks, needsFiltering, flexBuild, err0 := i.FlexIndex.Sargable(
 		identifiers, where, nil)
+
+	i.lastSargableFlexErr = err0
+
 	if err0 != nil {
+		fmt.Printf("   FlexIndex.Sargable err0: %v\n", err0)
 		return 0, false, nil, nil, errors.NewError(err0, "")
 	}
 
 	if len(fieldTracks) <= 0 {
+		fmt.Printf("   FlexIndex.Sargable len(fieldTracks) <= 0\n")
+		j, _ := json.Marshal(i.FlexIndex)
+		fmt.Printf("    FlexIndex: %s\n", j)
 		return 0, false, nil, nil, nil
 	}
 
 	bleveQuery, err1 := flex.FlexBuildToBleveQuery(flexBuild, nil)
 	if err1 != nil {
+		fmt.Printf("   FlexIndex.Sargable err1: %v\n", err1)
 		return 0, false, nil, nil, errors.NewError(err1, "")
 	}
 
@@ -242,6 +267,20 @@ func (i *Index) SargableFlex(nodeAlias string, bindings expression.Bindings,
 
 	fmt.Printf("  bleveQuery: %s\n", bleveQueryJ)
 	fmt.Printf("  fieldTracks: %v, needsFiltering: %v\n", fieldTracks, needsFiltering)
+
+	i.lastSargableFlexOk = &LastSargableFlex{
+		nodeAlias: nodeAlias,
+		bindings:  bindings,
+		where:     where,
+
+		identifiers: identifiers,
+
+		fieldTracks:    fieldTracks,
+		needsFiltering: needsFiltering,
+		flexBuild:      flexBuild,
+
+		bleveQuery: bleveQuery,
+	}
 
 	return len(fieldTracks), !needsFiltering, bleveQuery, nil, nil
 }

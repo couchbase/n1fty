@@ -240,7 +240,7 @@ func TestProcessConjunctFieldTypes(t *testing.T) {
 		exprWhereSimplified, _ :=
 			planner.NewDNF(exprWhere, false, false /* doDNF */).Map(exprWhere)
 
-		outExprs, outFieldTypes, outNeedsFiltering, outOk :=
+		outExprs, outFieldTypes, outOk :=
 			ProcessConjunctFieldTypes(
 				test.fieldInfos, Identifiers{Identifier{Name: "bucket"}},
 				exprWhereSimplified.Children(), test.fieldTypes)
@@ -254,8 +254,6 @@ func TestProcessConjunctFieldTypes(t *testing.T) {
 				t.Fatalf("testi: %d, expected %+v, outExprs: %v",
 					testi, test, outExprs.String())
 			}
-
-			_ = outNeedsFiltering // TODO.
 		}
 
 		if !reflect.DeepEqual(outFieldTypes, test.expectFieldTypes) {

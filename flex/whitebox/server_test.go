@@ -13,10 +13,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/blevesearch/bleve"
+	"github.com/blevesearch/bleve/analysis"
+	"github.com/blevesearch/bleve/analysis/datetime/flexible"
 	"github.com/blevesearch/bleve/mapping"
+	"github.com/blevesearch/bleve/registry"
 
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
@@ -24,6 +28,7 @@ import (
 	"github.com/couchbase/query/expression/parser"
 	"github.com/couchbase/query/parser/n1ql"
 	"github.com/couchbase/query/planner"
+	"github.com/couchbase/query/server"
 
 	"github.com/couchbase/n1fty/flex"
 )
@@ -43,6 +48,14 @@ func checkSkipTest(t *testing.T) bool {
 	fmt.Println("use WHITEBOX=y environment variable to enable")
 
 	return true
+}
+
+func init() {
+	// Needed for BleveToFlexIndex() to work on dynamic indexes.
+	registry.RegisterDateTimeParser("disabled",
+		func(config map[string]interface{}, cache *registry.Cache) (analysis.DateTimeParser, error) {
+			return flexible.New(nil), nil // With no layouts, "disabled" always return error.
+		})
 }
 
 func initIndexesById(t *testing.T, m map[string]*Index) map[string]*Index {
@@ -305,6 +318,8 @@ func TestOrdersData(t *testing.T) {
 		return
 	}
 
+	indexesById := map[string]*Index{}
+
 	initIndexer := func(indexer *Indexer) (*Indexer, errors.Error) {
 		if indexer.IndexesById == nil {
 			indexer.IndexesById = initIndexesById(t, map[string]*Index{
@@ -351,6 +366,10 @@ func TestOrdersData(t *testing.T) {
 					},
 				},
 			})
+
+			for id, v := range indexer.IndexesById {
+				indexesById[id] = v
+			}
 		}
 
 		return indexer, nil
@@ -363,128 +382,296 @@ func TestOrdersData(t *testing.T) {
 		t.Fatalf("did not expect err: %v", err)
 	}
 
-	r, err := ExecuteStatement(s,
-		`select *, META() as META from data:orders as o WHERE custId = "ccc"`, nil, nil)
+	testOrdersData(t, s, indexesById, []testOrdersDataCase{
+		{
+			`SELECT *
+               FROM data:orders as o UNNEST o.orderlines as orderline
+              WHERE orderline.productId = "sugar22"`,
+			3,
+			flex.FieldTracks{
+				flex.FieldTrack("orderlines.productId"): 1,
+			},
+			true,
+			`{"field":"orderlines.productId","term":"sugar22"}`,
+		},
+		{
+			`SELECT *
+               FROM data:orders as o UNNEST o.orderlines as orderline
+              WHERE orderline.productId = "sugar22"
+                    AND (o.custId = "ccc" OR o.custId = "abc")`,
+			3,
+			flex.FieldTracks{
+				flex.FieldTrack("orderlines.productId"): 1,
+				flex.FieldTrack("custId"):               2,
+			},
+			true,
+			`{"conjuncts":[{"field":"orderlines.productId","term":"sugar22"},{"disjuncts":[{"field":"custId","term":"ccc"},{"field":"custId","term":"abc"}]}]}`,
+		},
+		{
+			`SELECT *
+               FROM data:orders as o UNNEST orderlines as orderline
+                    LEFT OUTER JOIN [] as o2 ON o.id = o2.id
+              WHERE o.custId = "ccc" OR o.custId = "abc"`,
+			6,
+			flex.FieldTracks{
+				flex.FieldTrack("custId"): 2,
+			},
+			true,
+			`{"disjuncts":[{"field":"custId","term":"ccc"},{"field":"custId","term":"abc"}]}`,
+		},
+		{
+			`SELECT *
+               FROM data:orders as o
+                    LEFT OUTER JOIN [] as o2 ON o.id = o2.id
+                    UNNEST o.orderlines as orderline
+                LET c = o.custId
+              WHERE c = "ccc" OR c = "abc"`,
+			6,
+			flex.FieldTracks{
+				flex.FieldTrack("custId"): 2,
+			},
+			true,
+			`{"disjuncts":[{"field":"custId","term":"ccc"},{"field":"custId","term":"abc"}]}`,
+		},
+	})
+}
+
+func TestOrdersDataDynamicIndex(t *testing.T) {
+	if checkSkipTest(t) {
+		return
+	}
+
+	indexesById := map[string]*Index{}
+
+	initIndexer := func(indexer *Indexer) (*Indexer, errors.Error) {
+		if indexer.IndexesById == nil {
+			indexer.IndexesById = initIndexesById(t, map[string]*Index{
+				"ftsIdx": {
+					Parent:  indexer,
+					IdStr:   "ftsIdx",
+					NameStr: "ftsIdx",
+
+					IndexMapping: &mapping.IndexMappingImpl{
+						DefaultAnalyzer:       "keyword",
+						DefaultDateTimeParser: "disabled",
+						DefaultMapping: &mapping.DocumentMapping{
+							Enabled: true,
+							Dynamic: true,
+						},
+						IndexDynamic: true,
+					},
+				},
+			})
+
+			for id, v := range indexer.IndexesById {
+				indexesById[id] = v
+			}
+		}
+
+		return indexer, nil
+	}
+
+	c := MakeWrapCallbacksForIndexType(datastore.IndexType("FTS"), initIndexer)
+
+	s, err := NewServer("./", c)
 	if err != nil {
 		t.Fatalf("did not expect err: %v", err)
 	}
-	if len(r) != 2 {
-		t.Fatalf("expected3, got r: %d: %+v\n\n", len(r), r)
+
+	testOrdersData(t, s, indexesById, []testOrdersDataCase{
+		{
+			`SELECT *
+               FROM data:orders as o UNNEST o.orderlines as orderline
+              WHERE orderline.productId = "sugar22"`,
+			3,
+			flex.FieldTracks{
+				flex.FieldTrack("orderlines.productId"): 1,
+			},
+			false,
+			`{"field":"orderlines.productId","term":"sugar22"}`,
+		},
+		{
+			`SELECT *
+               FROM data:orders as o UNNEST o.orderlines as orderline
+              WHERE orderline.productId = "sugar22"
+                    AND (o.custId = "ccc" OR o.custId = "abc")`,
+			3,
+			flex.FieldTracks{
+				flex.FieldTrack("orderlines.productId"): 1,
+				flex.FieldTrack("custId"):               2,
+			},
+			false,
+			`{"conjuncts":[{"field":"orderlines.productId","term":"sugar22"},{"disjuncts":[{"field":"custId","term":"ccc"},{"field":"custId","term":"abc"}]}]}`,
+		},
+		{
+			`SELECT *
+               FROM data:orders as o UNNEST orderlines as orderline
+                    LEFT OUTER JOIN [] as o2 ON o.id = o2.id
+              WHERE o.custId = "ccc" OR o.custId = "abc"`,
+			6,
+			flex.FieldTracks{
+				flex.FieldTrack("custId"): 2,
+			},
+			false,
+			`{"disjuncts":[{"field":"custId","term":"ccc"},{"field":"custId","term":"abc"}]}`,
+		},
+		{
+			`SELECT *
+               FROM data:orders as o
+                    LEFT OUTER JOIN [] as o2 ON o.id = o2.id
+                    UNNEST o.orderlines as orderline
+                LET c = o.custId
+              WHERE c = "ccc" OR c = "abc"`,
+			6,
+			flex.FieldTracks{
+				flex.FieldTrack("custId"): 2,
+			},
+			false,
+			`{"disjuncts":[{"field":"custId","term":"ccc"},{"field":"custId","term":"abc"}]}`,
+		},
+	})
+}
+
+type testOrdersDataCase struct {
+	stmt                 string
+	expectNumResults     int
+	expectFieldTracks    flex.FieldTracks
+	expectNeedsFiltering bool
+	expectBleveQuery     string
+}
+
+func testOrdersData(t *testing.T, s *server.Server, indexesById map[string]*Index,
+	moreTests []testOrdersDataCase) {
+	if len(indexesById) > 0 {
+		t.Fatalf("expected empty indexesById")
 	}
 
-	r, err = ExecuteStatement(s,
-		`SELECT *, META() as META FROM data:orders as o
-          WHERE custId = "ccc" OR custId = "ddd"`, nil, nil)
-	if err != nil {
-		t.Fatalf("did not expect err: %v", err)
-	}
-	if len(r) != 2 {
-		t.Fatalf("expected3, got r: %d: %+v\n\n", len(r), r)
-	}
+	tests := append([]testOrdersDataCase{
+		{
+			`SELECT *, META() as META from data:orders as o WHERE custId = "ccc"`,
+			2,
+			flex.FieldTracks{
+				flex.FieldTrack("custId"): 1,
+			},
+			false,
+			`{"field":"custId","term":"ccc"}`,
+		},
+		{
+			`SELECT *, META() as META FROM data:orders as o
+              WHERE custId = "ccc" OR custId = "ddd"`,
+			2,
+			flex.FieldTracks{
+				flex.FieldTrack("custId"): 2,
+			},
+			false,
+			`{"disjuncts":[{"field":"custId","term":"ccc"},{"field":"custId","term":"ddd"}]}`,
+		},
+		{
+			`SELECT *, META() as META FROM data:orders as o
+              WHERE custId = "ccc" OR custId = "abc"`,
+			3,
+			flex.FieldTracks{
+				flex.FieldTrack("custId"): 2,
+			},
+			false,
+			`{"disjuncts":[{"field":"custId","term":"ccc"},{"field":"custId","term":"abc"}]}`,
+		},
+		{
+			`SELECT *, META() as META FROM data:orders as o
+              WHERE ANY orderline IN o.orderlines
+                        SATISFIES orderline.productId = "sugar22" END`,
+			3,
+			flex.FieldTracks{
+				flex.FieldTrack("orderlines.productId"): 1,
+			},
+			false,
+			`{"field":"orderlines.productId","term":"sugar22"}`,
+		},
+		{
+			`SELECT *, META() as META FROM data:orders as o
+              WHERE ANY orderline IN o.orderlines
+                        SATISFIES orderline.productId = "sugar22" END
+                    AND (o.custId = "ccc" OR o.custId = "abc")`,
+			3,
+			flex.FieldTracks{
+				flex.FieldTrack("orderlines.productId"): 1,
+				flex.FieldTrack("custId"):               2,
+			},
+			false,
+			`{"conjuncts":[{"field":"orderlines.productId","term":"sugar22"},{"disjuncts":[{"field":"custId","term":"ccc"},{"field":"custId","term":"abc"}]}]}`,
+		},
+		{
+			`SELECT *
+               FROM data:orders as o LEFT OUTER JOIN [] as o2 ON o.id = o2.id
+              WHERE o.custId = "ccc" OR o.custId = "abc"`,
+			3,
+			flex.FieldTracks{
+				flex.FieldTrack("custId"): 2,
+			},
+			false,
+			`{"disjuncts":[{"field":"custId","term":"ccc"},{"field":"custId","term":"abc"}]}`,
+		},
+		{
+			`SELECT *
+               FROM data:orders as o
+              WHERE o.custId >= "a" AND o.custId <= "b"`,
+			1,
+			flex.FieldTracks{
+				flex.FieldTrack("custId"): 2,
+			},
+			false,
+			`{"field":"custId","inclusive_max":true,"inclusive_min":true,"max":"b","min":"a"}`,
+		},
+		{
+			`SELECT *
+               FROM data:orders as o
+              WHERE ISSTRING(o.custId) AND o.custId < "b"`,
+			1,
+			flex.FieldTracks{
+				flex.FieldTrack("custId"): 1,
+			},
+			false,
+			`{"field":"custId","inclusive_max":false,"max":"b"}`,
+		},
+	}, moreTests...)
 
-	r, err = ExecuteStatement(s,
-		`SELECT *, META() as META FROM data:orders as o
-          WHERE custId = "ccc" OR custId = "abc"`, nil, nil)
-	if err != nil {
-		t.Fatalf("did not expect err: %v", err)
-	}
-	if len(r) != 3 {
-		t.Fatalf("expected3, got r: %d: %+v\n\n", len(r), r)
-	}
+	for testi, test := range tests {
+		r, err := ExecuteStatement(s, test.stmt, nil, nil)
+		if err != nil {
+			t.Fatalf("did not expect err: %v", err)
+		}
+		if len(r) != test.expectNumResults {
+			t.Fatalf("test: %+v\n got len(r): %d, r: %+v", test, len(r), r)
+		}
 
-	r, err = ExecuteStatement(s,
-		`SELECT *, META() as META FROM data:orders as o
-          WHERE ANY orderline IN o.orderlines
-                    SATISFIES orderline.productId = "sugar22" END`, nil, nil)
-	if err != nil {
-		t.Fatalf("did not expect err: %v", err)
-	}
-	if len(r) != 3 {
-		t.Fatalf("expected3, got r: %d: %+v\n\n", len(r), r)
-	}
+		if len(indexesById) != 1 || indexesById["ftsIdx"] == nil {
+			t.Fatalf("expected ftsIdx, got: %+v", indexesById)
+		}
+		idx := indexesById["ftsIdx"]
 
-	r, err = ExecuteStatement(s,
-		`SELECT *, META() as META FROM data:orders as o
-          WHERE ANY orderline IN o.orderlines
-                    SATISFIES orderline.productId = "sugar22" END
-            AND (o.custId = "ccc" OR o.custId = "abc")`, nil, nil)
-	if err != nil {
-		t.Fatalf("did not expect err: %v", err)
-	}
-	if len(r) != 3 {
-		t.Fatalf("expected 3, got r: %d: %+v\n\n", len(r), r)
-	}
+		last := idx.lastSargableFlexOk
+		if last == nil {
+			t.Fatalf("testi: %d, test: %+v, expected lastSargableFlexOk",
+				testi, test)
+		}
 
-	r, err = ExecuteStatement(s,
-		`SELECT *
-           FROM data:orders as o UNNEST orderlines as orderline
-          WHERE orderline.productId = "sugar22"
-                AND (o.custId = "ccc" OR o.custId = "abc")`, nil, nil)
-	if err != nil {
-		t.Fatalf("did not expect err: %v", err)
-	}
-	if len(r) != 3 {
-		t.Fatalf("expected 3, got r: %d: %+v\n\n", len(r), r)
-	}
+		if !reflect.DeepEqual(last.fieldTracks, test.expectFieldTracks) {
+			t.Fatalf("test: %+v\n last.fieldTracks (%+v) != test.expectFieldTracks: %+v",
+				test, last.fieldTracks, test.expectFieldTracks)
+		}
 
-	r, err = ExecuteStatement(s,
-		`SELECT *
-           FROM data:orders as o LEFT OUTER JOIN [] as o2 ON o.id = o2.id
-          WHERE o.custId = "ccc" OR o.custId = "abc"`, nil, nil)
-	if err != nil {
-		t.Fatalf("did not expect err: %v", err)
-	}
-	if len(r) != 3 {
-		t.Fatalf("expected 3, got r: %d: %+v\n\n", len(r), r)
-	}
+		if last.needsFiltering != test.expectNeedsFiltering {
+			t.Fatalf("test: %+v\n last.needsFiltering mismatch: %+v",
+				test, last.needsFiltering)
+		}
 
-	r, err = ExecuteStatement(s,
-		`SELECT *
-           FROM data:orders as o UNNEST orderlines as orderline
-                LEFT OUTER JOIN [] as o2 ON o.id = o2.id
-          WHERE o.custId = "ccc" OR o.custId = "abc"`, nil, nil)
-	if err != nil {
-		t.Fatalf("did not expect err: %v", err)
-	}
-	if len(r) != 6 {
-		t.Fatalf("expected 6, got r: %d: %+v\n\n", len(r), r)
-	}
+		bleveQueryJson, _ := json.Marshal(last.bleveQuery)
+		if string(bleveQueryJson) != test.expectBleveQuery {
+			t.Fatalf("test: %+v\n last.bleveQuery mismatch: %s",
+				test, bleveQueryJson)
+		}
 
-	r, err = ExecuteStatement(s,
-		`SELECT *
-           FROM data:orders as o
-                LEFT OUTER JOIN [] as o2 ON o.id = o2.id
-                UNNEST o.orderlines as orderline
-            LET c = o.custId
-          WHERE c = "ccc" OR c = "abc"`, nil, nil)
-	if err != nil {
-		t.Fatalf("did not expect err: %v", err)
+		idx.lastSargableFlexOk = nil
+		idx.lastSargableFlexErr = nil
 	}
-	if len(r) != 6 {
-		t.Fatalf("expected 6, got r: %d: %+v\n\n", len(r), r)
-	}
-
-	r, err = ExecuteStatement(s,
-		`SELECT *
-           FROM data:orders as o
-          WHERE o.custId >= "a" AND o.custId <= "b"`, nil, nil)
-	if err != nil {
-		t.Fatalf("did not expect err: %v", err)
-	}
-	if len(r) != 1 {
-		t.Fatalf("expected 1, got r: %d: %+v\n\n", len(r), r)
-	}
-
-	r, err = ExecuteStatement(s,
-		`SELECT *
-           FROM data:orders as o
-          WHERE ISSTRING(o.custId) AND o.custId < "b"`, nil, nil)
-	if err != nil {
-		t.Fatalf("did not expect err: %v", err)
-	}
-	if len(r) != 1 {
-		t.Fatalf("expected 1, got r: %d: %+v\n\n", len(r), r)
-	}
-
-	fmt.Printf("got r: %d: %+v\n\n", len(r), r)
 }

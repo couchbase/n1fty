@@ -45,8 +45,7 @@ func (f FieldTypes) Lookup(k FieldTrack) (string, bool) {
 // shadow or override field-type info from parent levels.
 func ProcessConjunctFieldTypes(indexedFields FieldInfos, ids Identifiers,
 	exprs expression.Expressions, exprFTs FieldTypes) (
-	exprsOut expression.Expressions, exprFTsOut FieldTypes,
-	needsFiltering bool, ok bool) {
+	exprsOut expression.Expressions, exprFTsOut FieldTypes, ok bool) {
 	p := &ConjunctFieldTypes{
 		IndexedFields:  indexedFields,
 		Identifiers:    ids,
@@ -58,15 +57,15 @@ OUTER:
 	for _, expr := range exprs {
 		for _, f := range RegisteredCFTFuncs {
 			r := f.Func(p, expr)
-			if r == NotSargable {
-				return nil, nil, false, false
+			if r == "not-sargable" {
+				return nil, nil, false
 			}
 
-			if r == Match {
+			if r == "match" {
 				continue OUTER
 			}
 
-			// r == NotMatch, so continue with next check func.
+			// r == "not-match", so continue to next func.
 		}
 
 		// None of the checks matched, so keep the expr.
@@ -74,11 +73,10 @@ OUTER:
 	}
 
 	if len(p.Learned) <= 0 {
-		return p.ExprsOut, p.ExprFieldTypes, false, true
+		return p.ExprsOut, p.ExprFieldTypes, true
 	}
 
-	return p.ExprsOut, append(FieldTypes{p.Learned}, p.ExprFieldTypes...),
-		false, true
+	return p.ExprsOut, append(FieldTypes{p.Learned}, p.ExprFieldTypes...), true
 }
 
 // ------------------------------------------------
@@ -101,7 +99,10 @@ func (p *ConjunctFieldTypes) AddLearning(
 	fieldPath []string, fieldSuffix []string, fieldType string) bool {
 	fieldTrack := FieldTrack(strings.Join(fieldPath, "."))
 	if len(fieldSuffix) > 0 {
-		fieldTrack = fieldTrack + "." + FieldTrack(strings.Join(fieldSuffix, "."))
+		if len(fieldTrack) > 0 {
+			fieldTrack = fieldTrack + "."
+		}
+		fieldTrack = fieldTrack + FieldTrack(strings.Join(fieldSuffix, "."))
 	}
 
 	t, ok := p.ExprFieldTypes.Lookup(fieldTrack)
@@ -124,15 +125,7 @@ func (p *ConjunctFieldTypes) AddLearning(
 
 // ------------------------------------------------
 
-type CFTResult int // Check field type result.
-
-const (
-	NotSargable CFTResult = iota
-	NotMatch
-	Match
-)
-
-type CFTFunc func(*ConjunctFieldTypes, expression.Expression) CFTResult
+type CFTFunc func(*ConjunctFieldTypes, expression.Expression) string
 
 type RegisteredCFTFunc struct {
 	Name string
@@ -140,8 +133,7 @@ type RegisteredCFTFunc struct {
 }
 
 var RegisteredCFTFuncs = []RegisteredCFTFunc{
-	{"CFTNumber", CFTNumber},
-	{"CFTString", CFTString},
+	{"CFTString", CFTString}, {"CFTNumber", CFTNumber}, {"CFTArray", CFTArray},
 }
 
 // ------------------------------------------------
@@ -150,7 +142,7 @@ var RegisteredCFTFuncs = []RegisteredCFTFunc{
 // and looks for range comparisons that tells us that a field is a string.
 // For example... ("" <= `t`.`a`) AND (`t`.`a` < []),
 // which is how ISSTRING(t.a) is simplified by N1QL.
-func CFTString(p *ConjunctFieldTypes, e expression.Expression) CFTResult {
+func CFTString(p *ConjunctFieldTypes, e expression.Expression) string {
 	return p.CheckFieldTypeLoHi(e, "string",
 		"le,lt", value.EMPTY_STRING_VALUE, "lt,le", value.EMPTY_ARRAY_VALUE)
 }
@@ -159,19 +151,30 @@ func CFTString(p *ConjunctFieldTypes, e expression.Expression) CFTResult {
 // and looks for range comparisons that tells us that a field is a number.
 // For example... (true < `t`.`a`) AND (`t`.`a` < ""),
 // which is how ISNUMBER(t.a) is simplified by N1QL.
-func CFTNumber(p *ConjunctFieldTypes, e expression.Expression) CFTResult {
+func CFTNumber(p *ConjunctFieldTypes, e expression.Expression) string {
 	return p.CheckFieldTypeLoHi(e, "number",
 		"lt,le", value.TRUE_VALUE, "lt,le", value.EMPTY_STRING_VALUE)
 }
 
+// CFTArray() implements the CFTFunc() signature,
+// and looks for range comparisons that tells us that a field is an array.
+// For example... ([] <= `t`.`a`) AND (`t`.`a` < {}),
+// which is how ISARRAY(t.a) is simplified by N1QL and UNNEST DNF.
+func CFTArray(p *ConjunctFieldTypes, e expression.Expression) string {
+	return p.CheckFieldTypeLoHi(e, "string",
+		"le,lt", value.EMPTY_ARRAY_VALUE, "lt", EMPTY_OBJECT_VALUE)
+}
+
+var EMPTY_OBJECT_VALUE = value.NewValue(map[string]interface{}{})
+
 // ------------------------------------------------
 
 func (p *ConjunctFieldTypes) CheckFieldTypeLoHi(
-	exprHi expression.Expression, fieldType string,
+	exprHi expression.Expression, fType string,
 	loComp string, loValue value.Value,
-	hiComp string, hiValue value.Value) CFTResult {
+	hiComp string, hiValue value.Value) string {
 	if len(p.ExprsOut) < 1 {
-		return NotMatch
+		return "not-match"
 	}
 
 	exprLo := p.ExprsOut[len(p.ExprsOut)-1]
@@ -179,70 +182,71 @@ func (p *ConjunctFieldTypes) CheckFieldTypeLoHi(
 	// Check (loValue <= `t`.`a`).
 	bfLo, ok := exprLo.(expression.BinaryFunction)
 	if !ok || !strings.Contains(loComp, bfLo.Name()) {
-		return NotMatch
+		return "not-match"
 	}
 
-	cLo, ok := bfLo.First().(*expression.Constant)
-	if !ok {
-		return NotMatch
+	if bfLo.First().Static() == nil {
+		return "not-match"
 	}
+
+	vLo := bfLo.First().Value()
 
 	fiLo, suffixLo := p.IndexedFields.Find(p.Identifiers, bfLo.Second(), nil)
 	if fiLo == nil {
-		return NotMatch
+		return "not-match"
 	}
 
-	if fiLo.FieldType != "" && fiLo.FieldType != fieldType {
-		return NotMatch // Other registered CFT's might match fieldType.
+	if fiLo.FieldType != "" && fiLo.FieldType != fType {
+		return "not-match" // Other CFT's might match the fType.
 	}
 
 	// Check (`t`.`a` < hiValue).
 	bfHi, ok := exprHi.(expression.BinaryFunction)
 	if !ok || !strings.Contains(hiComp, bfHi.Name()) {
-		return NotMatch
+		return "not-match"
 	}
 
-	cHi, ok := bfHi.Second().(*expression.Constant)
-	if !ok {
-		return NotMatch
+	if bfHi.Second().Static() == nil {
+		return "not-match"
 	}
+
+	vHi := bfHi.Second().Value()
 
 	fiHi, suffixHi := p.IndexedFields.Find(p.Identifiers, bfHi.First(), nil)
 	if fiHi == nil {
-		return NotMatch
+		return "not-match"
 	}
 
 	if fiHi != fiLo || len(suffixHi) != len(suffixLo) {
-		return NotMatch // Suffix lengths different.
+		return "not-match"
 	}
 
 	for si, s := range suffixHi {
 		if s != suffixLo[si] {
-			return NotMatch // Suffixes different.
+			return "not-match"
 		}
 	}
 
-	if cLo.Value().Equals(loValue).Truth() && strings.HasPrefix(loComp, bfLo.Name()) &&
-		cHi.Value().Equals(hiValue).Truth() && strings.HasPrefix(hiComp, bfHi.Name()) {
+	if vLo.Equals(loValue).Truth() && strings.HasPrefix(loComp, bfLo.Name()) &&
+		vHi.Equals(hiValue).Truth() && strings.HasPrefix(hiComp, bfHi.Name()) {
 		// Add to learnings if no conflicts.
-		if !p.AddLearning(fiHi.FieldPath, suffixHi, fieldType) {
-			return NotSargable
+		if !p.AddLearning(fiHi.FieldPath, suffixHi, fType) {
+			return "not-sargable"
 		}
 
-		// Filter exprLo & exprHi as ISSTRING/NUMBER() was exactly learned().
+		// Filter exprLo/exprHi as ISSTRING/NUMBER() was exactly learned.
 		p.ExprsOut = p.ExprsOut[0 : len(p.ExprsOut)-1]
 
-		return Match // Ex: learned via ("" <= fieldLo) AND (fieldHi < []).
+		return "match" // Ex: learned ("" <= fieldLo) AND (fieldHi < []).
 	}
 
-	if (cLo.Value().Type().String() == fieldType &&
-		cHi.Value().Type().String() == fieldType &&
-		cLo.Value().Collate(cHi.Value()) <= 0) &&
-		p.AddLearning(fiHi.FieldPath, suffixHi, fieldType) {
+	if vLo.Type().String() == fType &&
+		vHi.Type().String() == fType && vLo.Collate(vHi) <= 0 &&
+		p.AddLearning(fiHi.FieldPath, suffixHi, fType) {
 		p.ExprsOut = append(p.ExprsOut, exprHi)
 
-		return Match // Ex: learned via ("A" < fieldLo) AND (fieldHi < "H").
+		return "match" // Ex: learned ("A" < fieldLo) AND (fieldHi < "H").
 	}
 
-	return NotMatch
+	return "not-match"
 }

@@ -81,15 +81,14 @@ func (fi *FlexIndex) Sargable(ids Identifiers, e expression.Expression,
 
 // Processes a composite expression (AND's/OR's) via recursion.
 func (fi *FlexIndex) SargableComposite(ids Identifiers,
-	exprs expression.Expressions, exprFTs FieldTypes, kind string) (
+	es expression.Expressions, eFTs FieldTypes, kind string) (
 	rFieldTracks FieldTracks, rNeedsFiltering bool, rFB *FlexBuild, err error) {
 	conjunct := kind == "conjunct"
 	if conjunct {
 		// A conjunct allows us to build up field-type knowledge from
 		// the children, possibly with filtering out some children.
 		var ok bool
-		exprs, exprFTs, rNeedsFiltering, ok =
-			ProcessConjunctFieldTypes(fi.IndexedFields, ids, exprs, exprFTs)
+		es, eFTs, ok = ProcessConjunctFieldTypes(fi.IndexedFields, ids, es, eFTs)
 		if !ok {
 			return nil, false, nil, nil // Type mismatch is not-sargable.
 		}
@@ -97,8 +96,8 @@ func (fi *FlexIndex) SargableComposite(ids Identifiers,
 
 	// Loop through the child exprs and recurse.  Return early if we
 	// find a child expr that's not-sargable or that isn't filterable.
-	for _, cExpr := range exprs {
-		cFieldTracks, cNeedsFiltering, cFB, err := fi.Sargable(ids, cExpr, exprFTs)
+	for _, cExpr := range es {
+		cFieldTracks, cNeedsFiltering, cFB, err := fi.Sargable(ids, cExpr, eFTs)
 		if err != nil {
 			return nil, false, nil, err
 		}

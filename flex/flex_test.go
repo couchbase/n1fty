@@ -2424,6 +2424,99 @@ func TestFlexSargable(t *testing.T) {
 			},
 			expectExact: true,
 		},
+
+		// ------------------------------------------------------------------
+
+		{about: "test dynamic string with UNNEST",
+			from:          []string{"o", "UNNEST o.orderlines as orderline"},
+			where:         `orderline.productId = "sugar22" AND (o.custId = "ccc" OR o.custId = "abc")`,
+			indexedFields: FieldInfos{&FieldInfo{FieldPath: nil, FieldType: "string"}},
+			supportedExprs: []SupportedExpr{
+				&SupportedExprCmpFieldConstant{
+					Cmp: "eq", FieldPath: nil, ValueType: "string",
+					FieldPathPartial: true, FieldTypeCheck: false,
+				},
+				&SupportedExprCmpFieldConstant{
+					Cmp:              "lt gt le ge",
+					FieldPath:        nil,
+					ValueType:        "string",
+					FieldTypeCheck:   true,
+					FieldPathPartial: true,
+				},
+			},
+			expectExact: true,
+			expectFieldTracks: FieldTracks{
+				FieldTrack("orderlines.productId"): 1,
+				FieldTrack("custId"):               2,
+			},
+			expectFlexBuild: &FlexBuild{
+				Kind: "conjunct",
+				Children: []*FlexBuild{
+					{
+						Kind: "cmpFieldConstant",
+						Data: []string{"eq", "orderlines.productId", "string", `"sugar22"`},
+					},
+					{
+						Kind: "disjunct",
+						Children: []*FlexBuild{
+							{
+								Kind: "cmpFieldConstant",
+								Data: []string{"eq", "custId", "string", `"ccc"`},
+							},
+							{
+								Kind: "cmpFieldConstant",
+								Data: []string{"eq", "custId", "string", `"abc"`},
+							},
+						},
+					},
+				},
+			},
+		},
+
+		{about: "test dynamic string with UNNEST with DNF child array assertions",
+			from: []string{"o", "UNNEST o.orderlines as orderline"},
+			where: `orderline.productId = "sugar22"
+                    AND (o.custId = "ccc" OR o.custId = "abc")
+                    AND [] <= o.orderlines
+                    AND o.orderlines < {}`,
+			indexedFields: FieldInfos{
+				&FieldInfo{FieldPath: []string{"orderlines"}, FieldType: "string"},
+				&FieldInfo{FieldPath: nil, FieldType: "string"},
+			},
+			supportedExprs: []SupportedExpr{
+				&SupportedExprCmpFieldConstant{
+					Cmp: "eq", FieldPath: nil, ValueType: "string",
+					FieldPathPartial: true, FieldTypeCheck: false,
+				},
+			},
+			expectExact: true,
+			expectFieldTracks: FieldTracks{
+				FieldTrack("orderlines.productId"): 1,
+				FieldTrack("custId"):               2,
+			},
+			expectFlexBuild: &FlexBuild{
+				Kind: "conjunct",
+				Children: []*FlexBuild{
+					{
+						Kind: "cmpFieldConstant",
+						Data: []string{"eq", "orderlines.productId", "string", `"sugar22"`},
+					},
+					{
+						Kind: "disjunct",
+						Children: []*FlexBuild{
+							{
+								Kind: "cmpFieldConstant",
+								Data: []string{"eq", "custId", "string", `"ccc"`},
+							},
+							{
+								Kind: "cmpFieldConstant",
+								Data: []string{"eq", "custId", "string", `"abc"`},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for testi, test := range tests {
@@ -2484,26 +2577,26 @@ func TestFlexSargable(t *testing.T) {
 		fieldTracks, needsFiltering, flexBuild, err := fi.Sargable(
 			identifiers, exprWhereSimplified, nil)
 		if err != test.expectErr {
-			t.Fatalf("testi: %d, test: %+v\n  exprWhereSimplified: %#v\n"+
+			t.Fatalf("testi: %d, test: %+v\n  exprWhereSimplified: %+v\n"+
 				"  mismatch err: %v",
 				testi, test, exprWhereSimplified, err)
 		}
 
 		if !reflect.DeepEqual(fieldTracks, test.expectFieldTracks) {
-			t.Fatalf("testi: %d, test: %+v\n  exprWhereSimplified: %#v\n"+
+			t.Fatalf("testi: %d, test: %+v\n  exprWhereSimplified: %+v\n"+
 				"  mismatch expected with fieldTracks: %v",
 				testi, test, exprWhereSimplified, fieldTracks)
 		}
 
 		if needsFiltering != !test.expectExact {
-			t.Fatalf("testi: %d, test: %+v\n  exprWhereSimplified: %#v\n"+
+			t.Fatalf("testi: %d, test: %+v\n  exprWhereSimplified: %+v\n"+
 				"  mismatch expected with needsFiltering: %v",
 				testi, test, exprWhereSimplified, needsFiltering)
 		}
 
 		if !reflect.DeepEqual(flexBuild, test.expectFlexBuild) {
 			j, _ := json.Marshal(flexBuild)
-			t.Fatalf("testi: %d, test: %+v\n  exprWhereSimplified: %#v\n"+
+			t.Fatalf("testi: %d, test: %+v\n  exprWhereSimplified: %+v\n"+
 				"  mismatch expected with flexBuild: %#v\n  json: %s",
 				testi, test, exprWhereSimplified, flexBuild, j)
 		}
