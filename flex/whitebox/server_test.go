@@ -338,10 +338,9 @@ func TestOrdersData(t *testing.T) {
 									Enabled: true,
 									Fields: []*mapping.FieldMapping{
 										{
-											Name:     "custId",
-											Type:     "text",
-											Analyzer: "keyword",
-											Index:    true,
+											Name:  "custId",
+											Type:  "text",
+											Index: true,
 										},
 									},
 								},
@@ -352,10 +351,9 @@ func TestOrdersData(t *testing.T) {
 											Enabled: true,
 											Fields: []*mapping.FieldMapping{
 												{
-													Name:     "productId",
-													Type:     "text",
-													Analyzer: "keyword",
-													Index:    true,
+													Name:  "productId",
+													Type:  "text",
+													Index: true,
 												},
 											},
 										},
@@ -549,6 +547,25 @@ func TestOrdersDataDynamicIndex(t *testing.T) {
                FROM data:orders as o
               WHERE ANY ol IN o.orderlines
                         SATISFIES ol.qty = 100 END`,
+			0,
+			flex.FieldTracks{},
+			false,
+			``,
+		},
+		{
+			`SELECT *
+               FROM data:orders as o
+              WHERE ANY ol IN o.orderlines
+                        SATISFIES ol.instructions = "expedite" AND ol.qty = 100 END`,
+			0,
+			flex.FieldTracks{},
+			false,
+			``,
+		},
+		{
+			`SELECT *
+               FROM data:orders as o UNNEST o.orderlines as ol
+              WHERE ol.qty = 100`,
 			0,
 			flex.FieldTracks{},
 			false,

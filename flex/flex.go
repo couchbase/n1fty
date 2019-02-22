@@ -86,23 +86,23 @@ func (fi *FlexIndex) SargableComposite(ids Identifiers,
 	conjunct := kind == "conjunct"
 	if conjunct {
 		// A conjunct allows us to build up field-type knowledge from
-		// the children, possibly with filtering out some children.
+		// the expressions, possibly with filtering out some of them.
 		var ok bool
-		es, eFTs, ok = ProcessConjunctFieldTypes(fi.IndexedFields, ids, es, eFTs)
+		es, eFTs, ok = LearnConjunctFieldTypes(fi.IndexedFields, ids, es, eFTs)
 		if !ok {
 			return nil, false, nil, nil // Type mismatch is not-sargable.
 		}
 	}
 
-	// Loop through the child exprs and recurse.  Return early if we
-	// find a child expr that's not-sargable or that isn't filterable.
+	// Loop through the expressions and recurse.  Return early if we
+	// find an expression that's not-sargable or isn't filterable.
 	for _, cExpr := range es {
 		cFieldTracks, cNeedsFiltering, cFB, err := fi.Sargable(ids, cExpr, eFTs)
 		if err != nil {
 			return nil, false, nil, err
 		}
 
-		// Add child's result to our composite results.
+		// Add the recursion's result to our composite results.
 		for cFieldTrack, n := range cFieldTracks {
 			if rFieldTracks == nil {
 				rFieldTracks = FieldTracks{}
@@ -120,17 +120,17 @@ func (fi *FlexIndex) SargableComposite(ids Identifiers,
 		}
 
 		if len(cFieldTracks) > 0 {
-			continue // Child is sargable.
+			continue // Expression sargable.
 		}
 
 		if cNeedsFiltering && conjunct {
-			continue // Child ok for filtering when conjunct'ing.
+			continue // Expression is filterable when conjunct'ing.
 		}
 
-		return nil, false, nil, nil // We found a not-sargable child.
+		return nil, false, nil, nil // Expression not-sargable.
 	}
 
-	// All our children were sargable and/or ok for filtering.
+	// All expressions were sargable or ok for filtering.
 	return rFieldTracks, rNeedsFiltering, rFB, nil
 }
 

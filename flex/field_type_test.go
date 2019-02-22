@@ -16,7 +16,7 @@ import (
 	"github.com/couchbase/query/planner"
 )
 
-func TestProcessConjunctFieldTypes(t *testing.T) {
+func TestLearnConjunctFieldTypes(t *testing.T) {
 	var fieldInfosZ FieldInfos // Test nil.
 
 	fieldInfos0 := FieldInfos{}
@@ -241,7 +241,7 @@ func TestProcessConjunctFieldTypes(t *testing.T) {
 			planner.NewDNF(exprWhere, false, false /* doDNF */).Map(exprWhere)
 
 		outExprs, outFieldTypes, outOk :=
-			ProcessConjunctFieldTypes(
+			LearnConjunctFieldTypes(
 				test.fieldInfos, Identifiers{Identifier{Name: "bucket"}},
 				exprWhereSimplified.Children(), test.fieldTypes)
 		if outOk != test.expectOk {

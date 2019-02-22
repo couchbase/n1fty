@@ -78,19 +78,28 @@ TODO...
     (ex: type="beer"), because if you don't, there can be false negatives.
     - example: FTS index has type mapping where type="beer", but the N1QL is
       looking for WHERE name="coors" -- false negative as the FTS index will
-      be missing entries for brewery docs whose name is "coors".
-    - to have no false negatives, it has to be WHERE name="coors" AND type="beer".
-    - this be done carefully on a conjunction level, a'la...
+      only have entries for beer docs and (importantly) will be missing
+      entries for brewery docs whose brewery name is "coors".
+    - to have no false negatives, the query has to look like
+      WHERE type="beer" AND name="coors"
+      otherwise n1fty should return not-sargable.
+    - this should be done carefully on a per-conjunction level, a'la...
       ((type = "beer" AND
         beer_name = "coors" AND
-        exprs-with-fields-that-only-appear-in-beer-type-mapping) OR
+        sargable-exprs-with-beer-only-fields AND
+        any-other-fields-are-considered-filterable) OR
        (type = "brewery" AND
         brewery_name = coors" AND
-        exprs-with-fields-that-only-appear-in-brewery-type-mapping)).
-    - fields indexed by the default type mapping need its
-      own more complex type discriminator, like...
+        sargable-exprs-with-brewery-only-fields AND
+        any-other-fields-are-considered-filterable)).
+    - default type mapping need a more complex 'negative' type discriminator, like...
       ((type != "beer" AND type != "brewery") AND
-       exprs-that-use-default-type-mapping-fields-only).
+       sargable-exprs-with-[non-beer/non-brewery]-fields AND
+       any-other-fields-are-considered-filterable).
+    - what if user references brewery fields (or other non-beer fields)
+      in the beer-centric subtree?  ANS: those can be treated as filterable
+      due to the conjunction, even though n1fty might be returning
+      additional false positives, it's logically correct.
   - an approach is that IndexedFields / FieldInfos can be
     hierarchical, where the top-level FieldInfo represents the default
     type mapping.

@@ -77,6 +77,7 @@ func bleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 
 		// TODO: Currently supports only default mapping.
 		// TODO: Currently supports only keyword fields.
+		// TODO: Need to support numeric field types?
 		// TODO: Need to support datetime field types?
 		// TODO: Need to support geopoint field types?
 		// TODO: Need to support bool field types?

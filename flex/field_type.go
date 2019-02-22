@@ -32,18 +32,18 @@ func (f FieldTypes) Lookup(k FieldTrack) (string, bool) {
 
 // ---------------------------------------------------------------
 
-// ProcessConjunctFieldTypes examines the conjunct exprs (e.g.,
-// children of an "AND" expression) for field-type information.  Only
-// the expressions related to the given identifiers and
-// indexedFields are considered.  It returns a (potentially
-// filtered/simplified) copy of the exprs, where the
-// filtering/simplification happens as field-type's are learned.
+// LearnConjunctFieldTypes examines the conjunct exprs (e.g., children
+// of an "AND" expression) is discover field-type information.  Only
+// the expressions related to the given identifiers and indexedFields
+// are considered.  It returns a (potentially filtered/simplified)
+// copy of the exprs, where the filtering/simplification happens as
+// field-type's are learned.
 //
 // The learned field-type information is pushed in immutable,
-// copy-on-write fashion onto the provided exprFieldTypes.  This
-// allows field-type info from deeper levels in the expr tree to
-// shadow or override field-type info from parent levels.
-func ProcessConjunctFieldTypes(indexedFields FieldInfos, ids Identifiers,
+// copy-on-write fashion onto the provided exprFTs.  This allows
+// field-type info from deeper levels in the expr tree to shadow or
+// override field-type info from parent levels.
+func LearnConjunctFieldTypes(indexedFields FieldInfos, ids Identifiers,
 	exprs expression.Expressions, exprFTs FieldTypes) (
 	exprsOut expression.Expressions, exprFTsOut FieldTypes, ok bool) {
 	p := &ConjunctFieldTypes{
@@ -125,11 +125,9 @@ func (p *ConjunctFieldTypes) AddLearning(
 
 // ------------------------------------------------
 
-type CFTFunc func(*ConjunctFieldTypes, expression.Expression) string
-
 type RegisteredCFTFunc struct {
 	Name string
-	Func CFTFunc
+	Func func(*ConjunctFieldTypes, expression.Expression) string
 }
 
 var RegisteredCFTFuncs = []RegisteredCFTFunc{
@@ -138,30 +136,27 @@ var RegisteredCFTFuncs = []RegisteredCFTFunc{
 
 // ------------------------------------------------
 
-// CFTString() implements the CFTFunc() signature,
-// and looks for range comparisons that tells us that a field is a string.
-// For example... ("" <= `t`.`a`) AND (`t`.`a` < []),
+// CFTString() looks for range comparisons that tells us that a field
+// is a string.  For example... ("" <= `t`.`a`) AND (`t`.`a` < []),
 // which is how ISSTRING(t.a) is simplified by N1QL.
 func CFTString(p *ConjunctFieldTypes, e expression.Expression) string {
 	return p.CheckFieldTypeLoHi(e, "string",
 		"le,lt", value.EMPTY_STRING_VALUE, "lt,le", value.EMPTY_ARRAY_VALUE)
 }
 
-// CFTNumber() implements the CFTFunc() signature,
-// and looks for range comparisons that tells us that a field is a number.
-// For example... (true < `t`.`a`) AND (`t`.`a` < ""),
+// CFTNumber() looks for range comparisons that tells us that a field
+// is a number.  For example... (true < `t`.`a`) AND (`t`.`a` < ""),
 // which is how ISNUMBER(t.a) is simplified by N1QL.
 func CFTNumber(p *ConjunctFieldTypes, e expression.Expression) string {
 	return p.CheckFieldTypeLoHi(e, "number",
 		"lt,le", value.TRUE_VALUE, "lt,le", value.EMPTY_STRING_VALUE)
 }
 
-// CFTArray() implements the CFTFunc() signature,
-// and looks for range comparisons that tells us that a field is an array.
-// For example... ([] <= `t`.`a`) AND (`t`.`a` < {}),
+// CFTArray() looks for range comparisons that tells us that a field
+// is an array.  For example... ([] <= `t`.`a`) AND (`t`.`a` < {}),
 // which is how ISARRAY(t.a) is simplified by N1QL and UNNEST DNF.
 func CFTArray(p *ConjunctFieldTypes, e expression.Expression) string {
-	return p.CheckFieldTypeLoHi(e, "string",
+	return p.CheckFieldTypeLoHi(e, "string", // Meant for child paths.
 		"le,lt", value.EMPTY_ARRAY_VALUE, "lt", EMPTY_OBJECT_VALUE)
 }
 
