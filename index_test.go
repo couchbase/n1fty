@@ -86,3 +86,127 @@ func TestDynamicIndexSargability(t *testing.T) {
 			" but got: %v", count)
 	}
 }
+
+func TestIncompatibleIndexSargability(t *testing.T) {
+	index, err := setupSampleIndex(util.SampleCustomIndexDef)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	query := expression.NewConstant(map[string]interface{}{
+		"match":    "United States",
+		"field":    "country",
+		"analyzer": "default",
+	})
+
+	optBytes := []byte(`
+	{
+		"index": {
+			"default_analyzer": "standard",
+			"type_field": "_type",
+			"default_mapping": {
+				"dynamic": true,
+				"enabled": false
+			},
+			"types": {
+				"hotel": {
+					"enabled": true,
+					"dynamic": false,
+					"properties": {
+						"city": {
+							"enabled": true,
+							"dynamic": false,
+							"fields": [{
+								"name": "city",
+								"type": "text",
+								"store": false,
+								"index": true
+							}]
+						}
+					}
+				}
+			}
+		}
+	}
+	`)
+
+	var opt map[string]interface{}
+	err = json.Unmarshal(optBytes, &opt)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	count, _, _, _, n1qlErr := index.Sargable("", query,
+		expression.NewConstant(opt), nil)
+	if n1qlErr != nil {
+		t.Fatal(n1qlErr)
+	}
+
+	if count != 0 {
+		t.Fatalf("Expected count of 0, as query is not sargable for index," +
+			" on grounds that provided mapping in options isn't compatible" +
+			" with the index's mapping.")
+	}
+}
+
+func TestCompatibleIndexSargability(t *testing.T) {
+	index, err := setupSampleIndex(util.SampleCustomIndexDef)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	query := expression.NewConstant(map[string]interface{}{
+		"match":    "United States",
+		"field":    "country",
+		"analyzer": "da",
+	})
+
+	optBytes := []byte(`
+	{
+		"index": {
+			"default_analyzer": "da",
+			"type_field": "_type",
+			"default_mapping": {
+				"dynamic": true,
+				"enabled": false
+			},
+			"types": {
+				"hotel": {
+					"enabled": true,
+					"dynamic": false,
+					"properties": {
+						"country": {
+							"enabled": true,
+							"dynamic": false,
+							"fields": [{
+								"name": "country",
+								"type": "text",
+								"store": false,
+								"index": true
+							}]
+						}
+					}
+				}
+			}
+		}
+	}
+	`)
+
+	var opt map[string]interface{}
+	err = json.Unmarshal(optBytes, &opt)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	count, _, _, _, n1qlErr := index.Sargable("", query,
+		expression.NewConstant(opt), nil)
+	if n1qlErr != nil {
+		t.Fatal(n1qlErr)
+	}
+
+	if count != 1 {
+		t.Fatal("Expected sargable_count of 1, because query and custom"+
+			" mapping should be sargable for the index, but got count: %v",
+			count)
+	}
+}

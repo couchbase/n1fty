@@ -12,12 +12,14 @@
 package util
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
 
 	"github.com/blevesearch/bleve"
 	"github.com/blevesearch/bleve/mapping"
+	"github.com/couchbase/query/value"
 )
 
 type MappingDetails struct {
@@ -42,7 +44,7 @@ func SetIndexMapping(name string, mappingDetails *MappingDetails) {
 func FetchIndexMapping(name, keyspace string) (mapping.IndexMapping, error) {
 	if len(keyspace) == 0 || len(name) == 0 {
 		// Return default index mapping if keyspace not provided.
-		return bleve.NewIndexMapping(), nil
+		return NewIndexMappingWithAnalyzer(""), nil
 	}
 	mappingsCacheLock.RLock()
 	defer mappingsCacheLock.RUnlock()
@@ -52,6 +54,15 @@ func FetchIndexMapping(name, keyspace string) (mapping.IndexMapping, error) {
 		}
 	}
 	return nil, fmt.Errorf("index mapping not found for: %v", name)
+}
+
+func NewIndexMappingWithAnalyzer(analyzer string) mapping.IndexMapping {
+	idxMapping := bleve.NewIndexMapping()
+	if analyzer != "" {
+		idxMapping.DefaultAnalyzer = analyzer
+	}
+
+	return idxMapping
 }
 
 func CleanseField(field string) string {
@@ -75,4 +86,41 @@ func FetchKeySpace(nameAndKeyspace string) string {
 	entriesSplitAtColon := strings.Split(nameAndKeyspace, ":")
 	keyspace := entriesSplitAtColon[len(entriesSplitAtColon)-1]
 	return CleanseField(keyspace)
+}
+
+func FetchQueryFields(field string, query value.Value) ([]SearchField, []byte, error) {
+	var queryFields []SearchField
+	var qBytes []byte
+	var err error
+
+	field = CleanseField(field)
+	if query != nil {
+		qBytes, err = BuildQueryBytes(field, query)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		queryFields, err = FetchFieldsToSearchFromQuery(qBytes)
+		if err != nil {
+			return nil, nil, err
+		}
+	} else {
+		queryFields = []SearchField{{
+			Name: field,
+		}}
+	}
+
+	return queryFields, qBytes, err
+}
+
+// Value MUST be an object
+func ConvertValObjectToIndexMapping(val value.Value) (mapping.IndexMapping, error) {
+	valBytes, err := val.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+
+	var im *mapping.IndexMappingImpl
+	err = json.Unmarshal(valBytes, &im)
+	return im, err
 }

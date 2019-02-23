@@ -31,27 +31,27 @@ func SearchableFieldsForIndexDef(indexDef *cbgt.IndexDef) (
 	bp := cbft.NewBleveParams()
 	err := json.Unmarshal([]byte(indexDef.Params), bp)
 	if err != nil {
-		logging.Infof("n1fty: convertIndexDefs skip indexDef: %+v,"+
+		logging.Infof("n1fty: skip indexDef: %+v,"+
 			" json unmarshal indexDef.Params, err: %v\n", indexDef, err)
 		return nil, false, ""
 	}
 
 	if bp.DocConfig.Mode != "type_field" {
-		logging.Infof("n1fty: convertIndexDefs skip indexDef: %+v,"+
+		logging.Infof("n1fty: skip indexDef: %+v,"+
 			" wrong DocConfig.Mode\n", indexDef)
 		return nil, false, ""
 	}
 
 	typeField := bp.DocConfig.TypeField
 	if typeField == "" {
-		logging.Infof("n1fty: convertIndexDefs skip indexDef: %+v,"+
+		logging.Infof("n1fty: skip indexDef: %+v,"+
 			" wrong DocConfig.TypeField\n", typeField)
 		return nil, false, ""
 	}
 
-	bm, ok := bp.Mapping.(*mapping.IndexMappingImpl)
+	im, ok := bp.Mapping.(*mapping.IndexMappingImpl)
 	if !ok {
-		logging.Infof("n1fty: convertIndexDefs skip indexDef: %+v, "+
+		logging.Infof("n1fty: skip indexDef: %+v, "+
 			" not IndexMappingImpl\n", *indexDef)
 		return nil, false, ""
 	}
@@ -60,9 +60,26 @@ func SearchableFieldsForIndexDef(indexDef *cbgt.IndexDef) (
 	SetIndexMapping(indexDef.Name, &MappingDetails{
 		UUID:       indexDef.UUID,
 		SourceName: indexDef.SourceName,
-		IMapping:   bp.Mapping,
+		IMapping:   im,
 	})
 
+	return searchableFieldsForIndexMappingImpl(im)
+}
+
+func SearchableFieldsForIndexMapping(im mapping.IndexMapping) (
+	map[SearchField]bool, bool, string) {
+	m, ok := im.(*mapping.IndexMappingImpl)
+	if !ok {
+		logging.Infof("n1fty: index mapping: %+v, "+
+			" not IndexMappingImpl\n", m)
+		return nil, false, ""
+	}
+
+	return searchableFieldsForIndexMappingImpl(m)
+}
+
+func searchableFieldsForIndexMappingImpl(bm *mapping.IndexMappingImpl) (
+	map[SearchField]bool, bool, string) {
 	searchFieldsMap := map[SearchField]bool{}
 
 	var dynamicMapping bool

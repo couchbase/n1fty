@@ -50,6 +50,10 @@ func BuildQuery(field string, input value.Value) (query.Query, error) {
 		return nil, fmt.Errorf("BuildQuery err: %v", err)
 	}
 
+	return BuildQueryFromBytes(qBytes)
+}
+
+func BuildQueryFromBytes(qBytes []byte) (query.Query, error) {
 	return query.ParseQuery(qBytes)
 }
 

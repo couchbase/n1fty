@@ -15,6 +15,7 @@ import (
 	"github.com/blevesearch/bleve"
 	"github.com/blevesearch/bleve/index/store/moss"
 	"github.com/blevesearch/bleve/index/upsidedown"
+	"github.com/blevesearch/bleve/mapping"
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
@@ -23,29 +24,52 @@ import (
 
 func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 	datastore.Verify, errors.Error) {
-	field = util.CleanseField(field)
-
-	if query == nil || options == nil {
+	if query == nil {
 		return nil, errors.NewError(nil, "query/options not provided")
 	}
 
-	indexNameVal, found := options.Field("index")
-	if !found {
-		return nil, errors.NewError(nil, "index not specified in options")
+	queryFields, qBytes, err := util.FetchQueryFields(field, query)
+	if err != nil {
+		return nil, errors.NewError(err, "")
 	}
 
-	indexName, ok := indexNameVal.Actual().(string)
-	if !ok {
-		return nil, errors.NewError(nil, "index name provided not a string")
+	var idxMapping mapping.IndexMapping
+
+	indexOptionAvailable := true
+	if options != nil {
+		_, indexOptionAvailable = options.Field("index")
 	}
 
 	keyspace := util.FetchKeySpace(nameAndKeyspace)
-	idxMapping, err := util.FetchIndexMapping(indexName, keyspace)
-	if err != nil {
-		return nil, errors.NewError(nil, "index mapping not found")
+
+	if !indexOptionAvailable {
+		// in case index option not available, use any query field's analyzer,
+		// as we'd have reached this point only if all the query fields shared
+		// the same analyzer, if query fields unavailable use "standard".
+		var analyzer string
+		if len(queryFields) > 0 {
+			analyzer = queryFields[0].Analyzer
+		}
+		idxMapping = util.NewIndexMappingWithAnalyzer(analyzer)
+	} else {
+		indexVal, _ := options.Field("index")
+		if indexVal.Type() == value.STRING {
+			idxMapping, err = util.FetchIndexMapping(
+				indexVal.Actual().(string), keyspace)
+			if err != nil {
+				return nil, errors.NewError(nil, "index mapping not found")
+			}
+		} else if indexVal.Type() == value.OBJECT {
+			idxMapping, _ = util.ConvertValObjectToIndexMapping(indexVal)
+			if idxMapping == nil {
+				return nil, errors.NewError(nil, "index object not a valid mapping")
+			}
+		} else {
+			return nil, errors.NewError(nil, "unrecognizable index option")
+		}
 	}
 
-	q, err := util.BuildQuery(field, query)
+	q, err := util.BuildQueryFromBytes(qBytes)
 	if err != nil {
 		return nil, errors.NewError(err, "")
 	}

@@ -244,26 +244,68 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 	queryFields, ok := customFields.([]util.SearchField)
 
 	if !ok {
-		field = util.CleanseField(field)
-		if query != nil {
-			qBytes, err = util.BuildQueryBytes(field, query)
+		queryFields, qBytes, err = util.FetchQueryFields(field, query)
+		if err != nil {
+			return &sargableRV{
+				err: n1qlError(err, ""),
+			}
+		}
+	}
+
+	var indexOptionAvailable bool
+	if options != nil {
+		if _, exists := options.Field("index"); exists {
+			indexOptionAvailable = true
+		}
+	}
+	if !indexOptionAvailable {
+		// if index field isn't provided within the options section,
+		// proceed to check for sargability only if all fields within the
+		// query have a common analyzer, and if in case no fields were
+		// specified only if the default analyzer is set to standard.
+		if len(queryFields) == 0 && i.defaultAnalyzer != "standard" {
+			// in sufficient information, not sargable
+			return &sargableRV{}
+		}
+
+		if len(queryFields) > 0 {
+			commonAnalyzer := queryFields[0].Analyzer
+			for k := 1; k < len(queryFields); k++ {
+				if queryFields[k].Analyzer != commonAnalyzer {
+					// not sargable, because query is not verify-able
+					return &sargableRV{}
+				}
+			}
+		}
+	} else {
+		indexVal, _ := options.Field("index")
+		if indexVal.Type() == value.OBJECT {
+			// if in case this value were an object, it is expected to be
+			// a mapping, check if this mapping is compatible with the
+			// current index's mapping.
+			im, err := util.ConvertValObjectToIndexMapping(indexVal)
 			if err != nil {
 				return &sargableRV{
 					err: n1qlError(err, ""),
 				}
 			}
 
-			queryFields, err = util.FetchFieldsToSearchFromQuery(qBytes)
-			if err != nil {
-				return &sargableRV{
-					queryBytes: qBytes,
-					err:        n1qlError(err, ""),
+			searchFields, dynamicMapping, _ :=
+				util.SearchableFieldsForIndexMapping(im)
+
+			searchFieldsCompatible := func() bool {
+				for k, expect := range searchFields {
+					if got, exists := i.searchFields[k]; !exists || got != expect {
+						return false
+					}
 				}
+				return true
 			}
-		} else {
-			queryFields = []util.SearchField{{
-				Name: field,
-			}}
+
+			if !dynamicMapping && !searchFieldsCompatible() {
+				// not sargable, because query is not verify-able
+				return &sargableRV{}
+			}
 		}
 	}
 
