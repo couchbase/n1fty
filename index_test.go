@@ -205,8 +205,75 @@ func TestCompatibleIndexSargability(t *testing.T) {
 	}
 
 	if count != 1 {
-		t.Fatal("Expected sargable_count of 1, because query and custom"+
+		t.Fatalf("Expected sargable_count of 1, because query and custom"+
 			" mapping should be sargable for the index, but got count: %v",
 			count)
+	}
+}
+
+func TestCompatibleCustomDefaultMappedIndexSargability(t *testing.T) {
+	index, err := setupSampleIndex(util.SampleIndexDefWithCustomDefaultMapping)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	queBytes := []byte(`
+	{
+		"conjuncts":[{
+			"match": "United States",
+			"field": "country"
+		}, {
+			"match": "San Francisco",
+			"field": "city"
+		}]
+	}
+	`)
+	var que map[string]interface{}
+	err = json.Unmarshal(queBytes, &que)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	optBytes := []byte(`
+	{
+		"index": {
+			"default_mapping": {
+				"enabled": true,
+				"dynamic": false,
+				"properties": {
+					"city": {
+						"fields": [{
+							"name": "city", "type": "text"
+						}]
+					}
+				}
+			},
+			"default_type": "_default",
+			"default_analyzer": "standard"
+		}
+	}
+	`)
+	var opt map[string]interface{}
+	err = json.Unmarshal(optBytes, &opt)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	count, indexedCount, exact, _, n1qlErr := index.Sargable("",
+		expression.NewConstant(que), expression.NewConstant(opt), nil)
+	if n1qlErr != nil {
+		t.Fatal(n1qlErr)
+	}
+
+	if !exact {
+		t.Fatalf("Expected the query to be sargable")
+	}
+
+	if count != 2 {
+		t.Fatalf("Expected sargable count of 2, but got: %v", count)
+	}
+
+	if indexedCount != 2 {
+		t.Fatalf("Expected indexed count of 2, but got: %v", indexedCount)
 	}
 }

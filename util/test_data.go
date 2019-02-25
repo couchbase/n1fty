@@ -175,3 +175,76 @@ var SampleIndexDefWithAnalyzerEN = []byte(`
 	"uuid": ""
 }
 `)
+
+var SampleIndexDefWithCustomDefaultMapping = []byte(`
+{
+	"name": "travel",
+	"type": "fulltext-index",
+	"params": {
+		"doc_config": {
+			"docid_prefix_delim": "",
+			"docid_regexp": "",
+			"mode": "type_field",
+			"type_field": "type"
+		},
+		"mapping": {
+			"default_analyzer": "standard",
+			"default_datetime_parser": "dateTimeOptional",
+			"default_field": "_all",
+			"default_mapping": {
+				"dynamic": false,
+				"enabled": true,
+				"properties": {
+					"city": {
+						"enabled": true,
+						"dynamic": false,
+						"fields": [
+						{
+							"docvalues": true,
+							"include_in_all": true,
+							"include_term_vectors": true,
+							"index": true,
+							"name": "city",
+							"type": "text"
+						}
+						]
+					},
+					"country": {
+						"enabled": true,
+						"dynamic": false,
+						"fields": [
+						{
+							"docvalues": true,
+							"include_in_all": true,
+							"include_term_vectors": true,
+							"index": true,
+							"name": "country",
+							"type": "text"
+						}
+						]
+					}
+				}
+			},
+			"default_type": "_default",
+			"docvalues_dynamic": true,
+			"index_dynamic": true,
+			"store_dynamic": false,
+			"type_field": "_type"
+		},
+		"store": {
+			"indexType": "scorch",
+			"kvStoreName": ""
+		}
+	},
+	"sourceType": "couchbase",
+	"sourceName": "travel-sample",
+	"sourceUUID": "",
+	"sourceParams": {},
+	"planParams": {
+		"maxPartitionsPerPIndex": 171,
+		"numReplicas": 0
+	},
+	"uuid": ""
+}
+
+`)

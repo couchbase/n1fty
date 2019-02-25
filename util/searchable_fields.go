@@ -128,7 +128,9 @@ func fetchSearchableFields(path string,
 		return searchFieldsMap
 	}
 
-	if typeMapping.Dynamic {
+	if typeMapping.Dynamic &&
+		len(typeMapping.Fields) == 0 &&
+		len(typeMapping.Properties) >= 0 {
 		analyzer := typeMapping.DefaultAnalyzer
 		if analyzer == "" {
 			analyzer = parentAnalyzer
@@ -141,23 +143,21 @@ func fetchSearchableFields(path string,
 	}
 
 	for _, field := range typeMapping.Fields {
-		if field.Index {
-			fieldName := field.Name
-			if len(path) > 0 {
-				fieldName = path + "." + fieldName
-			}
-			analyzer := field.Analyzer
-			if analyzer == "" {
-				// Apply default analyzer if analyzer not specified
-				analyzer = parentAnalyzer
-			}
-			searchField := SearchField{
-				Name:     fieldName,
-				Analyzer: analyzer,
-			}
-			if _, exists := searchFieldsMap[searchField]; !exists {
-				searchFieldsMap[searchField] = false
-			}
+		fieldName := field.Name
+		if len(path) > 0 {
+			fieldName = path + "." + fieldName
+		}
+		analyzer := field.Analyzer
+		if analyzer == "" {
+			// Apply default analyzer if analyzer not specified
+			analyzer = parentAnalyzer
+		}
+		searchField := SearchField{
+			Name:     fieldName,
+			Analyzer: analyzer,
+		}
+		if _, exists := searchFieldsMap[searchField]; !exists {
+			searchFieldsMap[searchField] = false
 		}
 	}
 
