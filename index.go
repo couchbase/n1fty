@@ -212,7 +212,8 @@ type sargableRV struct {
 //                   the index definition, for now all of query fields or 0.
 // - indexed_count:  This is the total number of indexed fields within the
 //                   the FTS index.
-// - exact:          True if query & options not nil, for now.
+// - exact:          True if query value available & options unavailable or
+//                   options value provided, for now.
 // - queryFields:    The custom map of fields/analyzers obtained from the
 //                   query for checking it's sargability.
 // The caller will have to make the decision on which index to choose based
@@ -221,8 +222,6 @@ type sargableRV struct {
 func (i *FTSIndex) Sargable(field string, query,
 	options expression.Expression, customFields interface{}) (
 	int, int64, bool, interface{}, errors.Error) {
-	exact := query != nil && options != nil
-
 	var queryVal, optionsVal value.Value
 	if query != nil {
 		queryVal = query.Value()
@@ -230,6 +229,8 @@ func (i *FTSIndex) Sargable(field string, query,
 	if options != nil {
 		optionsVal = options.Value()
 	}
+
+	exact := (queryVal != nil) && (options == nil || optionsVal != nil)
 
 	rv := i.buildQueryAndCheckIfSargable(field, queryVal, optionsVal, customFields)
 
