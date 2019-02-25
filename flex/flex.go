@@ -41,7 +41,7 @@ type FlexIndex struct {
 // that are filterable later for potential false-positives.
 func (fi *FlexIndex) Sargable(ids Identifiers, e expression.Expression,
 	eFTs FieldTypes) (FieldTracks, bool, *FlexBuild, error) {
-	// Check if expr matches one of the supported expressions.
+	// Check if matches one of the supported expressions.
 	for _, se := range fi.SupportedExprs {
 		matches, ft, needsFiltering, fb, err := se.Supports(fi, ids, e, eFTs)
 		if err != nil || matches {
@@ -49,6 +49,12 @@ func (fi *FlexIndex) Sargable(ids Identifiers, e expression.Expression,
 		}
 	}
 
+	// When not an explicitly supported expr, it might be a combination expr.
+	return fi.SargableCombo(ids, e, eFTs)
+}
+
+func (fi *FlexIndex) SargableCombo(ids Identifiers, e expression.Expression,
+	eFTs FieldTypes) (FieldTracks, bool, *FlexBuild, error) {
 	if _, ok := e.(*expression.And); ok { // Handle AND composite.
 		return fi.SargableComposite(ids, e.Children(), eFTs, "conjunct")
 	}
