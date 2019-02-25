@@ -15,6 +15,7 @@ import (
 
 	"github.com/couchbase/query/algebra"
 	"github.com/couchbase/query/expression"
+	"github.com/couchbase/query/value"
 )
 
 var CmpReverse = map[string]string{
@@ -54,6 +55,9 @@ type SupportedExprCmpFieldConstant struct {
 
 	ValueType string // Ex: "string", "number", etc.
 
+	// When non-nil, constant must equal this value, else not-sargable.
+	ValueMust value.Value
+
 	// When FieldPathPartial is true, FieldPath represents a prefix or
 	// leading part of a full field path, used for dynamic indexing.
 	FieldPathPartial bool
@@ -62,6 +66,10 @@ type SupportedExprCmpFieldConstant struct {
 	// FieldPath are done based on field types that were learned from
 	// the expr (e.g., ISSTRING(a), ISNUMBER(a)).
 	FieldTypeCheck bool
+
+	// Advanced control of output effect on FieldTracks / FlexBuild.
+	// Ex: "" (default output), "not-sargable", "FlexBuild:n".
+	Effect string
 }
 
 func (s *SupportedExprCmpFieldConstant) Supports(fi *FlexIndex, ids Identifiers,
@@ -131,6 +139,21 @@ func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifier
 		if !ok || fieldType != s.ValueType {
 			return true, nil, false, nil, nil // Wrong field type, not-sargable.
 		}
+	}
+
+	if s.ValueMust != nil { // Must be a constant equal to ValueMust.
+		if c, ok := exprY.(*expression.Constant); !ok ||
+			!s.ValueMust.Equals(c.Value()).Truth() {
+			return true, nil, false, nil, nil
+		}
+	}
+
+	if strings.Contains(s.Effect, "not-sargable") {
+		return true, nil, false, nil, nil
+	}
+
+	if strings.Contains(s.Effect, "FlexBuild:n") {
+		return true, FieldTracks{FieldTrack(fieldTrack): 1}, false, nil, nil
 	}
 
 	return true, FieldTracks{FieldTrack(fieldTrack): 1}, false, &FlexBuild{
