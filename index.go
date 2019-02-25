@@ -254,9 +254,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 
 	var indexOptionAvailable bool
 	if options != nil {
-		if _, exists := options.Field("index"); exists {
-			indexOptionAvailable = true
-		}
+		_, indexOptionAvailable = options.Field("index")
 	}
 	if !indexOptionAvailable {
 		// if index field isn't provided within the options section,

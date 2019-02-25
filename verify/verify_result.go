@@ -35,7 +35,7 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 
 	var idxMapping mapping.IndexMapping
 
-	indexOptionAvailable := true
+	var indexOptionAvailable bool
 	if options != nil {
 		_, indexOptionAvailable = options.Field("index")
 	}
