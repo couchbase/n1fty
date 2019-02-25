@@ -26,9 +26,9 @@ import (
 	"time"
 
 	"github.com/blevesearch/bleve/search"
-	"github.com/couchbase/query/errors"
 
 	pb "github.com/couchbase/cbft/protobuf"
+	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/logging"
 	"github.com/couchbase/query/value"
@@ -93,14 +93,14 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 			if cummsize > float64(backfillLimit) {
 				fmsg := "%q backfill size: %d exceeded limit: %d"
 				err := fmt.Errorf(fmsg, r.requestID, cummsize, backfillLimit)
-				conn.Error(n1qlError(err, ""))
+				conn.Error(util.N1QLError(err, ""))
 				return
 			}
 
 			if err := dec.Decode(&hits); err != nil {
 				fmsg := "%v %q decoding from backfill file: %v: err: %v"
 				err = fmt.Errorf(fmsg, logPrefix, r.requestID, name, err)
-				conn.Error(n1qlError(err, ""))
+				conn.Error(util.N1QLError(err, ""))
 				return
 			}
 
@@ -128,7 +128,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 		}
 
 		if err != nil {
-			conn.Error(n1qlError(err, "response_handler: stream.Recv, err "))
+			conn.Error(util.N1QLError(err, "response_handler: stream.Recv, err "))
 			return
 		}
 
@@ -166,7 +166,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 			logging.Infof("response_handler: buffer outflow observed, cap %d len %d", cp, ln)
 			enc, dec, tmpfile, err = initBackFill(logPrefix, r.requestID, r)
 			if err != nil {
-				conn.Error(n1qlError(err, "initBackFill failed, err:"))
+				conn.Error(util.N1QLError(err, "initBackFill failed, err:"))
 				return
 			}
 			waitGroup.Add(1)
@@ -181,7 +181,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 			if cummsize > float64(backfillLimit) {
 				fmsg := "%q backfill exceeded limit %v, %v"
 				err := fmt.Errorf(fmsg, r.requestID, backfillLimit, cummsize)
-				conn.Error(n1qlError(err, ""))
+				conn.Error(util.N1QLError(err, ""))
 				return
 			}
 
@@ -191,7 +191,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 
 			err := writeToBackfill(hits, enc)
 			if err != nil {
-				conn.Error(n1qlError(err, "writeToBackfill err:"))
+				conn.Error(util.N1QLError(err, "writeToBackfill err:"))
 				return
 			}
 
@@ -319,10 +319,6 @@ func backfillMonitor(period time.Duration, i *FTSIndexer) {
 			atomic.StoreInt64(&i.stats.CurBackFillSize, size)
 		}
 	}
-}
-
-func n1qlError(err error, desc string) errors.Error {
-	return errors.NewError(err, "n1fty: "+desc)
 }
 
 func initBackFill(logPrefix, requestID string, rh *responseHandler) (*gob.Encoder,

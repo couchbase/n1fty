@@ -11,18 +11,17 @@ package whitebox
 
 import (
 	"encoding/json"
+	net_http "net/http"
 	"time"
 
-	net_http "net/http"
-
-	log_resolver "github.com/couchbase/query/logging/resolver"
-
+	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/datastore/file"
 	"github.com/couchbase/query/datastore/system"
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/execution"
 	"github.com/couchbase/query/logging"
+	log_resolver "github.com/couchbase/query/logging/resolver"
 	"github.com/couchbase/query/server"
 	"github.com/couchbase/query/server/http"
 	"github.com/couchbase/query/timestamp"
@@ -91,7 +90,7 @@ func (this *Request) Failed(s *server.Server) {
 
 func (this *Request) Expire(state server.State, timeout time.Duration) {
 	defer this.Stop(state)
-	this.err = errors.NewError(nil, "expired / timed out")
+	this.err = util.N1QLError(nil, "expired / timed out")
 	close(this.done)
 }
 
@@ -143,7 +142,7 @@ func ExecuteStatement(s *server.Server, stmt string,
 	req.SetPositionalArgs(positionalArgs)
 
 	if !s.ServiceRequest(req) {
-		return nil, errors.NewError(nil, "ServiceRequest did not work")
+		return nil, util.N1QLError(nil, "ServiceRequest did not work")
 	}
 
 	for range req.done {

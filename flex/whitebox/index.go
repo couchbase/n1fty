@@ -23,6 +23,7 @@ import (
 	"github.com/couchbase/query/timestamp"
 
 	"github.com/couchbase/n1fty/flex"
+	"github.com/couchbase/n1fty/util"
 
 	"github.com/blevesearch/bleve"
 	"github.com/blevesearch/bleve/search/query"
@@ -99,16 +100,16 @@ func (i *Index) State() (datastore.IndexState, string, errors.Error) {
 
 func (i *Index) Statistics(requestId string, span *datastore.Span) (
 	datastore.Statistics, errors.Error) {
-	return nil, errors.NewError(nil, "not supported")
+	return nil, util.N1QLError(nil, "not supported")
 }
 
 func (i *Index) Drop(requestId string) errors.Error {
-	return errors.NewError(nil, "not supported")
+	return util.N1QLError(nil, "not supported")
 }
 
 func (i *Index) Scan(requestId string, span *datastore.Span, distinct bool, limit int64,
 	cons datastore.ScanConsistency, vector timestamp.Vector, conn *datastore.IndexConnection) {
-	conn.Error(errors.NewError(nil, "not supported"))
+	conn.Error(util.N1QLError(nil, "not supported"))
 }
 
 func (i *Index) Sargable(field string, query, options expression.Expression) (
@@ -134,7 +135,7 @@ func (i *Index) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 
 	idx, err := bleve.NewMemOnly(i.IndexMapping)
 	if err != nil {
-		connError(errors.NewError(err, "bleve.NewMemOnly"))
+		connError(util.N1QLError(err, "bleve.NewMemOnly"))
 		return
 	}
 
@@ -145,7 +146,7 @@ func (i *Index) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 
 	entries, err1 := ioutil.ReadDir(path)
 	if err1 != nil {
-		connError(errors.NewError(err1, "ioutil.ReadDir"))
+		connError(util.N1QLError(err1, "ioutil.ReadDir"))
 		return
 	}
 
@@ -156,7 +157,7 @@ func (i *Index) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 
 		bytes, err2 := ioutil.ReadFile(path + "/" + entry.Name())
 		if err2 != nil {
-			connError(errors.NewError(err2, "ioutil.ReadFile"))
+			connError(util.N1QLError(err2, "ioutil.ReadFile"))
 			return
 		}
 
@@ -164,7 +165,7 @@ func (i *Index) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 
 		err = json.Unmarshal(bytes, &doc)
 		if err != nil {
-			connError(errors.NewError(err, "json.Unmarshal doc"))
+			connError(util.N1QLError(err, "json.Unmarshal doc"))
 			return
 		}
 
@@ -173,20 +174,20 @@ func (i *Index) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 
 		err = idx.Index(id, doc)
 		if err != nil {
-			connError(errors.NewError(err, "bleve Insert doc"))
+			connError(util.N1QLError(err, "bleve Insert doc"))
 			return
 		}
 	}
 
 	qBytes, err3 := searchInfo.Query.MarshalJSON()
 	if err3 != nil {
-		connError(errors.NewError(err3, "searchInfo.Query.MarshalJSON"))
+		connError(util.N1QLError(err3, "searchInfo.Query.MarshalJSON"))
 		return
 	}
 
 	q, err4 := query.ParseQuery(qBytes)
 	if err4 != nil {
-		connError(errors.NewError(err4, "query.ParseQuery"))
+		connError(util.N1QLError(err4, "query.ParseQuery"))
 		return
 	}
 
@@ -194,7 +195,7 @@ func (i *Index) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 
 	res, err5 := idx.Search(sr)
 	if err5 != nil {
-		connError(errors.NewError(err5, "idx.Search"))
+		connError(util.N1QLError(err5, "idx.Search"))
 		return
 	}
 
@@ -247,7 +248,7 @@ func (i *Index) SargableFlex(nodeAlias string, bindings expression.Bindings,
 
 	if err0 != nil {
 		fmt.Printf("   FlexIndex.Sargable err0: %v\n", err0)
-		return 0, false, nil, nil, errors.NewError(err0, "")
+		return 0, false, nil, nil, util.N1QLError(err0, "")
 	}
 
 	if len(fieldTracks) <= 0 {
@@ -260,7 +261,7 @@ func (i *Index) SargableFlex(nodeAlias string, bindings expression.Bindings,
 	bleveQuery, err1 := flex.FlexBuildToBleveQuery(flexBuild, nil)
 	if err1 != nil {
 		fmt.Printf("   FlexIndex.Sargable err1: %v\n", err1)
-		return 0, false, nil, nil, errors.NewError(err1, "")
+		return 0, false, nil, nil, util.N1QLError(err1, "")
 	}
 
 	bleveQueryJ, _ := json.Marshal(bleveQuery)

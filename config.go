@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/couchbase/cbgt"
+	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/logging"
@@ -141,7 +142,7 @@ func (c *n1ftyConfig) validateConfig(conf map[string]interface{}) errors.Error {
 		if _, ok1 := v.(string); !ok1 {
 			err := fmt.Errorf("n1fty Invalid Config.. key: %v, val: %v",
 				backfillSpaceDir, v)
-			return errors.NewError(err, err.Error())
+			return util.N1QLError(err, err.Error())
 		}
 	}
 
@@ -149,7 +150,7 @@ func (c *n1ftyConfig) validateConfig(conf map[string]interface{}) errors.Error {
 		if _, ok1 := v.(int64); !ok1 {
 			err := fmt.Errorf("n1fty Invalid Config.. key: %v, val: %v",
 				backfillSpaceLimit, v)
-			return errors.NewError(err, err.Error())
+			return util.N1QLError(err, err.Error())
 		}
 	}
 
@@ -157,7 +158,7 @@ func (c *n1ftyConfig) validateConfig(conf map[string]interface{}) errors.Error {
 		if _, ok1 := v.(int64); !ok1 {
 			err := fmt.Errorf("n1fty Invalid Config.. key: %v, val: %v",
 				searchTimeoutMS, v)
-			return errors.NewError(err, err.Error())
+			return util.N1QLError(err, err.Error())
 		}
 	}
 

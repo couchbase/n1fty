@@ -114,17 +114,17 @@ func (i *FTSIndex) State() (datastore.IndexState, string, errors.Error) {
 
 func (i *FTSIndex) Statistics(requestId string, span *datastore.Span) (
 	datastore.Statistics, errors.Error) {
-	return nil, n1qlError(nil, "Statistics not supported yet")
+	return nil, util.N1QLError(nil, "Statistics not supported yet")
 }
 
 func (i *FTSIndex) Drop(requestId string) errors.Error {
-	return n1qlError(nil, "Drop not supported")
+	return util.N1QLError(nil, "Drop not supported")
 }
 
 func (i *FTSIndex) Scan(requestId string, span *datastore.Span, distinct bool,
 	limit int64, cons datastore.ScanConsistency,
 	vector timestamp.Vector, conn *datastore.IndexConnection) {
-	conn.Error(n1qlError(nil, "Scan not supported"))
+	conn.Error(util.N1QLError(nil, "Scan not supported"))
 	return
 }
 
@@ -137,7 +137,7 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	}
 
 	if searchInfo == nil || searchInfo.Query == nil {
-		conn.Error(n1qlError(nil, "no search parameters provided"))
+		conn.Error(util.N1QLError(nil, "no search parameters provided"))
 		return
 	}
 
@@ -152,7 +152,7 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	sargRV := i.buildQueryAndCheckIfSargable(
 		fieldStr, searchInfo.Query, searchInfo.Options, nil)
 	if sargRV.err != nil || sargRV.count == 0 {
-		conn.Error(n1qlError(nil, "not sargable"))
+		conn.Error(util.N1QLError(nil, "not sargable"))
 		return
 	}
 
@@ -183,7 +183,7 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 
 	stream, err := client.Search(context.Background(), searchRequest)
 	if err != nil || stream == nil {
-		conn.Error(n1qlError(err, "search failed"))
+		conn.Error(util.N1QLError(err, "search failed"))
 		return
 	}
 
@@ -248,7 +248,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		queryFields, qBytes, err = util.FetchQueryFields(field, query)
 		if err != nil {
 			return &sargableRV{
-				err: n1qlError(err, ""),
+				err: util.N1QLError(err, ""),
 			}
 		}
 	}
@@ -285,7 +285,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			im, err := util.ConvertValObjectToIndexMapping(indexVal)
 			if err != nil {
 				return &sargableRV{
-					err: n1qlError(err, ""),
+					err: util.N1QLError(err, ""),
 				}
 			}
 

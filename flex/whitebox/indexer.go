@@ -10,6 +10,7 @@
 package whitebox
 
 import (
+	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/expression"
@@ -75,17 +76,17 @@ func (i *Indexer) Indexes() (rv []datastore.Index, err errors.Error) {
 
 func (i *Indexer) CreatePrimaryIndex(requestId, name string,
 	with value.Value) (datastore.PrimaryIndex, errors.Error) {
-	return nil, errors.NewError(nil, "not supported")
+	return nil, util.N1QLError(nil, "not supported")
 }
 
 func (i *Indexer) CreateIndex(requestId, name string,
 	seekKey, rangeKey expression.Expressions, where expression.Expression,
 	with value.Value) (datastore.Index, errors.Error) {
-	return nil, errors.NewError(nil, "not supported")
+	return nil, util.N1QLError(nil, "not supported")
 }
 
 func (i *Indexer) BuildIndexes(requestId string, names ...string) errors.Error {
-	return errors.NewError(nil, "not supported")
+	return util.N1QLError(nil, "not supported")
 }
 
 func (i *Indexer) Refresh() errors.Error {

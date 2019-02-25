@@ -25,12 +25,12 @@ import (
 func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 	datastore.Verify, errors.Error) {
 	if query == nil {
-		return nil, errors.NewError(nil, "query/options not provided")
+		return nil, util.N1QLError(nil, "query/options not provided")
 	}
 
 	queryFields, qBytes, err := util.FetchQueryFields(field, query)
 	if err != nil {
-		return nil, errors.NewError(err, "")
+		return nil, util.N1QLError(err, "")
 	}
 
 	var idxMapping mapping.IndexMapping
@@ -57,28 +57,28 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 			idxMapping, err = util.FetchIndexMapping(
 				indexVal.Actual().(string), keyspace)
 			if err != nil {
-				return nil, errors.NewError(nil, "index mapping not found")
+				return nil, util.N1QLError(nil, "index mapping not found")
 			}
 		} else if indexVal.Type() == value.OBJECT {
 			idxMapping, _ = util.ConvertValObjectToIndexMapping(indexVal)
 			if idxMapping == nil {
-				return nil, errors.NewError(nil, "index object not a valid mapping")
+				return nil, util.N1QLError(nil, "index object not a valid mapping")
 			}
 		} else {
-			return nil, errors.NewError(nil, "unrecognizable index option")
+			return nil, util.N1QLError(nil, "unrecognizable index option")
 		}
 	}
 
 	q, err := util.BuildQueryFromBytes(qBytes)
 	if err != nil {
-		return nil, errors.NewError(err, "")
+		return nil, util.N1QLError(err, "")
 	}
 
 	// Set up an in-memory bleve index using moss for evaluating
 	// the hits.
 	idx, err := bleve.NewUsing("", idxMapping, upsidedown.Name, moss.Name, nil)
 	if err != nil {
-		return nil, errors.NewError(err, "")
+		return nil, util.N1QLError(err, "")
 	}
 
 	return &VerifyCtx{
@@ -95,12 +95,12 @@ type VerifyCtx struct {
 func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
 	err := v.idx.Index("k", item.Actual())
 	if err != nil {
-		return false, errors.NewError(err, "could not insert doc into index")
+		return false, util.N1QLError(err, "could not insert doc into index")
 	}
 
 	res, err := v.idx.Search(v.sr)
 	if err != nil {
-		return false, errors.NewError(err, "search failed")
+		return false, util.N1QLError(err, "search failed")
 	}
 
 	if len(res.Hits) < 1 {

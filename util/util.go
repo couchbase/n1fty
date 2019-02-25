@@ -19,6 +19,7 @@ import (
 
 	"github.com/blevesearch/bleve"
 	"github.com/blevesearch/bleve/mapping"
+	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/value"
 )
 
@@ -123,4 +124,8 @@ func ConvertValObjectToIndexMapping(val value.Value) (mapping.IndexMapping, erro
 	var im *mapping.IndexMappingImpl
 	err = json.Unmarshal(valBytes, &im)
 	return im, err
+}
+
+func N1QLError(err error, desc string) errors.Error {
+	return errors.NewError(err, "n1fty: "+desc)
 }

@@ -90,18 +90,18 @@ func NewFTSIndexer(serverIn, namespace, keyspace string) (datastore.Indexer,
 
 	svrs := strings.Split(server, ";")
 	if len(svrs) <= 0 {
-		return nil, n1qlError(fmt.Errorf(
+		return nil, util.N1QLError(fmt.Errorf(
 			"NewFTSIndexer, no servers provided"), "")
 	}
 
 	err := conf.FromConnStr(svrs[0])
 	if err != nil {
-		return nil, errors.NewError(err, "")
+		return nil, util.N1QLError(err, "")
 	}
 
 	agent, err := gocbcore.CreateAgent(conf)
 	if err != nil {
-		return nil, errors.NewError(err, "")
+		return nil, util.N1QLError(err, "")
 	}
 
 	indexer := &FTSIndexer{
@@ -200,7 +200,7 @@ func (i *FTSIndexer) IndexById(id string) (datastore.Index, errors.Error) {
 		}
 	}
 
-	return nil, n1qlError(nil,
+	return nil, util.N1QLError(nil,
 		fmt.Sprintf("IndexById, fts index with id: %v not found", id))
 }
 
@@ -215,7 +215,7 @@ func (i *FTSIndexer) IndexByName(name string) (datastore.Index, errors.Error) {
 		}
 	}
 
-	return nil, n1qlError(nil,
+	return nil, util.N1QLError(nil,
 		fmt.Sprintf("IndexByName, fts index with name: %v not found", name))
 }
 
@@ -225,7 +225,7 @@ func (i *FTSIndexer) PrimaryIndexes() ([]datastore.PrimaryIndex, errors.Error) {
 
 func (i *FTSIndexer) Indexes() ([]datastore.Index, errors.Error) {
 	if err := i.Refresh(); err != nil {
-		return nil, n1qlError(err, "")
+		return nil, util.N1QLError(err, "")
 	}
 
 	i.m.RLock()
@@ -237,29 +237,29 @@ func (i *FTSIndexer) Indexes() ([]datastore.Index, errors.Error) {
 
 func (i *FTSIndexer) CreatePrimaryIndex(requestId, name string,
 	with value.Value) (datastore.PrimaryIndex, errors.Error) {
-	return nil, n1qlError(nil, "CreatePrimaryIndex not supported")
+	return nil, util.N1QLError(nil, "CreatePrimaryIndex not supported")
 }
 
 func (i *FTSIndexer) CreateIndex(requestId, name string,
 	seekKey, rangeKey expression.Expressions,
 	where expression.Expression, with value.Value) (
 	datastore.Index, errors.Error) {
-	return nil, n1qlError(nil, "CreateIndex not supported")
+	return nil, util.N1QLError(nil, "CreateIndex not supported")
 }
 
 func (i *FTSIndexer) BuildIndexes(requestId string, name ...string) errors.Error {
-	return n1qlError(nil, "BuildIndexes not supported")
+	return util.N1QLError(nil, "BuildIndexes not supported")
 }
 
 func (i *FTSIndexer) Refresh() errors.Error {
 	mapIndexesByID, nodeDefs, err := i.refreshConfigs()
 	if err != nil {
-		return n1qlError(err, "refresh failed")
+		return util.N1QLError(err, "refresh failed")
 	}
 
 	err = i.initSrvWrapper(nodeDefs)
 	if err != nil {
-		return n1qlError(err, "initSrvWrapper failed")
+		return util.N1QLError(err, "initSrvWrapper failed")
 	}
 
 	numIndexes := len(mapIndexesByID)
@@ -348,12 +348,12 @@ func (i *FTSIndexer) initSrvWrapper(nodeDefs *cbgt.NodeDefs) error {
 
 	hostMap, err := extractHostCertsMap(nodeDefs)
 	if err != nil {
-		return n1qlError(err, "indexer, extractHostCertsMap err")
+		return util.N1QLError(err, "indexer, extractHostCertsMap err")
 	}
 
 	i.srvWrapper, err = initRouter(hostMap, nil)
 	if err != nil {
-		return n1qlError(err, "indexer, initRouter err")
+		return util.N1QLError(err, "indexer, initRouter err")
 	}
 
 	return nil
