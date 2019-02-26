@@ -331,6 +331,8 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 
 	for _, f := range queryFields {
 		if f.Analyzer == "" {
+			// set analyzer to defaultAnalyzer for those query fields, that
+			// don't have an explicit analyzer set already.
 			f.Analyzer = i.defaultAnalyzer
 		}
 		dynamic, exists := i.searchFields[f]

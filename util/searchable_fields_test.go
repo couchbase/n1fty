@@ -36,9 +36,9 @@ func TestIndexDefConversion(t *testing.T) {
 
 	expect := map[SearchField]bool{}
 	expect[SearchField{Name: "reviews.review", Analyzer: "standard"}] = true
-	expect[SearchField{Name: "country", Analyzer: "da"}] = false
-	expect[SearchField{Name: "countryX", Analyzer: "standard"}] = false
-	expect[SearchField{Name: "reviews.id", Analyzer: "standard"}] = false
+	expect[SearchField{Name: "country", Analyzer: "da", Type: "text"}] = false
+	expect[SearchField{Name: "countryX", Analyzer: "standard", Type: "text"}] = false
+	expect[SearchField{Name: "reviews.id", Analyzer: "standard", Type: "text"}] = false
 
 	if !reflect.DeepEqual(expect, searchFieldsMap) {
 		t.Fatalf("Expected: %v, Got: %v", expect, searchFieldsMap)

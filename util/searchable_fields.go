@@ -23,6 +23,7 @@ import (
 
 type SearchField struct {
 	Name     string
+	Type     string
 	Analyzer string
 }
 
@@ -147,14 +148,18 @@ func fetchSearchableFields(path string,
 		if len(path) > 0 {
 			fieldName = path + "." + fieldName
 		}
-		analyzer := field.Analyzer
-		if analyzer == "" {
-			// Apply default analyzer if analyzer not specified
-			analyzer = parentAnalyzer
-		}
 		searchField := SearchField{
-			Name:     fieldName,
-			Analyzer: analyzer,
+			Name: fieldName,
+			Type: field.Type,
+		}
+		if field.Type == "text" {
+			// analyzer is applicable only when field type is "text"
+			analyzer := field.Analyzer
+			if analyzer == "" {
+				// apply parent analyzer if analyzer not specified
+				analyzer = parentAnalyzer
+			}
+			searchField.Analyzer = analyzer
 		}
 		if _, exists := searchFieldsMap[searchField]; !exists {
 			searchFieldsMap[searchField] = false
@@ -213,11 +218,23 @@ func FetchFieldsToSearchFromQuery(q []byte) ([]SearchField, error) {
 					Name: fq.Field(),
 				}
 
-				// Read analyzers for MatchQuery, MatchPhraseQuery
-				if mq, ok := que.(*query.MatchQuery); ok {
-					fieldDesc.Analyzer = mq.Analyzer
-				} else if mpq, ok := que.(*query.MatchPhraseQuery); ok {
-					fieldDesc.Analyzer = mpq.Analyzer
+				switch qqq := fq.(type) {
+				case *query.BoolFieldQuery:
+					fieldDesc.Type = "boolean"
+				case *query.NumericRangeQuery:
+					fieldDesc.Type = "number"
+				case *query.DateRangeQuery:
+					fieldDesc.Type = "datetime"
+				case *query.GeoBoundingBoxQuery, *query.GeoDistanceQuery:
+					fieldDesc.Type = "geopoint"
+				case *query.MatchQuery:
+					fieldDesc.Type = "text"
+					fieldDesc.Analyzer = qqq.Analyzer
+				case *query.MatchPhraseQuery:
+					fieldDesc.Type = "text"
+					fieldDesc.Analyzer = qqq.Analyzer
+				default:
+					fieldDesc.Type = "text"
 				}
 
 				fields = append(fields, fieldDesc)
