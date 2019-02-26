@@ -18,10 +18,6 @@ import (
 	"github.com/couchbase/query/value"
 )
 
-var CmpReverse = map[string]string{
-	"eq": "eq", "lt": "gt", "le": "ge", "gt": "lt", "ge": "le",
-}
-
 // Allows apps to declare supported expressions to FlexSargable().
 type SupportedExpr interface {
 	// Checks whether the SupportedExpr can handle an expr.
@@ -32,13 +28,26 @@ type SupportedExpr interface {
 
 // ----------------------------------------------------------------------
 
-type SupportedExprNoop struct{} // A supported expression that never matches.
+// A supported expression that never matches, useful for debugging.
+type SupportedExprNoop struct{}
 
 func (s *SupportedExprNoop) Supports(fi *FlexIndex, ids Identifiers,
 	expr expression.Expression, exprFTs FieldTypes) (
 	bool, FieldTracks, bool, *FlexBuild, error) {
 	fmt.Printf("SupportedExprNoop, expr: %+v, %#v\n", expr, expr)
 	return false, nil, false, nil, nil
+}
+
+// ----------------------------------------------------------------------
+
+// A supported expression that always returns not-sargable, useful to
+// mark unknown exprs as not-sargable rather than as filterable.
+type SupportedExprNotSargable struct{}
+
+func (s *SupportedExprNotSargable) Supports(fi *FlexIndex, ids Identifiers,
+	expr expression.Expression, exprFTs FieldTypes) (
+	bool, FieldTracks, bool, *FlexBuild, error) {
+	return true, nil, false, nil, nil
 }
 
 // ----------------------------------------------------------------------
@@ -70,6 +79,10 @@ type SupportedExprCmpFieldConstant struct {
 	// Advanced control of output effect on FieldTracks / FlexBuild.
 	// Ex: "" (default output), "not-sargable", "FlexBuild:n".
 	Effect string
+}
+
+var CmpReverse = map[string]string{
+	"eq": "eq", "lt": "gt", "le": "ge", "gt": "lt", "ge": "le",
 }
 
 func (s *SupportedExprCmpFieldConstant) Supports(fi *FlexIndex, ids Identifiers,
