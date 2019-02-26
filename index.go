@@ -157,7 +157,7 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	}
 
 	starttm := time.Now()
-	entryCh := conn.EntryChannel()
+	sender := conn.Sender()
 
 	var waitGroup sync.WaitGroup
 	var backfillSync int64
@@ -167,7 +167,7 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 		// cleanup the backfill file
 		atomic.StoreInt64(&backfillSync, doneRequest)
 		waitGroup.Wait()
-		close(entryCh)
+		sender.Close()
 		rh.cleanupBackfill()
 	}()
 

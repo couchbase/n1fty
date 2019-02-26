@@ -48,7 +48,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 	backfillSync *int64,
 	stream pb.SearchService_SearchClient) {
 
-	entryCh := conn.EntryChannel()
+	sender := conn.Sender()
 	backfillLimit := getBackfillSpaceLimit()
 	firstResponseByte, starttm, ftsDur := false, time.Now(), time.Now()
 
@@ -158,8 +158,8 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 			}
 		}
 
-		ln := len(entryCh)
-		cp := cap(entryCh)
+		ln := sender.Length()
+		cp := sender.Capacity()
 
 		if backfillLimit > 0 && tmpfile == nil &&
 			((cp - ln) < len(hits)) {
@@ -233,19 +233,15 @@ func (r *responseHandler) sendEntry(hit *search.DocumentMatch,
 	var start time.Time
 	blockedtm, blocked := int64(0), false
 
-	entryCh := conn.EntryChannel()
-	stopCh := conn.StopChannel()
+	sender := conn.Sender()
 
-	cp, ln := cap(entryCh), len(entryCh)
+	cp, ln := sender.Capacity(), sender.Length()
 	if ln == cp {
 		start, blocked = time.Now(), true
 	}
 
-	select {
-	case entryCh <- &datastore.IndexEntry{PrimaryKey: hit.ID,
-		MetaData: value.NewValue(map[string]interface{}{"score": hit.Score})}:
-		// NO-OP.
-	case <-stopCh:
+	if !sender.SendEntry(&datastore.IndexEntry{PrimaryKey: hit.ID,
+		MetaData: value.NewValue(map[string]interface{}{"score": hit.Score})}) {
 		return false
 	}
 
