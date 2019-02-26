@@ -12,15 +12,30 @@
 package verify
 
 import (
+	"math"
+
 	"github.com/blevesearch/bleve"
 	"github.com/blevesearch/bleve/index/store/moss"
 	"github.com/blevesearch/bleve/index/upsidedown"
 	"github.com/blevesearch/bleve/mapping"
+
+	mo "github.com/couchbase/moss"
+
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/value"
 )
+
+var kvConfigMoss = map[string]interface{}{
+	"mossCollectionOptions": map[string]interface{}{
+		"MaxPreMergerBatches": math.MaxInt32,
+	},
+}
+
+func init() {
+	mo.SkipStats = true
+}
 
 func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 	datastore.Verify, errors.Error) {
@@ -76,20 +91,40 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 
 	// Set up an in-memory bleve index using moss for evaluating
 	// the hits.
-	idx, err := bleve.NewUsing("", idxMapping, upsidedown.Name, moss.Name, nil)
+	idx, err := bleve.NewUsing("", idxMapping, upsidedown.Name, moss.Name, kvConfigMoss)
 	if err != nil {
 		return nil, util.N1QLError(err, "")
 	}
 
+	// fetch moss collection associated with the underlying store
+	var coll mo.Collection
+	_, kvstore, err := idx.Advanced()
+	if err == nil {
+		collh, ok := kvstore.(CollectionHolder)
+		if ok {
+			coll = collh.Collection()
+		}
+	}
+
 	return &VerifyCtx{
-		idx: idx,
-		sr:  bleve.NewSearchRequest(q),
+		idx:  idx,
+		sr:   bleve.NewSearchRequest(q),
+		coll: coll,
 	}, nil
 }
 
+type CollectionHolder interface {
+	Collection() mo.Collection
+}
+
+type ResetStackDirtyToper interface {
+	ResetStackDirtyTop() error
+}
+
 type VerifyCtx struct {
-	idx bleve.Index
-	sr  *bleve.SearchRequest
+	idx  bleve.Index
+	sr   *bleve.SearchRequest
+	coll mo.Collection
 }
 
 func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
@@ -101,6 +136,10 @@ func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
 	res, err := v.idx.Search(v.sr)
 	if err != nil {
 		return false, util.N1QLError(err, "search failed")
+	}
+
+	if rsdt, ok := v.coll.(ResetStackDirtyToper); ok && rsdt != nil {
+		rsdt.ResetStackDirtyTop()
 	}
 
 	if len(res.Hits) < 1 {

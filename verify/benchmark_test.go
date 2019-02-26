@@ -20,12 +20,15 @@ import (
 	"github.com/blevesearch/bleve/index/upsidedown"
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/value"
+
+	mo "github.com/couchbase/moss"
 )
 
-func initIndexAndDocs(index string, b *testing.B) (
-	bleve.Index, []value.Value) {
+func initIndexAndDocs(index string, kvConfig map[string]interface{},
+	b *testing.B) (bleve.Index, []value.Value) {
 	idxMapping := bleve.NewIndexMapping()
-	idx, err := bleve.NewUsing("", idxMapping, upsidedown.Name, index, nil)
+
+	idx, err := bleve.NewUsing("", idxMapping, upsidedown.Name, index, kvConfig)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -91,7 +94,7 @@ func BenchmarkInMemMossIndexUpdateSearchAndDelete(b *testing.B) {
 }
 
 func benchmarkUpdates(index string, b *testing.B) {
-	idx, docs := initIndexAndDocs(index, b)
+	idx, docs := initIndexAndDocs(index, nil, b)
 
 	b.ResetTimer()
 
@@ -104,7 +107,7 @@ func benchmarkUpdates(index string, b *testing.B) {
 }
 
 func benchmarkUpdateAndSearch(index string, b *testing.B) {
-	idx, docs := initIndexAndDocs(index, b)
+	idx, docs := initIndexAndDocs(index, nil, b)
 	sr := fetchSearchRequest(b)
 
 	b.ResetTimer()
@@ -123,7 +126,7 @@ func benchmarkUpdateAndSearch(index string, b *testing.B) {
 }
 
 func benchmarkUpdateSearchAndDelete(index string, b *testing.B) {
-	idx, docs := initIndexAndDocs(index, b)
+	idx, docs := initIndexAndDocs(index, nil, b)
 	sr := fetchSearchRequest(b)
 
 	b.ResetTimer()
@@ -140,5 +143,49 @@ func benchmarkUpdateSearchAndDelete(index string, b *testing.B) {
 		}
 
 		idx.Delete("k")
+	}
+}
+
+func BenchmarkMossUpdateAndSearchWithoutReset(b *testing.B) {
+	benchmarkMossUpdateAndSearchResetable(b, nil, false)
+}
+
+func BenchmarkMossUpdateAndSearchWithReset(b *testing.B) {
+	benchmarkMossUpdateAndSearchResetable(b, kvConfigMoss, true)
+}
+
+func benchmarkMossUpdateAndSearchResetable(b *testing.B,
+	kvConfig map[string]interface{}, withReset bool) {
+	oldSkipStats := mo.SkipStats
+	mo.SkipStats = true
+	defer func() {
+		mo.SkipStats = oldSkipStats
+	}()
+
+	idx, docs := initIndexAndDocs(moss.Name, kvConfig, b)
+	sr := fetchSearchRequest(b)
+
+	_, kvstore, _ := idx.Advanced()
+	collh := kvstore.(CollectionHolder)
+	coll := collh.Collection()
+
+	rsdt := coll.(ResetStackDirtyToper)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		err := idx.Index("k", docs[i%len(docs)].Actual())
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		_, err = idx.Search(sr)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		if withReset {
+			_ = rsdt.ResetStackDirtyTop()
+		}
 	}
 }
