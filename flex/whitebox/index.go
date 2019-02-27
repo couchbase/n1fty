@@ -53,8 +53,8 @@ type Index struct {
 	IdStr   string
 	NameStr string
 
-	IndexMapping *mapping.IndexMappingImpl
-	FlexIndex    *flex.FlexIndex
+	IndexMapping    *mapping.IndexMappingImpl
+	CondFlexIndexes flex.CondFlexIndexes
 
 	lastSargableFlexOk  *LastSargableFlex // For testing.
 	lastSargableFlexErr error
@@ -223,8 +223,9 @@ func (i *Index) Pageable(order []string, offset, limit int64,
 // -----------------------------------------------------------------
 
 func (i *Index) SargableFlex(nodeAlias string, bindings expression.Bindings,
-	where expression.Expression) (sargLength int, exact bool,
-	searchQuery, searchOptions map[string]interface{}, err errors.Error) {
+	where expression.Expression, opaque interface{}) (
+	sargLength int, exact bool, searchQuery, searchOptions map[string]interface{},
+	opaqueOut interface{}, err errors.Error) {
 	fmt.Printf("i.SargableFlex, nodeAlias: %s\n", nodeAlias)
 	fmt.Printf("  where: %v\n", where)
 	for _, b := range bindings {
@@ -236,37 +237,32 @@ func (i *Index) SargableFlex(nodeAlias string, bindings expression.Bindings,
 	var ok bool
 	identifiers, ok = identifiers.Push(bindings, -1)
 	if !ok {
-		return 0, false, nil, nil, nil
+		return 0, false, nil, nil, opaque, nil
 	}
 
 	fmt.Printf("  identifiers: %+v\n", identifiers)
 
-	if i.FlexIndex == nil {
-		fmt.Printf("   FlexIndex nil\n")
-		return 0, false, nil, nil, nil
-	}
-
-	fieldTracks, needsFiltering, flexBuild, err0 := i.FlexIndex.Sargable(
+	fieldTracks, needsFiltering, flexBuild, err0 := i.CondFlexIndexes.Sargable(
 		identifiers, where, nil)
 
 	i.lastSargableFlexErr = err0
 
 	if err0 != nil {
-		fmt.Printf("   FlexIndex.Sargable err0: %v\n", err0)
-		return 0, false, nil, nil, util.N1QLError(err0, "")
+		fmt.Printf("   CondFlexIndexes.Sargable err0: %v\n", err0)
+		return 0, false, nil, nil, opaque, util.N1QLError(err0, "")
 	}
 
 	if len(fieldTracks) <= 0 {
-		fmt.Printf("   FlexIndex.Sargable len(fieldTracks) <= 0\n")
-		j, _ := json.Marshal(i.FlexIndex)
-		fmt.Printf("    FlexIndex: %s\n", j)
-		return 0, false, nil, nil, nil
+		fmt.Printf("   CondFlexIndexes.Sargable len(fieldTracks) <= 0\n")
+		j, _ := json.Marshal(i.CondFlexIndexes)
+		fmt.Printf("    CondFlexIndexes: %s\n", j)
+		return 0, false, nil, nil, opaque, nil
 	}
 
 	bleveQuery, err1 := flex.FlexBuildToBleveQuery(flexBuild, nil)
 	if err1 != nil {
-		fmt.Printf("   FlexIndex.Sargable err1: %v\n", err1)
-		return 0, false, nil, nil, util.N1QLError(err1, "")
+		fmt.Printf("   flex.FlexBuildToBleveQuery err1: %v\n", err1)
+		return 0, false, nil, nil, opaque, util.N1QLError(err1, "")
 	}
 
 	bleveQueryJ, _ := json.Marshal(bleveQuery)
@@ -288,5 +284,5 @@ func (i *Index) SargableFlex(nodeAlias string, bindings expression.Bindings,
 		bleveQuery: bleveQuery,
 	}
 
-	return len(fieldTracks), !needsFiltering, bleveQuery, nil, nil
+	return len(fieldTracks), !needsFiltering, bleveQuery, nil, opaque, nil
 }

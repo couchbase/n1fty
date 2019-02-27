@@ -52,7 +52,7 @@ func checkSkipTest(t *testing.T) bool {
 }
 
 func init() {
-	// Needed for BleveToFlexIndex() to work on dynamic indexes.
+	// Needed for BleveToCondFlexIndexes() to work on dynamic indexes.
 	registry.RegisterDateTimeParser("disabled",
 		func(config map[string]interface{}, cache *registry.Cache) (analysis.DateTimeParser, error) {
 			return flexible.New(nil), nil // With no layouts, "disabled" always return error.
@@ -77,12 +77,23 @@ func initIndexesById(t *testing.T, m map[string]*Index) map[string]*Index {
 			t.Fatalf("initIndexesById, json.Unmarshal, err: %v", err)
 		}
 
-		if idx.FlexIndex == nil {
-			idx.FlexIndex, err = flex.BleveToFlexIndex(idx.IndexMapping)
+		if idx.CondFlexIndexes == nil {
+			// TODO: Check that DocConfig.Mode == "type_field"
+			// and other modes.
+			cfis, err := flex.BleveToCondFlexIndexes(idx.IndexMapping)
 			if err != nil {
-				t.Fatalf("initIndexesById, id: %v, BleveToFlexIndex err: %v", id, err)
+				t.Fatalf("initIndexesById, id: %v, BleveToCondFlexIndexes err: %v",
+					id, err)
 				return nil
 			}
+
+			if len(cfis) != 1 {
+				t.Fatalf("initIndexesById, id: %v, BleveToCondFlexIndexes len != 1, got: %+v",
+					id, cfis)
+				return nil
+			}
+
+			idx.CondFlexIndexes = cfis
 		}
 
 		util.SetIndexMapping(idx.Name(), &util.MappingDetails{

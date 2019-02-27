@@ -22,13 +22,15 @@ The FlexIndex.Sargable() implementation currently supports...
 
 - dynamic indexing of nested sub-docs.
 
-- handling prepared statements, as long as type info is determinable
-  (e.g., ISSTRING(a), ISNUMBER(a)).
-  - named parameters are supported.
-  - positional parameters are supported.
+- prepared statements, as long as type info is determinable
+  (e.g., there's usage of ISSTRING(a) and/or ISNUMBER(a) in the query).
+
+- prepared statements having named parameters are supported.
+
+- prepared statements having positional parameters are supported.
 
 - type learnings via "LoVal < a AND a < HiVal" pattern,
-  - where LoVal & HiVal are both numbers.
+  - where LoVal & HiVal are both numbers,
        or LoVal & HiVal are both strings.
   - comparisons can be < or <=.
 
@@ -37,7 +39,7 @@ The FlexIndex.Sargable() implementation currently supports...
 - "ANY AND EVERY v IN expr SATISFIES condition END" syntax,
   which is considered to always need filtering.
 
-- handling UNNEST's (which is similar to ANY-IN-SATISFIES).
+- handling UNNEST's (handled similarly to ANY-IN-SATISFIES).
 
 - handling LET / common table expressions.
 
@@ -50,7 +52,7 @@ The FlexIndex.Sargable() implementation currently supports...
   - ">" and ">=" comparisons are also handled as N1QL's
      planner.DNF rewrites them into < and <=.
 
-- handling LIKE expressions, as LIKE is rewritten by N1QL's
+- handling LIKE expressions, since LIKE is rewritten by N1QL's
   planner.DNF as...
     (EQ x "regexp.LiteralPrefix") // When the literal prefix is complete.
   or as...
@@ -58,7 +60,7 @@ The FlexIndex.Sargable() implementation currently supports...
          (LT x "$pattern.toRegexp().LiteralPrefix()+1"))
   and those patterns are supported by FlexIndex.Sargable().
 
-- handling BETWEEN expressions as `BETWEEN exprA AND exprB`
+- handling BETWEEN expressions, since `BETWEEN exprA AND exprB`
   is rewritten by N1QL's planner.DNF as...
     (AND (GE x exprA) (LE x exprB)).
 
@@ -72,44 +74,11 @@ TODO...
 - expression - SEARCH().
 
 - multiple doc type mappings.
-  - 1st version can start by only supporting the default type mapping,
-    ensuring that no other type mappings are defined.
-  - otherwise, need to check the WHERE clause for all type mappings
-    (ex: type="beer"), because if you don't, there can be false negatives.
-    - example: FTS index has type mapping where type="beer", but the N1QL is
-      looking for WHERE name="coors" -- false negative as the FTS index will
-      only have entries for beer docs and (importantly) will be missing
-      entries for brewery docs whose brewery name is "coors".
-    - to have no false negatives, the query has to look like
-      WHERE type="beer" AND name="coors"
-      otherwise n1fty should return not-sargable.
-    - this should be done carefully on a per-conjunction level, a'la...
-      ((type = "beer" AND
-        beer_name = "coors" AND
-        sargable-exprs-with-beer-only-fields AND
-        any-other-fields-are-considered-filterable) OR
-       (type = "brewery" AND
-        brewery_name = coors" AND
-        sargable-exprs-with-brewery-only-fields AND
-        any-other-fields-are-considered-filterable)).
-    - default type mapping need a more complex 'negative' type discriminator, like...
-      ((type != "beer" AND type != "brewery") AND
-       sargable-exprs-with-[non-beer/non-brewery]-fields AND
-       any-other-fields-are-considered-filterable).
-    - what if user references brewery fields (or other non-beer fields)
-      in the beer-centric subtree?  ANS: those can be treated as filterable
-      due to the conjunction, even though n1fty might be returning
-      additional false positives, it's logically correct.
-  - an approach is that IndexedFields / FieldInfos can be
-    hierarchical, where the top-level FieldInfo represents the default
-    type mapping.
-    - the doc type field can be checked as part of AND conditions.
-    - the doc type may be based on docId regexp or prefix delimiter.
 
-- ISSUE: consider this expression - does it produce false negatives?
+- issue: consider this expression - does it produce false negatives?
   - ((ISNUMBER(a) AND a > 100) OR (ISSTRING(a) AND a = "hi"))
   - this would be treated as not-sargable if there was an explicit
-      FieldInfo that listed an explicit type, like "string".
+      FieldInfo for 'a' that had an explicit type, like "string".
   - but, what about dynamic indexing?
     - a dynamic field is indexed by its value's type, except...
       number becomes number, bool becomes bool,
@@ -149,17 +118,17 @@ TODO...
 ------------------------------------------
 Edge cases...
 
-- array element access (i.e., pets[0].name = 'fluffy') is currently treated
+- array index access (i.e., pets[0].name = 'fluffy') is currently treated
   conservatively as not-sargable, which is functionally correct.
-  We might reconsider array element handling by FTS vs N1QL.
+  We might one day reconsider supporting this syntax.
 
 - map element access (i.e., addr["city"] = "nyc") is currently treated
   conservatively as not-sargable, which is functionally correct.
-  We might reconsider supporting this syntax.
+  We might one day reconsider supporting this syntax.
 
 - map key access (i.e., addr[someKey] = "nyc") is currently treated
   conservatively as not-sargable, which is functionally correct.
-  We might reonsider supporting this syntax.
+  We might one day reconsider supporting this syntax.
 
 - behavior of multiple LET bindings is currently handled as chained,
   which may or may not match N1QL semantics.  Upcoming N1QL release is

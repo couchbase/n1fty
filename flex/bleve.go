@@ -13,35 +13,159 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/blevesearch/bleve/mapping"
+
+	"github.com/couchbase/query/value"
 )
 
-// BleveToFlexIndex creates a FlexIndex from a bleve index mapping.
-func BleveToFlexIndex(im *mapping.IndexMappingImpl) (*FlexIndex, error) {
-	if im.DefaultMapping == nil || len(im.TypeMapping) > 0 {
-		return nil, fmt.Errorf("BleveToFlexIndex: currently only supports default mapping")
+var TypeFieldPath = []string{"type"}
+
+// BleveToCondFlexIndexes translates a bleve index into CondFlexIndexes.
+// NOTE: checking for DocConfig.Mode should be done beforehand.
+func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl) (
+	rv CondFlexIndexes, err error) {
+	// Map of FieldTrack => fieldType => count.
+	fieldTrackTypes := map[FieldTrack]map[string]int{}
+	for _, dm := range im.TypeMapping {
+		countFieldTrackTypes(nil, dm, im.DefaultAnalyzer, fieldTrackTypes)
+	}
+	countFieldTrackTypes(nil, im.DefaultMapping, im.DefaultAnalyzer, fieldTrackTypes)
+
+	types := make([]string, 0, len(im.TypeMapping))
+	for t := range im.TypeMapping {
+		types = append(types, t)
 	}
 
-	return bleveToFlexIndex(&FlexIndex{}, im, nil, nil, im.DefaultMapping)
+	sort.Strings(types) // For output stability.
+
+	for _, t := range types {
+		typeEqEffect := "FlexBuild:n" // Strips `type = "BEER"` from expressions.
+		if !im.TypeMapping[t].Enabled {
+			typeEqEffect = "not-sargable"
+		}
+
+		fi, err := BleveToFlexIndex(&FlexIndex{
+			// To lead CheckFieldsUseds() to not-sargable.
+			IndexedFields: FieldInfos{
+				&FieldInfo{FieldPath: TypeFieldPath, FieldType: "string"},
+			},
+			SupportedExprs: []SupportedExpr{
+				// Strips `type = "BEER"` from expressions.
+				&SupportedExprCmpFieldConstant{
+					Cmp:       "eq",
+					FieldPath: TypeFieldPath,
+					ValueType: "string",
+					ValueMust: value.NewValue(t),
+					Effect:    typeEqEffect,
+				},
+				// To treat `type > "BEER"` as not-sargable.
+				&SupportedExprCmpFieldConstant{
+					Cmp:       "lt gt le ge",
+					FieldPath: TypeFieldPath,
+					ValueType: "", // Treated as not-sargable.
+					Effect:    "not-sargable",
+				},
+			},
+		}, im, nil, im.TypeMapping[t], im.DefaultAnalyzer, fieldTrackTypes)
+		if err != nil {
+			return nil, err
+		}
+
+		rv = append(rv, &CondFlexIndex{
+			Cond:      MakeCondFuncEqVal(TypeFieldPath, value.NewValue(t)),
+			FlexIndex: fi,
+		})
+	}
+
+	if im.DefaultMapping != nil {
+		fi, err := BleveToFlexIndex(&FlexIndex{
+			IndexedFields: FieldInfos{
+				&FieldInfo{FieldPath: TypeFieldPath, FieldType: "string"},
+			},
+			// TODO: Double check that dynamic mappings are handled right?
+		}, im, nil, im.DefaultMapping, im.DefaultAnalyzer, fieldTrackTypes)
+		if err != nil {
+			return nil, err
+		}
+
+		rv = append(rv, &CondFlexIndex{
+			Cond:      MakeCondFuncNeqVals(TypeFieldPath, types),
+			FlexIndex: fi,
+		})
+	}
+
+	return rv, nil
 }
+
+// ------------------------------------------------------------------------
+
+// Populates into mm the counts of field types.
+func countFieldTrackTypes(path []string, dm *mapping.DocumentMapping,
+	defaultAnalyzer string, mm map[FieldTrack]map[string]int) {
+	if dm == nil || !dm.Enabled {
+		return
+	}
+
+	if dm.DefaultAnalyzer != "" {
+		defaultAnalyzer = dm.DefaultAnalyzer
+	}
+
+	for _, f := range dm.Fields {
+		// For now, only consider fields whose propName == f.Name.
+		if f.Index && len(path) > 0 && path[len(path)-1] == f.Name {
+			_, ok := BleveTypeConv[f.Type]
+			if !ok {
+				continue
+			}
+
+			analyzer := defaultAnalyzer
+			if f.Analyzer != "" {
+				analyzer = f.Analyzer
+			}
+
+			if f.Type == "text" && analyzer != "keyword" {
+				continue
+			}
+
+			fieldTrack := FieldTrack(strings.Join(path, "."))
+
+			m := mm[fieldTrack]
+			if m == nil {
+				m = map[string]int{}
+				mm[fieldTrack] = m
+			}
+
+			m[f.Type] = m[f.Type] + 1
+		}
+	}
+
+	for propName, propDM := range dm.Properties {
+		countFieldTrackTypes(append(path, propName), propDM, defaultAnalyzer, mm)
+	}
+}
+
+// ------------------------------------------------------------------------
 
 var BleveTypeConv = map[string]string{"text": "string", "number": "number"}
 
 // Recursively initializes a FlexIndex from a given bleve document
-// mapping.  Note: the backing arrays for parents & path are volatile
-// as the recursion proceeds.
-func bleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
-	parents []*mapping.DocumentMapping, path []string,
-	dm *mapping.DocumentMapping) (rv *FlexIndex, err error) {
-	if !dm.Enabled {
+// mapping.  Note: the backing array for path is mutated as the
+// recursion proceeds.
+func BleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
+	path []string, dm *mapping.DocumentMapping, defaultAnalyzer string,
+	fieldTrackTypes map[FieldTrack]map[string]int) (rv *FlexIndex, err error) {
+	if dm == nil || !dm.Enabled {
 		return fi, nil
 	}
 
-	lineage := append(parents, dm)
+	if dm.DefaultAnalyzer != "" {
+		defaultAnalyzer = dm.DefaultAnalyzer
+	}
 
 	for _, f := range dm.Fields {
-		if !f.Index || len(path) <= 0 {
+		if !f.Index || len(path) <= 0 || path[len(path)-1] != f.Name {
 			continue
 		}
 
@@ -50,12 +174,22 @@ func bleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 			continue
 		}
 
-		if f.Type == "text" && findAnalyzer(im, lineage, f.Analyzer) != "keyword" {
+		analyzer := defaultAnalyzer
+		if f.Analyzer != "" {
+			analyzer = f.Analyzer
+		}
+
+		// For now, only keyword text fields are supported.
+		if f.Type == "text" && analyzer != "keyword" {
+			continue
+		}
+
+		// Fields that are indexed using different types are not supported.
+		if len(fieldTrackTypes[FieldTrack(strings.Join(path, "."))]) != 1 {
 			continue
 		}
 
 		fieldPath := append([]string(nil), path...) // Copy.
-		fieldPath[len(fieldPath)-1] = f.Name
 
 		fi.IndexedFields = append(fi.IndexedFields, &FieldInfo{
 			FieldPath: fieldPath,
@@ -95,7 +229,8 @@ func bleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 	sort.Strings(ns)
 
 	for _, n := range ns {
-		fi, err = bleveToFlexIndex(fi, im, lineage, append(path, n), dm.Properties[n])
+		fi, err = BleveToFlexIndex(fi, im,
+			append(path, n), dm.Properties[n], defaultAnalyzer, fieldTrackTypes)
 		if err != nil {
 			return nil, err
 		}
@@ -106,7 +241,7 @@ func bleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 	// on a dynamic field will covert text strings that look like
 	// or parse as a date-time into datetime representation.
 	if dm.Dynamic && im.DefaultDateTimeParser == "disabled" {
-		if findAnalyzer(im, lineage, "") == "keyword" {
+		if defaultAnalyzer == "keyword" {
 			dynamicPath := append([]string(nil), path...) // Copy.
 
 			// Register the dynamic path prefix into the indexed
@@ -139,22 +274,6 @@ func bleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 	}
 
 	return fi, nil
-}
-
-// Walk up the document mappings to find an analyzer name.
-func findAnalyzer(im *mapping.IndexMappingImpl,
-	lineage []*mapping.DocumentMapping, analyzer string) string {
-	if analyzer != "" {
-		return analyzer
-	}
-
-	for i := len(lineage) - 1; i >= 0; i-- {
-		if lineage[i].DefaultAnalyzer != "" {
-			return lineage[i].DefaultAnalyzer
-		}
-	}
-
-	return im.DefaultAnalyzer
 }
 
 // --------------------------------------

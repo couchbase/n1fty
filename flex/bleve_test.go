@@ -17,39 +17,26 @@ import (
 	"github.com/blevesearch/bleve/mapping"
 )
 
-func TestBleveToFlexIndex(t *testing.T) {
+func TestBleveToCondFlexIndexesSimple(t *testing.T) {
+	fieldInfoType := &FieldInfo{
+		FieldPath: []string{"type"}, FieldType: "string",
+	}
+
 	tests := []struct {
 		m               *mapping.IndexMappingImpl
 		expectFlexIndex *FlexIndex
 		expectErr       string
 	}{
 		{
-			m:         &mapping.IndexMappingImpl{},
-			expectErr: "because there isn't a default mapping",
+			m: &mapping.IndexMappingImpl{},
 		},
-		{
-			m: &mapping.IndexMappingImpl{
-				TypeMapping: map[string]*mapping.DocumentMapping{
-					"not-handled": {},
-				},
-			},
-			expectErr: "because there isn't a default mapping",
-		},
-		{
-			m: &mapping.IndexMappingImpl{
-				TypeMapping: map[string]*mapping.DocumentMapping{
-					"not-handled": {},
-				},
-				DefaultMapping: &mapping.DocumentMapping{},
-			},
-			expectErr: "because there isn't a only default mapping",
-		},
-
 		{
 			m: &mapping.IndexMappingImpl{
 				DefaultMapping: &mapping.DocumentMapping{},
 			},
-			expectFlexIndex: &FlexIndex{},
+			expectFlexIndex: &FlexIndex{
+				IndexedFields: FieldInfos{fieldInfoType},
+			},
 		},
 		{
 			m: &mapping.IndexMappingImpl{
@@ -57,7 +44,9 @@ func TestBleveToFlexIndex(t *testing.T) {
 					Enabled: true,
 				},
 			},
-			expectFlexIndex: &FlexIndex{},
+			expectFlexIndex: &FlexIndex{
+				IndexedFields: FieldInfos{fieldInfoType},
+			},
 		},
 		{
 			m: &mapping.IndexMappingImpl{
@@ -71,7 +60,9 @@ func TestBleveToFlexIndex(t *testing.T) {
 					},
 				},
 			},
-			expectFlexIndex: &FlexIndex{},
+			expectFlexIndex: &FlexIndex{
+				IndexedFields: FieldInfos{fieldInfoType},
+			},
 		},
 		{
 			m: &mapping.IndexMappingImpl{
@@ -85,7 +76,9 @@ func TestBleveToFlexIndex(t *testing.T) {
 					},
 				},
 			},
-			expectFlexIndex: &FlexIndex{},
+			expectFlexIndex: &FlexIndex{
+				IndexedFields: FieldInfos{fieldInfoType},
+			},
 		},
 		{
 			m: &mapping.IndexMappingImpl{
@@ -99,7 +92,9 @@ func TestBleveToFlexIndex(t *testing.T) {
 					},
 				},
 			},
-			expectFlexIndex: &FlexIndex{},
+			expectFlexIndex: &FlexIndex{
+				IndexedFields: FieldInfos{fieldInfoType},
+			},
 		},
 
 		// -----------------------------------------------
@@ -113,7 +108,9 @@ func TestBleveToFlexIndex(t *testing.T) {
 					},
 				},
 			},
-			expectFlexIndex: &FlexIndex{},
+			expectFlexIndex: &FlexIndex{
+				IndexedFields: FieldInfos{fieldInfoType},
+			},
 		},
 		{
 			m: &mapping.IndexMappingImpl{
@@ -126,7 +123,9 @@ func TestBleveToFlexIndex(t *testing.T) {
 					},
 				},
 			},
-			expectFlexIndex: &FlexIndex{},
+			expectFlexIndex: &FlexIndex{
+				IndexedFields: FieldInfos{fieldInfoType},
+			},
 		},
 		{
 			m: &mapping.IndexMappingImpl{
@@ -145,7 +144,9 @@ func TestBleveToFlexIndex(t *testing.T) {
 					},
 				},
 			},
-			expectFlexIndex: &FlexIndex{},
+			expectFlexIndex: &FlexIndex{
+				IndexedFields: FieldInfos{fieldInfoType},
+			},
 		},
 		{
 			m: &mapping.IndexMappingImpl{
@@ -164,7 +165,9 @@ func TestBleveToFlexIndex(t *testing.T) {
 					},
 				},
 			},
-			expectFlexIndex: &FlexIndex{},
+			expectFlexIndex: &FlexIndex{
+				IndexedFields: FieldInfos{fieldInfoType},
+			},
 		},
 		{
 			m: &mapping.IndexMappingImpl{
@@ -183,7 +186,9 @@ func TestBleveToFlexIndex(t *testing.T) {
 					},
 				},
 			},
-			expectFlexIndex: &FlexIndex{},
+			expectFlexIndex: &FlexIndex{
+				IndexedFields: FieldInfos{fieldInfoType},
+			},
 		},
 
 		// -----------------------------------------------
@@ -207,6 +212,7 @@ func TestBleveToFlexIndex(t *testing.T) {
 			},
 			expectFlexIndex: &FlexIndex{
 				IndexedFields: FieldInfos{
+					fieldInfoType,
 					&FieldInfo{
 						FieldPath: []string{"f1"},
 						FieldType: "string",
@@ -245,7 +251,9 @@ func TestBleveToFlexIndex(t *testing.T) {
 				},
 				DefaultAnalyzer: "NOT-keyword",
 			},
-			expectFlexIndex: &FlexIndex{},
+			expectFlexIndex: &FlexIndex{
+				IndexedFields: FieldInfos{fieldInfoType},
+			},
 		},
 		{
 			m: &mapping.IndexMappingImpl{
@@ -267,6 +275,7 @@ func TestBleveToFlexIndex(t *testing.T) {
 			},
 			expectFlexIndex: &FlexIndex{
 				IndexedFields: FieldInfos{
+					fieldInfoType,
 					&FieldInfo{
 						FieldPath: []string{"f1"},
 						FieldType: "string",
@@ -315,6 +324,7 @@ func TestBleveToFlexIndex(t *testing.T) {
 			},
 			expectFlexIndex: &FlexIndex{
 				IndexedFields: FieldInfos{
+					fieldInfoType,
 					&FieldInfo{
 						FieldPath: []string{"f1"},
 						FieldType: "string",
@@ -359,6 +369,7 @@ func TestBleveToFlexIndex(t *testing.T) {
 			},
 			expectFlexIndex: &FlexIndex{
 				IndexedFields: FieldInfos{
+					fieldInfoType,
 					&FieldInfo{
 						FieldPath: []string{"addr", "f1"},
 						FieldType: "string",
@@ -401,7 +412,9 @@ func TestBleveToFlexIndex(t *testing.T) {
 					},
 				},
 			},
-			expectFlexIndex: &FlexIndex{},
+			expectFlexIndex: &FlexIndex{
+				IndexedFields: FieldInfos{fieldInfoType},
+			},
 		},
 		{
 			m: &mapping.IndexMappingImpl{
@@ -441,6 +454,7 @@ func TestBleveToFlexIndex(t *testing.T) {
 			},
 			expectFlexIndex: &FlexIndex{
 				IndexedFields: FieldInfos{
+					fieldInfoType,
 					&FieldInfo{
 						FieldPath: []string{"addr", "f1"},
 						FieldType: "string",
@@ -483,7 +497,9 @@ func TestBleveToFlexIndex(t *testing.T) {
 					Dynamic: true,
 				},
 			},
-			expectFlexIndex: &FlexIndex{},
+			expectFlexIndex: &FlexIndex{
+				IndexedFields: FieldInfos{fieldInfoType},
+			},
 		},
 		{
 			m: &mapping.IndexMappingImpl{
@@ -496,6 +512,7 @@ func TestBleveToFlexIndex(t *testing.T) {
 			},
 			expectFlexIndex: &FlexIndex{
 				IndexedFields: FieldInfos{
+					fieldInfoType,
 					&FieldInfo{
 						FieldPath: nil,
 						FieldType: "string",
@@ -529,6 +546,7 @@ func TestBleveToFlexIndex(t *testing.T) {
 			},
 			expectFlexIndex: &FlexIndex{
 				IndexedFields: FieldInfos{
+					fieldInfoType,
 					&FieldInfo{
 						FieldPath: nil,
 						FieldType: "string",
@@ -578,6 +596,7 @@ func TestBleveToFlexIndex(t *testing.T) {
 			},
 			expectFlexIndex: &FlexIndex{
 				IndexedFields: FieldInfos{
+					fieldInfoType,
 					&FieldInfo{
 						FieldPath: []string{"addr", "f1"},
 						FieldType: "string",
@@ -618,14 +637,25 @@ func TestBleveToFlexIndex(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		flexIndex, err := BleveToFlexIndex(test.m)
+		jm, _ := json.Marshal(test.m)
+
+		cfis, err := BleveToCondFlexIndexes(test.m)
 		if (err != nil) != (test.expectErr != "") {
-			t.Fatalf("test: %+v,\n err mismatch, got: %v",
-				test, err)
+			t.Fatalf("test: %+v,\n jm: %s,\n BleveToCondFlexIndexes err mismatch, got: %v",
+				test, jm, err)
+		}
+
+		if len(cfis) > 1 {
+			t.Fatalf("test: %+v,\n jm: %s,\n BleveToCondFlexIndexes cfis mismatch, got: %+v",
+				test, jm, cfis)
+		}
+
+		var flexIndex *FlexIndex
+		if len(cfis) > 0 {
+			flexIndex = cfis[0].FlexIndex
 		}
 
 		if !reflect.DeepEqual(flexIndex, test.expectFlexIndex) {
-			jm, _ := json.Marshal(test.m)
 			jefi, _ := json.Marshal(test.expectFlexIndex)
 			jfi, _ := json.Marshal(flexIndex)
 
@@ -634,6 +664,63 @@ func TestBleveToFlexIndex(t *testing.T) {
 		}
 	}
 }
+
+// --------------------------------------------------------------
+
+func SKIP_TestBleveToCondFlexIndexes(t *testing.T) {
+	tests := []struct {
+		m               *mapping.IndexMappingImpl
+		expectFlexIndex *FlexIndex
+		expectErr       string
+	}{
+		{
+			m: &mapping.IndexMappingImpl{
+				TypeMapping: map[string]*mapping.DocumentMapping{
+					"not-handled": {},
+				},
+			},
+		},
+		{
+			m: &mapping.IndexMappingImpl{
+				TypeMapping: map[string]*mapping.DocumentMapping{
+					"not-handled": {},
+				},
+				DefaultMapping: &mapping.DocumentMapping{},
+			},
+			expectErr: "because there isn't a only default mapping",
+		},
+	}
+
+	for _, test := range tests {
+		jm, _ := json.Marshal(test.m)
+
+		cfis, err := BleveToCondFlexIndexes(test.m)
+		if (err != nil) != (test.expectErr != "") {
+			t.Fatalf("test: %+v,\n jm: %s,\n BleveToCondFlexIndexes err mismatch, got: %v",
+				test, jm, err)
+		}
+
+		if len(cfis) > 1 {
+			t.Fatalf("test: %+v,\n jm: %s,\n BleveToCondFlexIndexes cfis mismatch, got: %+v",
+				test, jm, cfis)
+		}
+
+		var flexIndex *FlexIndex
+		if len(cfis) > 0 {
+			flexIndex = cfis[0].FlexIndex
+		}
+
+		if !reflect.DeepEqual(flexIndex, test.expectFlexIndex) {
+			jefi, _ := json.Marshal(test.expectFlexIndex)
+			jfi, _ := json.Marshal(flexIndex)
+
+			t.Errorf("test: %+v,\n jm: %s\n expectFlexIndex: %s\n flexIndex mismatch, got: %s",
+				test, jm, jefi, jfi)
+		}
+	}
+}
+
+// --------------------------------------------------------------
 
 func TestFlexBuildToBleveQuery(t *testing.T) {
 	tests := []struct {
