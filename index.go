@@ -14,7 +14,12 @@ package n1fty
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"math"
+	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -45,6 +50,9 @@ type FTSIndex struct {
 	dynamicMapping bool
 	// default analyzer
 	defaultAnalyzer string
+
+	// supported options for ordering
+	optionsForOrdering map[string]struct{}
 }
 
 // -----------------------------------------------------------------------------
@@ -55,13 +63,19 @@ func newFTSIndex(searchFieldsMap map[util.SearchField]bool,
 	indexDef *cbgt.IndexDef,
 	indexer *FTSIndexer) (*FTSIndex, error) {
 	index := &FTSIndex{
-		indexer:         indexer,
-		id:              indexDef.UUID,
-		name:            indexDef.Name,
-		indexDef:        indexDef,
-		searchFields:    searchFieldsMap,
-		dynamicMapping:  dynamicMapping,
-		defaultAnalyzer: defaultAnalyzer,
+		indexer:            indexer,
+		id:                 indexDef.UUID,
+		name:               indexDef.Name,
+		indexDef:           indexDef,
+		searchFields:       searchFieldsMap,
+		dynamicMapping:     dynamicMapping,
+		defaultAnalyzer:    defaultAnalyzer,
+		optionsForOrdering: make(map[string]struct{}),
+	}
+
+	v := struct{}{}
+	for _, entry := range []string{"score", "score ASC", "score DESC"} {
+		index.optionsForOrdering[entry] = v
 	}
 
 	return index, nil
@@ -401,8 +415,81 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 // -----------------------------------------------------------------------------
 
 func (i *FTSIndex) Pageable(order []string, offset, limit int64) bool {
-	// FIXME
-	return false
+	// Possibilities for order:
+	// "score DESC", "score ASC", "score" (defaults to "score ASC")
+	if len(order) != 1 {
+		// supporting only one of the above possibilities at a time
+		return false
+	}
+
+	if _, exists := i.optionsForOrdering[order[0]]; !exists {
+		return false
+	}
+
+	bleveMaxResultWindow, err := i.fetchBleveMaxResultWindow()
+	if err != nil {
+		return false
+	}
+
+	if offset+limit > int64(bleveMaxResultWindow) {
+		return false
+	}
+
+	return true
+}
+
+func (i *FTSIndex) fetchBleveMaxResultWindow() (int, error) {
+	ftsEndpoints := i.indexer.agent.FtsEps()
+	if len(ftsEndpoints) == 0 {
+		return 0, fmt.Errorf("no fts endpoints available")
+	}
+
+	now := time.Now().UnixNano()
+	cbauthURL, err := cbgt.CBAuthURL(
+		ftsEndpoints[now%int64(len(ftsEndpoints))] + "/api/manager")
+	if err != nil {
+		return 0, err
+	}
+
+	httpClient := i.indexer.agent.HttpClient()
+	if httpClient == nil {
+		return 0, fmt.Errorf("client not available")
+	}
+
+	resp, err := httpClient.Get(cbauthURL)
+	if err != nil {
+		return 0, err
+	}
+
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("status code: %v", resp.StatusCode)
+	}
+
+	bodyBuf, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return 0, err
+	}
+
+	var expect map[string]interface{}
+	err = json.Unmarshal(bodyBuf, &expect)
+	if err != nil {
+		return 0, err
+	}
+
+	if status, exists := expect["status"]; !exists || status.(string) != "ok" {
+		return 0, err
+	}
+
+	if mgr, exists := expect["mgr"]; exists {
+		mgrMap, _ := mgr.(map[string]interface{})
+		options, _ := mgrMap["options"].(map[string]interface{})
+		if bleveMaxResultWindow, exists := options["bleveMaxResultWindow"]; exists {
+			return strconv.Atoi(bleveMaxResultWindow.(string))
+		}
+	}
+
+	return 0, fmt.Errorf("value of bleveMaxResultWindow unknown")
 }
 
 // -----------------------------------------------------------------------------
