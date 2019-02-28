@@ -418,7 +418,7 @@ func (i *FTSIndex) Pageable(order []string, offset, limit int64) bool {
 	// Possibilities for order:
 	// "score DESC", "score ASC", "score" (defaults to "score ASC")
 	if len(order) != 1 {
-		// supporting only one of the above possibilities at a time
+		// accepts only one of the above possibilities, for now
 		return false
 	}
 
