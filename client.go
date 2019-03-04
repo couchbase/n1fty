@@ -61,22 +61,23 @@ type ftsSrvWrapper struct {
 var muclient sync.Mutex
 var singletonClient *ftsSrvWrapper
 
-func initRouter(ftsEps map[string]interface{},
+func initWrapper(ftsEps map[string]interface{},
 	cfg map[string]interface{}) (*ftsSrvWrapper, error) {
 	muclient.Lock()
 	if singletonClient == nil {
 		singletonClient = &ftsSrvWrapper{
-			configs:    cfg,
-			ftsGrpcEps: ftsEps,
-			connPool:   make(map[string]*grpc.ClientConn),
-			rrMap:      make(map[int]string),
-		}
-		err := singletonClient.refresh(nil)
-		if err != nil {
-			muclient.Unlock()
-			return nil, err
+			configs:  cfg,
+			connPool: make(map[string]*grpc.ClientConn),
+			rrMap:    make(map[int]string),
 		}
 	}
+
+	err := singletonClient.refresh(ftsEps)
+	if err != nil {
+		muclient.Unlock()
+		return nil, err
+	}
+
 	muclient.Unlock()
 	return singletonClient, nil
 }
@@ -90,23 +91,21 @@ func (c *ftsSrvWrapper) getGrpcClient() pb.SearchServiceClient {
 	return pb.NewSearchServiceClient(conn)
 }
 
-func (c *ftsSrvWrapper) refresh(nodeDefs *cbgt.NodeDefs) error {
-	if nodeDefs != nil {
-		hostCertsMap, err := extractHostCertsMap(nodeDefs)
-		if err != nil {
-			logging.Infof("client: extractHostCertsMap, err: %v", err)
+func (c *ftsSrvWrapper) refresh(ftsEps map[string]interface{}) error {
+	c.m.Lock()
+	defer c.m.Unlock()
+	if ftsEps != nil {
+		if reflect.DeepEqual(ftsEps, c.ftsGrpcEps) {
+			return nil
 		}
-
-		c.m.Lock()
-		if !reflect.DeepEqual(hostCertsMap, c.ftsGrpcEps) {
-			c.ftsGrpcEps = hostCertsMap
-		}
-		c.m.Unlock()
+		c.ftsGrpcEps = ftsEps
 	}
 
+	connPool := make(map[string]*grpc.ClientConn, len(ftsEps))
+	rrMap := make(map[int]string, len(ftsEps))
 	var pos int
 	for hostPort, certsPem := range c.ftsGrpcEps {
-		c.rrMap[pos] = hostPort
+		rrMap[pos] = hostPort
 		pos++
 		certPool := x509.NewCertPool()
 		ok := certPool.AppendCertsFromPEM([]byte(certsPem.(string)))
@@ -149,22 +148,25 @@ func (c *ftsSrvWrapper) refresh(nodeDefs *cbgt.NodeDefs) error {
 			}),
 		}
 
-		var initialised bool
-		if _, initialised = c.connPool[hostPort]; !initialised {
+		if gconn, initialised := c.connPool[hostPort]; !initialised {
 			for i := 0; i < defaultPoolSize; i++ {
 				conn, err := grpc.Dial(hostPort, opts...)
 				if err != nil {
 					logging.Infof("client: grpc.Dial, err: %v", err)
 					return err
 				}
-
-				logging.Infof("client: grpc ClientConn Created %d", i)
-				c.m.Lock()
-				c.connPool[hostPort] = conn
-				c.m.Unlock()
+				logging.Infof("client: %d grpc ClientConn Created for host %s",
+					hostPort, i+1)
+				connPool[hostPort] = conn
 			}
+		} else {
+			// take the already established connection
+			connPool[hostPort] = gconn
 		}
 	}
+
+	c.connPool = connPool
+	c.rrMap = rrMap
 	return nil
 }
 

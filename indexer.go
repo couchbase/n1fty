@@ -351,9 +351,9 @@ func (i *FTSIndexer) initSrvWrapper(nodeDefs *cbgt.NodeDefs) error {
 		return util.N1QLError(err, "indexer, extractHostCertsMap err")
 	}
 
-	i.srvWrapper, err = initRouter(hostMap, nil)
+	i.srvWrapper, err = initWrapper(hostMap, nil)
 	if err != nil {
-		return util.N1QLError(err, "indexer, initRouter err")
+		return util.N1QLError(err, "indexer, initWrapper err")
 	}
 
 	return nil
