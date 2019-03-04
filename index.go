@@ -176,18 +176,22 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	var waitGroup sync.WaitGroup
 	var backfillSync int64
 	var rh *responseHandler
+	ctx, cancel := context.WithCancel(context.Background())
 
 	defer func() {
 		// cleanup the backfill file
 		atomic.StoreInt64(&backfillSync, doneRequest)
 		waitGroup.Wait()
 		sender.Close()
-		rh.cleanupBackfill()
+		cancel()
+		if rh != nil {
+			rh.cleanupBackfill()
+		}
 	}()
 
 	searchRequest := &pb.SearchRequest{
 		Query:     sargRV.queryBytes,
-		Stream:    true,
+		Stream:    false,
 		From:      searchInfo.Offset,
 		Size:      searchInfo.Limit,
 		IndexName: i.name,
@@ -195,7 +199,7 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 
 	client := i.indexer.srvWrapper.getGrpcClient()
 
-	stream, err := client.Search(context.Background(), searchRequest)
+	stream, err := client.Search(ctx, searchRequest)
 	if err != nil || stream == nil {
 		conn.Error(util.N1QLError(err, "search failed"))
 		return
@@ -204,7 +208,6 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	rh = &responseHandler{requestID: requestId, i: i}
 
 	rh.handleResponse(conn, &waitGroup, &backfillSync, stream)
-
 	atomic.AddInt64(&i.indexer.stats.TotalSearch, 1)
 	atomic.AddInt64(&i.indexer.stats.TotalSearchDuration, int64(time.Since(starttm)))
 }
@@ -524,7 +527,7 @@ func basicAuth(username, password string) string {
 // -----------------------------------------------------------------------------
 
 func getBackfillSpaceDir() string {
-	conf := config.GetConfig()
+	conf := clientConfig.GetConfig()
 
 	if conf == nil {
 		return getDefaultTmpDir()
@@ -538,7 +541,7 @@ func getBackfillSpaceDir() string {
 }
 
 func getBackfillSpaceLimit() int64 {
-	conf := config.GetConfig()
+	conf := clientConfig.GetConfig()
 
 	if conf == nil {
 		return defaultBackfillLimit

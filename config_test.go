@@ -17,20 +17,21 @@ import (
 	"testing"
 )
 
-var tconfig n1ftyConfig
+var tconfig cbgt.Cfg
 
-func GetTestConfig() (Cfg, errors.Error) {
-	return &tconfig, nil
+func init() {
+	tconfig = cbgt.NewCfgMem()
+}
+func GetTestConfig() (cbgt.Cfg, errors.Error) {
+	return tconfig, nil
 }
 
 func cleanConfig() {
 	sampleConf, _ := GetTestConfig()
-	conf := make(map[string]interface{})
-	conf["/fts/cbgt/cfg/indexDefs"] = nil
-	conf["/fts/cbgt/cfg/nodeDefs-known/5859d032c9cd9f1afb62cdf207c7d173"] = []byte(nil)
-	conf["/fts/cbgt/cfg/nodeDefs-known/d6ad6468930d9a57c4b7e90af0fb1bff"] = []byte(nil)
-	conf["/fts/cbgt/cfg/nodeDefs-known/aa32875f1b85c5d8b3f26a55ba6d251e"] = []byte(nil)
-	_ = sampleConf.SetConfig(conf)
+	sampleConf.Del("indexDefs", 0)
+	sampleConf.Del("nodeDefs-known", 0)
+	sampleConf.Del("nodeDefs-known", 0)
+	sampleConf.Del("nodeDefs-known", 0)
 }
 
 func TestGetIndexDefs(t *testing.T) {
@@ -53,11 +54,9 @@ func TestGetIndexDefs(t *testing.T) {
 		t.Errorf("GetTestConfig, err: %v", err)
 	}
 
-	conf := make(map[string]interface{}, 1)
-	conf["/fts/cbgt/cfg/indexDefs"] = sampleIndexDef
-	err = sampleConf.SetConfig(conf)
-	if err != nil {
-		t.Errorf("SetConfig, err: %v", err)
+	_, err1 := sampleConf.Set("indexDefs", sampleIndexDef, 0)
+	if err1 != nil {
+		t.Errorf("SetConfig, err: %v", err1)
 	}
 
 	var er error
@@ -106,11 +105,9 @@ func TestMultipleGetIndexDefs(t *testing.T) {
 		t.Errorf("GetTestConfig, err: %v", err)
 	}
 
-	conf := make(map[string]interface{}, 1)
-	conf["/fts/cbgt/cfg/indexDefs"] = sampleIndexDef
-	err = sampleConf.SetConfig(conf)
-	if err != nil {
-		t.Errorf("SetConfig, err: %v", err)
+	_, err1 := sampleConf.Set("indexDefs", sampleIndexDef, 0)
+	if err1 != nil {
+		t.Errorf("SetConfig, err: %v", err1)
 	}
 
 	var er error
@@ -147,11 +144,9 @@ func TestMultipleGetIndexDefs(t *testing.T) {
 	{"indexType":"scorch","kvStoreName":""}},"sourceParams":{}}},
 	"implVersion":"5.5.0"}`)
 
-	conf = make(map[string]interface{}, 1)
-	conf["/fts/cbgt/cfg/indexDefs"] = sampleIndexDef
-	err = sampleConf.SetConfig(conf)
-	if err != nil {
-		t.Errorf("SetConfig, err: %v", err)
+	_, err1 = sampleConf.Set("indexDefs", sampleIndexDef, cbgt.CFG_CAS_FORCE)
+	if err1 != nil {
+		t.Errorf("SetConfig, err: %v", err1)
 	}
 
 	indexDefs, er = GetIndexDefs(sampleConf)
@@ -192,8 +187,10 @@ func TestRetrieveIndexDefs(t *testing.T) {
 		t.Errorf("GetTestConfig, err: %v", err)
 	}
 
-	conf := make(map[string]interface{})
-	conf["/fts/cbgt/cfg/indexDefs"] = sampleIndexDef
+	_, err1 := sampleConf.Set("indexDefs", sampleIndexDef, 0)
+	if err1 != nil {
+		t.Errorf("SetConfig, err: %v", err1)
+	}
 
 	sampleNodeDef := []byte(`{"uuid":"2c16140ab60bf05d",
 	"nodeDefs":{"5859d032c9cd9f1afb62cdf207c7d173":
@@ -201,9 +198,8 @@ func TestRetrieveIndexDefs(t *testing.T) {
 	"implVersion":"5.5.0","tags":["feed","janitor","pindex","queryer","cbauth_service"],
 	"container":"","weight":1,"extras":"{\"bindGRPC\":\"172.16.1.90:9202\",\"bindHTTPS\":\":9201\",\"features\":\"leanPlan,indexType:scorch,indexType:upside_down\",\"nsHostPort\":\"172.16.1.90:9000\",\"tlsCertPEM\":\"\",\"version-cbft.app\":\"v0.6.0\",\"version-cbft.lib\":\"v0.5.5\"}"}},"implVersion":"5.5.0"}`)
 
-	conf["/fts/cbgt/cfg/nodeDefs-known/5859d032c9cd9f1afb62cdf207c7d173"] = sampleNodeDef
-	err = sampleConf.SetConfig(conf)
-	if err != nil {
+	_, err1 = sampleConf.Set("nodeDefs-known", sampleNodeDef, 0)
+	if err1 != nil {
 		t.Errorf("SetConfig, err: %v", err)
 	}
 
@@ -237,28 +233,28 @@ func TestRetrieveIndexDefs(t *testing.T) {
 }
 
 func TestGetNodeDefs(t *testing.T) {
-	sampleNodeDef1 := []byte(`{"uuid":"2c16140ab60bf05d",
-	"nodeDefs":{"5859d032c9cd9f1afb62cdf207c7d173":
-	{"hostPort":"172.16.1.90:9200","uuid":"5859d032c9cd9f1afb62cdf207c7d173",
+	sampleNodeDef1 := []byte(`{"uuid":"2c16140ab60bf05d","nodeDefs":{"5859d032c9cd9f1afb62cdf207c7d173":
+	{"hostPort":"172.16.1.90:9200","uuid":"5859d032c9cd9f1afb62cdf207c7d173","implVersion":"5.5.0",
+	"tags":["feed","janitor","pindex","queryer","cbauth_service"],"container":"","weight":1,
+	"extras":"{\"bindGRPC\":\"172.16.1.90:9202\",\"bindHTTPS\":\":9201\",\"features\":\"leanPlan,indexType:scorch,indexType:upside_down\",\"nsHostPort\":\"172.16.1.90:9000\",\"tlsCertPEM\":\"\",\"version-cbft.app\":\"v0.6.0\",\"version-cbft.lib\":\"v0.5.5\"}"},
+	"d6ad6468930d9a57c4b7e90af0fb1bff":{"hostPort":"127.0.0.1:9203","uuid":"d6ad6468930d9a57c4b7e90af0fb1bff",
 	"implVersion":"5.5.0","tags":["feed","janitor","pindex","queryer","cbauth_service"],
-	"container":"","weight":1,"extras":"{\"bindGRPC\":\"172.16.1.90:9202\",\"bindHTTPS\":\":9201\",\"features\":\"leanPlan,indexType:scorch,indexType:upside_down\",\"nsHostPort\":\"172.16.1.90:9000\",\"tlsCertPEM\":\"\",\"version-cbft.app\":\"v0.6.0\",\"version-cbft.lib\":\"v0.5.5\"}"}},"implVersion":"5.5.0"}`)
+	"container":"","weight":1,"extras":"{\"bindGRPC\":\"127.0.0.1:9205\",\"bindHTTPS\":\":9204\",\"features\":\"leanPlan,indexType:scorch,indexType:upside_down\",\"nsHostPort\":\"127.0.0.1:9001\",\"tlsCertPEM\":\"\",\"version-cbft.app\":\"v0.6.0\",\"version-cbft.lib\":\"v0.5.5\"}"}},"implVersion":"5.5.0"}`)
 
 	sampleConf, err := GetTestConfig()
 	if err != nil {
 		t.Errorf("GetTestConfig, err: %v", err)
 	}
 
-	conf := make(map[string]interface{}, 1)
-	conf["/fts/cbgt/cfg/nodeDefs-known/5859d032c9cd9f1afb62cdf207c7d173"] = sampleNodeDef1
-	err = sampleConf.SetConfig(conf)
-	if err != nil {
-		t.Errorf("SetConfig, err: %v", err)
+	_, err1 := sampleConf.Set("nodeDefs-known", sampleNodeDef1, 0)
+	if err1 != nil {
+		t.Errorf("SetConfig, err: %v", err1)
 	}
 
 	var er error
 	var nodeDefs *cbgt.NodeDefs
 	nodeDefs, er = GetNodeDefs(sampleConf)
-	if er != nil || len(nodeDefs.NodeDefs) != 1 {
+	if er != nil || len(nodeDefs.NodeDefs) != 2 {
 		t.Errorf("GetNodeDefs, err: %v", er)
 	}
 
@@ -267,86 +263,77 @@ func TestGetNodeDefs(t *testing.T) {
 		t.Errorf("mismatched nodeDefs")
 	}
 
-	sampleNodeDef2 := []byte(`{"uuid":"1d62344e4476ef14","nodeDefs":{"d6ad6468930d9a57c4b7e90af0fb1bff":{"hostPort":"127.0.0.1:9203","uuid":"d6ad6468930d9a57c4b7e90af0fb1bff","implVersion":"5.5.0","tags":["feed","janitor","pindex","queryer","cbauth_service"],"container":"","weight":1,"extras":"{\"bindGRPC\":\"127.0.0.1:9205\",\"bindHTTPS\":\":9204\",\"features\":\"leanPlan,indexType:scorch,indexType:upside_down\",\"nsHostPort\":\"127.0.0.1:9001\",\"tlsCertPEM\":\"\",\"version-cbft.app\":\"v0.6.0\",\"version-cbft.lib\":\"v0.5.5\"}"}},"implVersion":"5.5.0"}`)
-	conf["/fts/cbgt/cfg/nodeDefs-known/d6ad6468930d9a57c4b7e90af0fb1bff"] = sampleNodeDef2
-	err = sampleConf.SetConfig(conf)
+	nodeDefn = nodeDefs.NodeDefs["d6ad6468930d9a57c4b7e90af0fb1bff"]
+	if nodeDefn == nil || nodeDefn.UUID != "d6ad6468930d9a57c4b7e90af0fb1bff" {
+		t.Errorf("mismatched nodeDefs")
+	}
+
+	cleanConfig()
+}
+
+func TestRemoveNodeDefs(t *testing.T) {
+	sampleNodeDef1 := []byte(`{"uuid":"2c16140ab60bf05d",
+	"nodeDefs":{"5859d032c9cd9f1afb62cdf207c7d173":{"hostPort":"172.16.1.90:9200",
+	"uuid":"5859d032c9cd9f1afb62cdf207c7d173","implVersion":"5.5.0",
+	"tags":["feed","janitor","pindex","queryer","cbauth_service"],"container":"","weight":1,
+	"extras":"{\"bindGRPC\":\"172.16.1.90:9202\",\"bindHTTPS\":\":9201\",\"features\":\"leanPlan,indexType:scorch,indexType:upside_down\",\"nsHostPort\":\"172.16.1.90:9000\",\"tlsCertPEM\":\"\",\"version-cbft.app\":\"v0.6.0\",\"version-cbft.lib\":\"v0.5.5\"}"},
+	"d6ad6468930d9a57c4b7e90af0fb1bff":{"hostPort":"127.0.0.1:9203",
+	"uuid":"d6ad6468930d9a57c4b7e90af0fb1bff","implVersion":"5.5.0",
+	"tags":["feed","janitor","pindex","queryer","cbauth_service"],"container":"","weight":1,
+	"extras":"{\"bindGRPC\":\"127.0.0.1:9205\",\"bindHTTPS\":\":9204\",\"features\":\"leanPlan,indexType:scorch,indexType:upside_down\",\"nsHostPort\":\"127.0.0.1:9001\",\"tlsCertPEM\":\"\",\"version-cbft.app\":\"v0.6.0\",\"version-cbft.lib\":\"v0.5.5\"}"},
+	"aa32875f1b85c5d8b3f26a55ba6d251e":{"hostPort":"192.168.0.102:920",
+	"uuid":"aa32875f1b85c5d8b3f26a55ba6d251e","implVersion":"5.5.0",
+	"tags":["feed","janitor","pindex","queryer","cbauth_service"],"container":"","weight":1,
+	"extras":"{\"bindGRPC\":\"127.0.0.1:9205\",\"bindHTTPS\":\":9204\",\"features\":\"leanPlan,indexType:scorch,indexType:upside_down\",\"nsHostPort\":\"127.0.0.1:9001\",\"tlsCertPEM\":\"\",\"version-cbft.app\":\"v0.6.0\",\"version-cbft.lib\":\"v0.5.5\"}"}},"implVersion":"5.5.0"}`)
+
+	sampleConf, err := GetTestConfig()
 	if err != nil {
-		t.Errorf("SetConfig, err: %v", err)
+		t.Errorf("GetTestConfig, err: %v", err)
+	}
+
+	_, err1 := sampleConf.Set("nodeDefs-known", sampleNodeDef1, 0)
+	if err1 != nil {
+		t.Errorf("SetConfig, err: %v", err1)
+	}
+
+	var er error
+	var nodeDefs *cbgt.NodeDefs
+	nodeDefs, er = GetNodeDefs(sampleConf)
+	if er != nil || len(nodeDefs.NodeDefs) != 3 {
+		t.Errorf("GetNodeDefs, err: %v", er)
+	}
+
+	nodeDefn := nodeDefs.NodeDefs["aa32875f1b85c5d8b3f26a55ba6d251e"]
+	if nodeDefn == nil || nodeDefn.UUID != "aa32875f1b85c5d8b3f26a55ba6d251e" {
+		t.Errorf("mismatched nodeDefs")
+	}
+
+	sampleNodeDef2 := []byte(`{"uuid":"2c16140ab60bf05d","nodeDefs":{"5859d032c9cd9f1afb62cdf207c7d173":
+	{"hostPort":"172.16.1.90:9200","uuid":"5859d032c9cd9f1afb62cdf207c7d173","implVersion":"5.5.0",
+	"tags":["feed","janitor","pindex","queryer","cbauth_service"],"container":"","weight":1,
+	"extras":"{\"bindGRPC\":\"172.16.1.90:9202\",\"bindHTTPS\":\":9201\",\"features\":\"leanPlan,indexType:scorch,indexType:upside_down\",\"nsHostPort\":\"172.16.1.90:9000\",\"tlsCertPEM\":\"\",\"version-cbft.app\":\"v0.6.0\",\"version-cbft.lib\":\"v0.5.5\"}"},
+	"d6ad6468930d9a57c4b7e90af0fb1bff":{"hostPort":"127.0.0.1:9203","uuid":"d6ad6468930d9a57c4b7e90af0fb1bff",
+	"implVersion":"5.5.0","tags":["feed","janitor","pindex","queryer","cbauth_service"],
+	"container":"","weight":1,"extras":"{\"bindGRPC\":\"127.0.0.1:9205\",\"bindHTTPS\":\":9204\",\"features\":\"leanPlan,indexType:scorch,indexType:upside_down\",\"nsHostPort\":\"127.0.0.1:9001\",\"tlsCertPEM\":\"\",\"version-cbft.app\":\"v0.6.0\",\"version-cbft.lib\":\"v0.5.5\"}"}},"implVersion":"5.5.0"}`)
+
+	_, err1 = sampleConf.Set("nodeDefs-known", sampleNodeDef2, cbgt.CFG_CAS_FORCE)
+	if err1 != nil {
+		t.Errorf("SetConfig, err: %v", err1)
 	}
 
 	nodeDefs, er = GetNodeDefs(sampleConf)
 	if er != nil || len(nodeDefs.NodeDefs) != 2 {
 		t.Errorf("GetNodeDefs, err: %v", er)
 	}
-	cleanConfig()
-}
-
-func TestRemoveNodeDefs(t *testing.T) {
-	sampleNodeDef1 := []byte(`{"uuid":"2c16140ab60bf05d",
-	"nodeDefs":{"5859d032c9cd9f1afb62cdf207c7d173":
-	{"hostPort":"172.16.1.90:9200","uuid":"5859d032c9cd9f1afb62cdf207c7d173",
-	"implVersion":"5.5.0","tags":["feed","janitor","pindex","queryer","cbauth_service"],
-	"container":"","weight":1,"extras":"{\"bindGRPC\":\"172.16.1.90:9202\",\"bindHTTPS\":\":9201\",\"features\":\"leanPlan,indexType:scorch,indexType:upside_down\",\"nsHostPort\":\"172.16.1.90:9000\",\"tlsCertPEM\":\"\",\"version-cbft.app\":\"v0.6.0\",\"version-cbft.lib\":\"v0.5.5\"}"}},"implVersion":"5.5.0"}`)
-
-	sampleConf, err := GetTestConfig()
-	if err != nil {
-		t.Errorf("GetTestConfig, err: %v", err)
-	}
-
-	conf := make(map[string]interface{}, 1)
-	conf["/fts/cbgt/cfg/nodeDefs-known/5859d032c9cd9f1afb62cdf207c7d173"] = sampleNodeDef1
-	err = sampleConf.SetConfig(conf)
-	if err != nil {
-		t.Errorf("SetConfig, err: %v", err)
-	}
-
-	var er error
-	var nodeDefs *cbgt.NodeDefs
-	nodeDefs, er = GetNodeDefs(sampleConf)
-	if er != nil || len(nodeDefs.NodeDefs) != 1 {
-		t.Errorf("GetNodeDefs, err: %v", er)
-	}
-
-	nodeDefn := nodeDefs.NodeDefs["5859d032c9cd9f1afb62cdf207c7d173"]
-	if nodeDefn == nil || nodeDefn.UUID != "5859d032c9cd9f1afb62cdf207c7d173" {
-		t.Errorf("mismatched nodeDefs")
-	}
-
-	sampleNodeDef2 := []byte(`{"uuid":"1d62344e4476ef14","nodeDefs":{"d6ad6468930d9a57c4b7e90af0fb1bff":{"hostPort":"127.0.0.1:9203","uuid":"d6ad6468930d9a57c4b7e90af0fb1bff","implVersion":"5.5.0","tags":["feed","janitor","pindex","queryer","cbauth_service"],"container":"","weight":1,"extras":"{\"bindGRPC\":\"127.0.0.1:9205\",\"bindHTTPS\":\":9204\",\"features\":\"leanPlan,indexType:scorch,indexType:upside_down\",\"nsHostPort\":\"127.0.0.1:9001\",\"tlsCertPEM\":\"\",\"version-cbft.app\":\"v0.6.0\",\"version-cbft.lib\":\"v0.5.5\"}"}},"implVersion":"5.5.0"}`)
-	conf["/fts/cbgt/cfg/nodeDefs-known/d6ad6468930d9a57c4b7e90af0fb1bff"] = sampleNodeDef2
-	err = sampleConf.SetConfig(conf)
-	if err != nil {
-		t.Errorf("SetConfig, err: %v", err)
-	}
-
-	sampleNodeDef3 := []byte(`{"uuid":"70398b968d659d58","nodeDefs":{"aa32875f1b85c5d8b3f26a55ba6d251e":{"hostPort":"192.168.0.102:920","uuid":"aa32875f1b85c5d8b3f26a55ba6d251e","implVersion":"5.5.0","tags":["feed","janitor","pindex","queryer","cbauth_service"],"container":"","weight":1,"extras":"{\"bindGRPC\":\"127.0.0.1:9205\",\"bindHTTPS\":\":9204\",\"features\":\"leanPlan,indexType:scorch,indexType:upside_down\",\"nsHostPort\":\"127.0.0.1:9001\",\"tlsCertPEM\":\"\",\"version-cbft.app\":\"v0.6.0\",\"version-cbft.lib\":\"v0.5.5\"}"}},"implVersion":"5.5.0"}`)
-	conf["/fts/cbgt/cfg/nodeDefs-known/aa32875f1b85c5d8b3f26a55ba6d251e"] = sampleNodeDef3
-	err = sampleConf.SetConfig(conf)
-	if err != nil {
-		t.Errorf("SetConfig, err: %v", err)
-	}
-
-	nodeDefs, er = GetNodeDefs(sampleConf)
-	if er != nil || len(nodeDefs.NodeDefs) != 3 {
-		t.Errorf("GetNodeDefs, err: %v", er)
-	}
-
-	// removing the node defs
-	conf["/fts/cbgt/cfg/nodeDefs-known/d6ad6468930d9a57c4b7e90af0fb1bff"] = []byte(nil)
-	conf["/fts/cbgt/cfg/nodeDefs-known/aa32875f1b85c5d8b3f26a55ba6d251e"] = []byte(nil)
-	err = sampleConf.SetConfig(conf)
-	if err != nil {
-		t.Errorf("SetConfig, err: %v", err)
-	}
-
-	nodeDefs, er = GetNodeDefs(sampleConf)
-	if er != nil || len(nodeDefs.NodeDefs) != 1 {
-		t.Errorf("GetNodeDefs, err: %v", er)
-	}
 
 	// only the original node should remain
 	nodeDefn = nodeDefs.NodeDefs["5859d032c9cd9f1afb62cdf207c7d173"]
 	if nodeDefn == nil || nodeDefn.UUID != "5859d032c9cd9f1afb62cdf207c7d173" {
+		t.Errorf("mismatched nodeDefs")
+	}
+
+	nodeDefn = nodeDefs.NodeDefs["aa32875f1b85c5d8b3f26a55ba6d251e"]
+	if nodeDefn != nil {
 		t.Errorf("mismatched nodeDefs")
 	}
 	cleanConfig()

@@ -52,7 +52,7 @@ type FTSIndexer struct {
 	mapIndexesByID   map[string]datastore.Index
 	mapIndexesByName map[string]datastore.Index
 
-	cfg        Cfg
+	cfg        cbgt.Cfg
 	srvWrapper *ftsSrvWrapper
 	stats      *stats
 	closeCh    chan struct{}
@@ -104,13 +104,17 @@ func NewFTSIndexer(serverIn, namespace, keyspace string) (datastore.Indexer,
 		return nil, util.N1QLError(err, "")
 	}
 
+	if ftsConfig == nil {
+		initConfig()
+	}
+
 	indexer := &FTSIndexer{
 		namespace:       namespace,
 		keyspace:        keyspace,
 		serverURL:       svrs[0],
 		agent:           agent,
 		lastRefreshTime: time.Now(),
-		cfg:             &config,
+		cfg:             ftsConfig,
 		stats:           &stats{},
 		closeCh:         make(chan struct{}),
 	}
@@ -121,7 +125,23 @@ func NewFTSIndexer(serverIn, namespace, keyspace string) (datastore.Indexer,
 	// configurable interval later
 	go logStats(60*time.Second, indexer)
 
+	go cfgListener(indexer)
+
 	return indexer, nil
+}
+
+func cfgListener(i *FTSIndexer) {
+	ec := make(chan cbgt.CfgEvent)
+	i.cfg.Subscribe(cbgt.INDEX_DEFS_KEY, ec)
+	i.cfg.Subscribe(cbgt.CfgNodeDefsKey(cbgt.NODE_DEFS_KNOWN), ec)
+	for {
+		select {
+		case <-i.closeCh:
+			return
+		case _ = <-ec:
+			i.Refresh()
+		}
+	}
 }
 
 type Authenticator struct{}
@@ -153,7 +173,7 @@ func (i *FTSIndexer) Close() error {
 }
 
 // SetCfg for better testing
-func (i *FTSIndexer) SetCfg(cfg Cfg) {
+func (i *FTSIndexer) SetCfg(cfg cbgt.Cfg) {
 	i.cfg = cfg
 }
 
@@ -300,8 +320,8 @@ func (i *FTSIndexer) SetLogLevel(level logging.Level) {
 
 func (i *FTSIndexer) refreshConfigs() (
 	map[string]datastore.Index, *cbgt.NodeDefs, error) {
-	var cfg Cfg
-	cfg = &config
+	var cfg cbgt.Cfg
+	cfg = ftsConfig
 	if i.cfg != nil {
 		cfg = i.cfg
 	}

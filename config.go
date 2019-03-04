@@ -14,12 +14,11 @@ package n1fty
 import (
 	"encoding/json"
 	"fmt"
-	"hash/crc32"
 	"io/ioutil"
 	"os"
 	"path"
-	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -34,17 +33,40 @@ const backfillSpaceDir = "query_tmpspace_dir"
 const backfillSpaceLimit = "query_tmpspace_limit"
 const searchTimeoutMS = "searchTimeoutMS"
 
+const metakvMetaDir = "/fts/cbgt/cfg/"
+
 var defaultBackfillLimit = int64(200)      // default tmp space limit
 var defaultSearchTimeoutMS = int64(120000) // 2min
-
 const backfillPrefix = "search-results"
+
+var cfgm sync.RWMutex
+
+// ftsConfig is the metakv config listener which helps the
+// n1fty indexer to refresh it's config information like
+// index/node definitions.
+var ftsConfig *cbgt.CfgMetaKv
+
+func initConfig() {
+	cfgm.Lock()
+	if ftsConfig == nil {
+		var err error
+		cbgt.CfgMetaKvPrefix = "/fts/cbgt/cfg/"
+		ftsConfig, err = cbgt.NewCfgMetaKv("", make(map[string]string))
+		if err != nil {
+			logging.Infof("n1fty: ftsConfig err: %v", err)
+		}
+	}
+	cfgm.Unlock()
+}
 
 type Cfg interface {
 	datastore.IndexConfig
 	GetConfig() map[string]interface{}
 }
 
-var config n1ftyConfig
+// clientConfig is used by the query to pass on the configs values
+// related to the backfill.
+var clientConfig n1ftyConfig
 
 // n1ftyConfig implementation of datastore.IndexConfig interface
 type n1ftyConfig struct {
@@ -52,7 +74,7 @@ type n1ftyConfig struct {
 }
 
 func GetConfig() (datastore.IndexConfig, errors.Error) {
-	return &config, nil
+	return &clientConfig, nil
 }
 
 func setConfig(nf *n1ftyConfig, conf map[string]interface{}) errors.Error {
@@ -173,7 +195,7 @@ func (c *n1ftyConfig) processConfig(conf map[string]interface{}) {
 		newdir, _ = conf[backfillSpaceDir]
 	}
 
-	prevconf := config.GetConfig()
+	prevconf := clientConfig.GetConfig()
 
 	if prevconf != nil {
 		olddir, _ = prevconf[backfillSpaceDir]
@@ -200,7 +222,7 @@ func cleanupTmpFiles(olddir string) {
 	}
 
 	searchTimeout := defaultSearchTimeoutMS
-	conf := config.GetConfig()
+	conf := clientConfig.GetConfig()
 	if conf != nil {
 		if val, ok := conf[searchTimeoutMS]; ok {
 			searchTimeout = val.(int64)
@@ -229,63 +251,29 @@ func (c *n1ftyConfig) GetConfig() map[string]interface{} {
 }
 
 func getDefaultTmpDir() string {
-	file, err := ioutil.TempFile("" /*dir*/, backfillPrefix)
+	file, err := ioutil.TempFile("", backfillPrefix)
 	if err != nil {
 		return ""
 	}
-
-	default_temp_dir := path.Dir(file.Name())
-	os.Remove(file.Name()) // remove this file
-
-	return default_temp_dir
+	defaultDir := path.Dir(file.Name())
+	os.Remove(file.Name())
+	return defaultDir
 }
 
 // GetIndexDefs gets the latest indexDefs from configs
-func GetIndexDefs(cfg Cfg) (*cbgt.IndexDefs, error) {
-	conf := cfg.GetConfig()
-	if conf != nil {
-		if v, ok := conf["indexDefs"]; ok {
-			if defs, ok := v.(*cbgt.IndexDefs); ok {
-				return defs, nil
-			}
-			return nil, fmt.Errorf("no indexDefs found")
-		}
+func GetIndexDefs(cfg cbgt.Cfg) (*cbgt.IndexDefs, error) {
+	indexDefs, _, err := cbgt.CfgGetIndexDefs(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("indexDefs err: %v", err)
 	}
-	return nil, fmt.Errorf("no config found")
+	return indexDefs, nil
 }
 
 // GetNodeDefs gets the latest nodeDefs from configs
-func GetNodeDefs(cfg Cfg) (*cbgt.NodeDefs, error) {
-	conf := cfg.GetConfig()
-	rv := cbgt.NodeDefs{
-		NodeDefs: make(map[string]*cbgt.NodeDef, 1),
+func GetNodeDefs(cfg cbgt.Cfg) (*cbgt.NodeDefs, error) {
+	nodeDefs, _, err := cbgt.CfgGetNodeDefs(cfg, "known")
+	if err != nil {
+		return nil, fmt.Errorf("nodeDefs err: %v", err)
 	}
-
-	if conf != nil {
-		uuids := []string{}
-		for k, v := range conf {
-			if strings.Contains(k, "nodeDefs-known") {
-				if defs, ok := v.(*cbgt.NodeDefs); ok {
-					for k1, v1 := range defs.NodeDefs {
-						rv.NodeDefs[k1] = v1
-					}
-					// use the lowest version among nodeDefs
-					if rv.ImplVersion == "" ||
-						!cbgt.VersionGTE(defs.ImplVersion, defs.ImplVersion) {
-						rv.ImplVersion = defs.ImplVersion
-					}
-					uuids = append(uuids, defs.UUID)
-				}
-			}
-		}
-		rv.UUID = checkSumUUIDs(uuids)
-		return &rv, nil
-	}
-	return nil, fmt.Errorf("no config found")
-}
-
-func checkSumUUIDs(uuids []string) string {
-	sort.Strings(uuids)
-	d, _ := json.Marshal(uuids)
-	return fmt.Sprint(crc32.ChecksumIEEE(d))
+	return nodeDefs, nil
 }
