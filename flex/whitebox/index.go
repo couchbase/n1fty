@@ -201,13 +201,15 @@ func (i *Index) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 		return
 	}
 
-	entryCh := conn.EntryChannel()
+	sender := conn.Sender()
+
+	defer sender.Close()
 
 	for _, hit := range res.Hits {
-		entryCh <- &datastore.IndexEntry{PrimaryKey: hit.ID}
+		if !sender.SendEntry(&datastore.IndexEntry{PrimaryKey: hit.ID}) {
+			return
+		}
 	}
-
-	close(entryCh)
 }
 
 func (i *Index) Pageable(order []string, offset, limit int64,
