@@ -37,6 +37,9 @@ func init() {
 }
 
 func SetIndexMapping(name string, mappingDetails *MappingDetails) {
+	// TODO: do the callers care that they're blowing away any
+	// existing mapping?  Consider a race where a slow goroutine
+	// incorrectly "wins" by setting an outdated mapping?
 	mappingsCacheLock.Lock()
 	mappingsCache[name] = mappingDetails
 	mappingsCacheLock.Unlock()
@@ -50,6 +53,7 @@ func FetchIndexMapping(name, keyspace string) (mapping.IndexMapping, error) {
 	mappingsCacheLock.RLock()
 	defer mappingsCacheLock.RUnlock()
 	if info, exists := mappingsCache[name]; exists {
+		// TODO: need to check UUID here?
 		if info.SourceName == keyspace {
 			return info.IMapping, nil
 		}
@@ -89,26 +93,28 @@ func FetchKeySpace(nameAndKeyspace string) string {
 	return CleanseField(keyspace)
 }
 
+// Returns the search fields mentioned in a query.
 func FetchQueryFields(field string, query value.Value) ([]SearchField, []byte, error) {
-	var queryFields []SearchField
-	var qBytes []byte
-	var err error
-
 	field = CleanseField(field)
-	if query != nil {
-		qBytes, err = BuildQueryBytes(field, query)
-		if err != nil {
-			return nil, nil, err
-		}
 
-		queryFields, err = FetchFieldsToSearchFromQuery(qBytes)
-		if err != nil {
-			return nil, nil, err
-		}
-	} else {
-		queryFields = []SearchField{{
-			Name: field,
-		}}
+	if query == nil {
+		return []SearchField{{Name: field}}, nil, nil
+	}
+
+	// TODO: there is a perf optimization here where BuildQueryBytes()
+	// internally constructions a bleve query instance, which it
+	// returns as JSON-encoded bytes.  Then, FetchFieldsToSearch
+	// parses the JSON again into a bleve query.  The interim JSON hop
+	// can be skipped.
+
+	qBytes, err := BuildQueryBytes(field, query)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	queryFields, err := FetchFieldsToSearchFromQuery(qBytes)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	return queryFields, qBytes, err
@@ -116,6 +122,7 @@ func FetchQueryFields(field string, query value.Value) ([]SearchField, []byte, e
 
 // Value MUST be an object
 func ConvertValObjectToIndexMapping(val value.Value) (mapping.IndexMapping, error) {
+	// TODO: seems inefficient to hop to JSON and back?
 	valBytes, err := val.MarshalJSON()
 	if err != nil {
 		return nil, err

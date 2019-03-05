@@ -121,13 +121,14 @@ func (c *ftsSrvWrapper) refresh(ftsEps map[string]interface{}) error {
 
 		opts := []grpc.DialOption{
 			grpc.WithTransportCredentials(cred),
-			//grpc.WithInsecure(),
+
+			// TODO: grpc.WithInsecure() ?
 
 			grpc.WithBackoffMaxDelay(DefaultGrpcMaxBackOffDelay),
 
 			grpc.WithKeepaliveParams(keepalive.ClientParameters{
-				// send keepalive every 60 seconds to check the
-				// connection livliness
+				// send keepalive every N seconds to check the
+				// connection liveliness
 				Time: DefaultGrpcConnectionHeartBeatInterval,
 				// client waits for a duration of timeout
 				Timeout: DefaultGrpcConnectionIdleTimeout,
@@ -140,7 +141,7 @@ func (c *ftsSrvWrapper) refresh(ftsEps map[string]interface{}) error {
 				grpc.MaxCallSendMsgSize(DefaultGrpcMaxSendMsgSize),
 			),
 
-			//addClientInterceptor(),
+			// TODO: addClientInterceptor() ?
 
 			grpc.WithPerRPCCredentials(&basicAuthCreds{
 				username: cbUser,

@@ -28,13 +28,15 @@ import (
 	"github.com/blevesearch/bleve/search"
 
 	pb "github.com/couchbase/cbft/protobuf"
+
 	"github.com/couchbase/n1fty/util"
+
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/logging"
 	"github.com/couchbase/query/value"
 )
 
-var defaultBatchSize = 100
+var defaultBatchSize = 100 // TODO: configurability.
 var defaultSizeInMB = float64(1024 * 1024)
 
 type responseHandler struct {
@@ -47,9 +49,10 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 	waitGroup *sync.WaitGroup,
 	backfillSync *int64,
 	stream pb.SearchService_SearchClient) {
-
 	sender := conn.Sender()
+
 	backfillLimit := getBackfillSpaceLimit()
+
 	firstResponseByte, starttm, ftsDur := false, time.Now(), time.Now()
 
 	var enc *gob.Encoder
@@ -57,20 +60,27 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 	var readfd *os.File
 
 	logPrefix := fmt.Sprintf("n1fty[%s/%s-%v]", r.i.Name(), r.i.KeyspaceId(), time.Now().UnixNano())
+
 	var tmpfile *os.File
 	var backfillFin, backfillEntries int64
 	hits := make([]*search.DocumentMatch, defaultBatchSize)
 
 	backfill := func() {
 		name := tmpfile.Name()
+
 		defer func() {
 			if readfd != nil {
 				readfd.Close()
 			}
+
 			waitGroup.Done()
+
 			atomic.AddInt64(&backfillFin, 1)
+
 			logging.Infof("response_handler: %v %q finished backfill for %v ",
 				logPrefix, r.requestID, name)
+
+			// TODO: revisit this for better pattern?
 			recover() // need this because entryChannel() would have closed
 		}()
 
@@ -116,7 +126,6 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 
 			// reset the time taken by fts
 			ftsDur = time.Now()
-
 		}
 	}
 
@@ -255,9 +264,7 @@ func (r *responseHandler) sendEntry(hit *search.DocumentMatch,
 
 func logStats(logtick time.Duration, i *FTSIndexer) {
 	tick := time.NewTicker(logtick)
-	defer func() {
-		tick.Stop()
-	}()
+	defer tick.Stop()
 
 	var sofar int64
 	for {
@@ -272,6 +279,7 @@ func logStats(logtick time.Duration, i *FTSIndexer) {
 			ttfbDur := atomic.LoadInt64(&i.stats.TotalTTFBDuration)
 			totalSearch := atomic.LoadInt64(&i.stats.TotalSearch)
 			totalBackfills := atomic.LoadInt64(&i.stats.TotalBackFills)
+
 			if totalSearch > sofar {
 				fmsg := `n1fty keyspace: %q {` +
 					`"n1fty_search_count":%v,"n1fty_search_duration":%v,` +
@@ -289,9 +297,7 @@ func logStats(logtick time.Duration, i *FTSIndexer) {
 
 func backfillMonitor(period time.Duration, i *FTSIndexer) {
 	tick := time.NewTicker(period)
-	defer func() {
-		tick.Stop()
-	}()
+	defer tick.Stop()
 
 	for {
 		select {
@@ -300,6 +306,7 @@ func backfillMonitor(period time.Duration, i *FTSIndexer) {
 
 		case <-tick.C:
 			backfillDir := getBackfillSpaceDir()
+
 			files, err := ioutil.ReadDir(backfillDir)
 			if err != nil {
 				return
@@ -312,19 +319,25 @@ func backfillMonitor(period time.Duration, i *FTSIndexer) {
 					size += file.Size()
 				}
 			}
+
 			atomic.StoreInt64(&i.stats.CurBackFillSize, size)
 		}
 	}
 }
 
+// TODO: need to cleanup any orphaned backfill subdirs from last time
+// if there was a process crash and restart?
+
 func initBackFill(logPrefix, requestID string, rh *responseHandler) (*gob.Encoder,
 	*gob.Decoder, *os.File, error) {
 	prefix := backfillPrefix + strconv.Itoa(os.Getpid())
+
 	tmpfile, err := ioutil.TempFile(getBackfillSpaceDir(), prefix)
 	if err != nil {
 		fmsg := "%v %s creating backfill file, err: %v\n"
 		return nil, nil, nil, fmt.Errorf(fmsg, logPrefix, requestID, err)
 	}
+
 	name := ""
 	if tmpfile != nil {
 		name = tmpfile.Name()

@@ -213,7 +213,6 @@ func FetchFieldsToSearchFromQuery(q []byte) ([]SearchField, error) {
 			}
 		default:
 			if fq, ok := que.(query.FieldableQuery); ok {
-
 				fieldDesc := SearchField{
 					Name: fq.Field(),
 				}

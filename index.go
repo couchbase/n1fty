@@ -171,6 +171,7 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	var waitGroup sync.WaitGroup
 	var backfillSync int64
 	var rh *responseHandler
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	defer func() {
@@ -203,6 +204,7 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	rh = &responseHandler{requestID: requestId, i: i}
 
 	rh.handleResponse(conn, &waitGroup, &backfillSync, stream)
+
 	atomic.AddInt64(&i.indexer.stats.TotalSearch, 1)
 	atomic.AddInt64(&i.indexer.stats.TotalSearchDuration, int64(time.Since(starttm)))
 }
@@ -212,7 +214,7 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 type sargableRV struct {
 	count        int
 	indexedCount int64
-	queryFields  interface{}
+	queryFields  []util.SearchField
 	queryBytes   []byte
 	err          errors.Error
 }
@@ -224,8 +226,8 @@ type sargableRV struct {
 //                   the index definition, for now all of query fields or 0.
 // - indexed_count:  This is the total number of indexed fields within the
 //                   the FTS index.
-// - exact:          True if query value available & options unavailable or
-//                   options value provided, for now.
+// - exact:          True if the query would produce no false positives
+//                   using this FTS index.
 // - queryFields:    The custom map of fields/analyzers obtained from the
 //                   query for checking it's sargability.
 // The caller will have to make the decision on which index to choose based
@@ -242,6 +244,7 @@ func (i *FTSIndex) Sargable(field string, query,
 		optionsVal = options.Value()
 	}
 
+	// TODO: this does not seem like the right false-positives check?
 	exact := (queryVal != nil) && (options == nil || optionsVal != nil)
 
 	rv := i.buildQueryAndCheckIfSargable(field, queryVal, optionsVal, customFields)
@@ -255,7 +258,6 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 	var err error
 
 	queryFields, ok := customFields.([]util.SearchField)
-
 	if !ok {
 		queryFields, qBytes, err = util.FetchQueryFields(field, query)
 		if err != nil {
@@ -283,7 +285,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			commonAnalyzer := queryFields[0].Analyzer
 			for k := 1; k < len(queryFields); k++ {
 				if queryFields[k].Analyzer != commonAnalyzer {
-					// not sargable, because query is not verify-able
+					// not sargable, because analyzer is different
 					return &sargableRV{}
 				}
 			}
@@ -314,7 +316,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			}
 
 			if !dynamicMapping && !searchFieldsCompatible() {
-				// not sargable, because query is not verify-able
+				// not sargable, because explicit mapping isn't compatible
 				return &sargableRV{}
 			}
 		}
@@ -347,6 +349,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			// don't have an explicit analyzer set already.
 			f.Analyzer = i.defaultAnalyzer
 		}
+
 		dynamic, exists := i.searchFields[f]
 		if exists && dynamic {
 			// if searched field contains nested fields, then this field is not
@@ -464,7 +467,6 @@ func basicAuth(username, password string) string {
 
 func getBackfillSpaceDir() string {
 	conf := clientConfig.GetConfig()
-
 	if conf == nil {
 		return getDefaultTmpDir()
 	}
@@ -478,7 +480,6 @@ func getBackfillSpaceDir() string {
 
 func getBackfillSpaceLimit() int64 {
 	conf := clientConfig.GetConfig()
-
 	if conf == nil {
 		return defaultBackfillLimit
 	}

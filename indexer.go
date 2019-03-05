@@ -85,7 +85,7 @@ func NewFTSIndexer(serverIn, namespace, keyspace string) (datastore.Indexer,
 	conf := &gocbcore.AgentConfig{
 		UserString:           "n1fty",
 		BucketName:           bucketName,
-		ConnectTimeout:       60000 * time.Millisecond,
+		ConnectTimeout:       60000 * time.Millisecond, // TODO: configurability.
 		ServerConnectTimeout: 7000 * time.Millisecond,
 		NmvRetryDelay:        100 * time.Millisecond,
 		UseKvErrorMaps:       true,
@@ -125,9 +125,9 @@ func NewFTSIndexer(serverIn, namespace, keyspace string) (datastore.Indexer,
 
 	indexer.Refresh()
 
-	go backfillMonitor(1*time.Second, indexer)
-	// configurable interval later
-	go logStats(60*time.Second, indexer)
+	go backfillMonitor(1*time.Second, indexer) // TODO: configurability.
+
+	go logStats(60*time.Second, indexer) // TODO: configurability.
 
 	go cfgListener(indexer)
 
@@ -407,6 +407,7 @@ func (i *FTSIndexer) retrieveIndexDefs(node string) (
 	}
 
 	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, nil, fmt.Errorf("n1fty: retrieveIndexDefs, resp status code: %v",
 			resp.StatusCode)
@@ -497,6 +498,7 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 	rv := map[string]datastore.Index{}
 	var err error
 	for _, indexDef := range indexDefs.IndexDefs {
+		// TODO: Also check the keyspace's UUID (or, bucket's UUID)?
 		if indexDef.SourceName != i.keyspace {
 			// If the source name of the index definition doesn't
 			// match the indexer's keyspace, do not include the
