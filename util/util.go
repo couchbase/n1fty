@@ -101,18 +101,17 @@ func FetchQueryFields(field string, query value.Value) ([]SearchField, []byte, e
 		return []SearchField{{Name: field}}, nil, nil
 	}
 
-	// TODO: there is a perf optimization here where BuildQueryBytes()
-	// internally constructions a bleve query instance, which it
-	// returns as JSON-encoded bytes.  Then, FetchFieldsToSearch
-	// parses the JSON again into a bleve query.  The interim JSON hop
-	// can be skipped.
-
-	qBytes, err := BuildQueryBytes(field, query)
+	q, err := BuildQuery(field, query)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	queryFields, err := FetchFieldsToSearchFromQuery(qBytes)
+	queryFields, err := FetchFieldsToSearchFromQuery(q)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	qBytes, err := json.Marshal(q)
 	if err != nil {
 		return nil, nil, err
 	}

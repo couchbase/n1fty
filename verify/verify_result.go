@@ -84,7 +84,7 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 		}
 	}
 
-	q, err := util.BuildQueryFromBytes(qBytes)
+	q, err := util.BuildQueryFromBytes(field, qBytes)
 	if err != nil {
 		return nil, util.N1QLError(err, "")
 	}

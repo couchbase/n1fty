@@ -188,13 +188,9 @@ func fetchSearchableFields(path string,
 
 // -----------------------------------------------------------------------------
 
-func FetchFieldsToSearchFromQuery(q []byte) ([]SearchField, error) {
-	que, err := query.ParseQuery(q)
-	if err != nil {
-		return nil, err
-	}
-
+func FetchFieldsToSearchFromQuery(que query.Query) ([]SearchField, error) {
 	fields := []SearchField{}
+
 	var walk func(que query.Query)
 
 	walk = func(que query.Query) {
@@ -242,5 +238,6 @@ func FetchFieldsToSearchFromQuery(q []byte) ([]SearchField, error) {
 	}
 
 	walk(que)
+
 	return fields, nil
 }

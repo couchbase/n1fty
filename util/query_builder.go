@@ -12,26 +12,25 @@
 package util
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/blevesearch/bleve/search/query"
 	"github.com/couchbase/query/value"
 )
 
-func updateFieldsInQuery(q query.Query, field string) {
+func UpdateFieldsInQuery(q query.Query, field string) {
 	switch que := q.(type) {
 	case *query.BooleanQuery:
-		updateFieldsInQuery(que.Must, field)
-		updateFieldsInQuery(que.Should, field)
-		updateFieldsInQuery(que.MustNot, field)
+		UpdateFieldsInQuery(que.Must, field)
+		UpdateFieldsInQuery(que.Should, field)
+		UpdateFieldsInQuery(que.MustNot, field)
 	case *query.ConjunctionQuery:
 		for i := 0; i < len(que.Conjuncts); i++ {
-			updateFieldsInQuery(que.Conjuncts[i], field)
+			UpdateFieldsInQuery(que.Conjuncts[i], field)
 		}
 	case *query.DisjunctionQuery:
 		for i := 0; i < len(que.Disjuncts); i++ {
-			updateFieldsInQuery(que.Disjuncts[i], field)
+			UpdateFieldsInQuery(que.Disjuncts[i], field)
 		}
 	default:
 		if fq, ok := que.(query.FieldableQuery); ok {
@@ -44,43 +43,51 @@ func updateFieldsInQuery(q query.Query, field string) {
 
 // -----------------------------------------------------------------------------
 
-func BuildQuery(field string, input value.Value) (query.Query, error) {
-	qBytes, err := BuildQueryBytes(field, input)
-	if err != nil {
-		return nil, fmt.Errorf("BuildQuery err: %v", err)
-	}
-
-	return BuildQueryFromBytes(qBytes)
-}
-
-func BuildQueryFromBytes(qBytes []byte) (query.Query, error) {
-	return query.ParseQuery(qBytes)
-}
-
-func BuildQueryBytes(field string, input value.Value) ([]byte, error) {
+func BuildQuery(field string, input value.Value) (q query.Query, err error) {
 	if input == nil {
 		return nil, fmt.Errorf("query not provided")
 	}
 
 	if input.Type() == value.STRING {
-		return buildQueryFromString(field, input.Actual().(string))
-	} else if input.Type() == value.OBJECT {
-		return input.MarshalJSON()
+		return BuildQueryFromString(field, input.Actual().(string))
+	}
+
+	if input.Type() == value.OBJECT {
+		qBytes, err := input.MarshalJSON()
+		if err != nil {
+			return nil, err
+		}
+
+		return BuildQueryFromBytes(field, qBytes)
 	}
 
 	return nil, fmt.Errorf("unsupported query type: %v", input.Type().String())
 }
 
-func buildQueryFromString(field, input string) ([]byte, error) {
-	qsq := query.NewQueryStringQuery(input)
-	q, err := qsq.Parse()
+func BuildQueryFromBytes(field string, qBytes []byte) (query.Query, error) {
+	q, err := query.ParseQuery(qBytes)
 	if err != nil {
-		return nil, fmt.Errorf("BuildQueryBytes Parse, err: %v", err)
+		return nil, fmt.Errorf("BuildQueryFromBytes, err: %v", err)
 	}
 
 	if field != "" {
-		updateFieldsInQuery(q, field)
+		UpdateFieldsInQuery(q, field)
 	}
 
-	return json.Marshal(q)
+	return q, nil
+}
+
+func BuildQueryFromString(field, input string) (query.Query, error) {
+	qsq := query.NewQueryStringQuery(input)
+
+	q, err := qsq.Parse()
+	if err != nil {
+		return nil, fmt.Errorf("BuildQueryFromString, err: %v", err)
+	}
+
+	if field != "" {
+		UpdateFieldsInQuery(q, field)
+	}
+
+	return q, nil
 }
