@@ -16,8 +16,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/couchbase/cbauth"
@@ -31,6 +33,8 @@ import (
 
 	"gopkg.in/couchbase/gocbcore.v7"
 )
+
+var bleveMaxResultWindow = int64(10000)
 
 // FTSIndexer implements datastore.Indexer interface
 type FTSIndexer struct {
@@ -304,6 +308,12 @@ func (i *FTSIndexer) Refresh() errors.Error {
 	i.mapIndexesByName = mapIndexesByName
 	i.m.Unlock()
 
+	bmrw, err := i.fetchBleveMaxResultWindow()
+	if err != nil {
+		return util.N1QLError(err, "fetchBleveMaxResultWindow failed")
+	}
+	atomic.StoreInt64(&bleveMaxResultWindow, int64(bmrw))
+
 	return nil
 }
 
@@ -424,6 +434,60 @@ func (i *FTSIndexer) retrieveIndexDefs(node string) (
 	}
 
 	return body.IndexDefs, body.NodeDefs, nil
+}
+
+func (i *FTSIndexer) fetchBleveMaxResultWindow() (int, error) {
+	ftsEndpoints := i.agent.FtsEps()
+	if len(ftsEndpoints) == 0 {
+		return 0, fmt.Errorf("no fts endpoints available")
+	}
+
+	now := time.Now().UnixNano()
+	cbauthURL, err := cbgt.CBAuthURL(
+		ftsEndpoints[now%int64(len(ftsEndpoints))] + "/api/manager")
+	if err != nil {
+		return 0, err
+	}
+
+	httpClient := i.agent.HttpClient()
+	if httpClient == nil {
+		return 0, fmt.Errorf("client not available")
+	}
+
+	resp, err := httpClient.Get(cbauthURL)
+	if err != nil {
+		return 0, err
+	}
+
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("status code: %v", resp.StatusCode)
+	}
+
+	bodyBuf, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return 0, err
+	}
+
+	var expect map[string]interface{}
+	err = json.Unmarshal(bodyBuf, &expect)
+	if err != nil {
+		return 0, err
+	}
+
+	if status, exists := expect["status"]; !exists || status.(string) != "ok" {
+		return 0, err
+	}
+
+	if mgr, exists := expect["mgr"]; exists {
+		mgrMap, _ := mgr.(map[string]interface{})
+		options, _ := mgrMap["options"].(map[string]interface{})
+		if bleveMaxResultWindow, exists := options["bleveMaxResultWindow"]; exists {
+			return strconv.Atoi(bleveMaxResultWindow.(string))
+		}
+	}
+
+	return 0, fmt.Errorf("value of bleveMaxResultWindow unknown")
 }
 
 // Convert FTS index definitions into a map of n1ql index id mapping to

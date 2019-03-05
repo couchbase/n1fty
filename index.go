@@ -14,12 +14,7 @@ package n1fty
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
 	"math"
-	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -429,70 +424,11 @@ func (i *FTSIndex) Pageable(order []string, offset, limit int64) bool {
 		return false
 	}
 
-	bleveMaxResultWindow, err := i.fetchBleveMaxResultWindow()
-	if err != nil {
-		return false
-	}
-
-	if offset+limit > int64(bleveMaxResultWindow) {
+	if offset+limit > atomic.LoadInt64(&bleveMaxResultWindow) {
 		return false
 	}
 
 	return true
-}
-
-func (i *FTSIndex) fetchBleveMaxResultWindow() (int, error) {
-	ftsEndpoints := i.indexer.agent.FtsEps()
-	if len(ftsEndpoints) == 0 {
-		return 0, fmt.Errorf("no fts endpoints available")
-	}
-
-	now := time.Now().UnixNano()
-	cbauthURL, err := cbgt.CBAuthURL(
-		ftsEndpoints[now%int64(len(ftsEndpoints))] + "/api/manager")
-	if err != nil {
-		return 0, err
-	}
-
-	httpClient := i.indexer.agent.HttpClient()
-	if httpClient == nil {
-		return 0, fmt.Errorf("client not available")
-	}
-
-	resp, err := httpClient.Get(cbauthURL)
-	if err != nil {
-		return 0, err
-	}
-
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("status code: %v", resp.StatusCode)
-	}
-
-	bodyBuf, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return 0, err
-	}
-
-	var expect map[string]interface{}
-	err = json.Unmarshal(bodyBuf, &expect)
-	if err != nil {
-		return 0, err
-	}
-
-	if status, exists := expect["status"]; !exists || status.(string) != "ok" {
-		return 0, err
-	}
-
-	if mgr, exists := expect["mgr"]; exists {
-		mgrMap, _ := mgr.(map[string]interface{})
-		options, _ := mgrMap["options"].(map[string]interface{})
-		if bleveMaxResultWindow, exists := options["bleveMaxResultWindow"]; exists {
-			return strconv.Atoi(bleveMaxResultWindow.(string))
-		}
-	}
-
-	return 0, fmt.Errorf("value of bleveMaxResultWindow unknown")
 }
 
 // -----------------------------------------------------------------------------
