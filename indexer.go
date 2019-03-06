@@ -309,10 +309,9 @@ func (i *FTSIndexer) Refresh() errors.Error {
 	i.m.Unlock()
 
 	bmrw, err := i.fetchBleveMaxResultWindow()
-	if err != nil {
-		return util.N1QLError(err, "fetchBleveMaxResultWindow failed")
+	if err == nil && int64(bmrw) != atomic.LoadInt64(&bleveMaxResultWindow) {
+		atomic.StoreInt64(&bleveMaxResultWindow, int64(bmrw))
 	}
-	atomic.StoreInt64(&bleveMaxResultWindow, int64(bmrw))
 
 	return nil
 }
