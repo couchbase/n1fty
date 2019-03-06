@@ -12,9 +12,11 @@
 package util
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/blevesearch/bleve/search/query"
+	pb "github.com/couchbase/cbft/protobuf"
 	"github.com/couchbase/query/value"
 )
 
@@ -57,7 +59,6 @@ func BuildQuery(field string, input value.Value) (q query.Query, err error) {
 		if err != nil {
 			return nil, err
 		}
-
 		return BuildQueryFromBytes(field, qBytes)
 	}
 
@@ -75,6 +76,69 @@ func BuildQueryFromBytes(field string, qBytes []byte) (query.Query, error) {
 	}
 
 	return q, nil
+}
+
+func BuildSearchRequest(field string, input value.Value) (*pb.SearchRequest,
+	query.Query, error) {
+	if input == nil {
+		return nil, nil, fmt.Errorf("query not provided")
+	}
+
+	// take the query object to parse and update fields
+	var err error
+	var qBytes []byte
+	if tq, ok := input.Field("query"); ok {
+		qBytes, err = tq.MarshalJSON()
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	// resetting the query object as to avoid unmarshal
+	// conflicts later wrt to mismatched types on
+	// pb.SearchRequest.Query ([]byte vs object)
+	input.SetField("query", nil)
+
+	// needs a better way to handle both query and sort fields here??
+	var sortBytes []byte
+	if sq, ok := input.Field("Sort"); ok {
+		sortBytes, err = sq.MarshalJSON()
+		if err != nil {
+			return nil, nil, err
+		}
+		input.SetField("Sort", nil)
+	}
+
+	srBytes, err := input.MarshalJSON()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	rv := &pb.SearchRequest{}
+	err = json.Unmarshal(srBytes, &rv)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// set the sort bytes
+	rv.Sort = sortBytes
+
+	// get the query
+	q, err := BuildQueryFromBytes(field, qBytes)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if field != "" {
+		UpdateFieldsInQuery(q, field)
+	}
+
+	rv.Query, err = json.Marshal(q)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return rv, q, nil
 }
 
 func BuildQueryFromString(field, input string) (query.Query, error) {

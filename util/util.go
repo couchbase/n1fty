@@ -19,6 +19,8 @@ import (
 
 	"github.com/blevesearch/bleve"
 	"github.com/blevesearch/bleve/mapping"
+	"github.com/blevesearch/bleve/search/query"
+	pb "github.com/couchbase/cbft/protobuf"
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/value"
 )
@@ -93,30 +95,68 @@ func FetchKeySpace(nameAndKeyspace string) string {
 	return CleanseField(keyspace)
 }
 
-// Returns the search fields mentioned in a query.
-func FetchQueryFields(field string, query value.Value) ([]SearchField, []byte, error) {
+func ParseQueryToSearchRequest(field string, input value.Value,
+	opaqueObj interface{}) ([]SearchField, *pb.SearchRequest, error) {
 	field = CleanseField(field)
 
-	if query == nil {
+	if input == nil {
 		return []SearchField{{Name: field}}, nil, nil
 	}
 
-	q, err := BuildQuery(field, query)
+	var err error
+	var query query.Query
+
+	rv := &pb.SearchRequest{}
+	if reqIn, ok := opaqueObj.(pb.SearchRequest); ok {
+		rv = &pb.SearchRequest{
+			Size:             reqIn.Size,
+			From:             reqIn.From,
+			Explain:          reqIn.Explain,
+			IncludeLocations: reqIn.IncludeLocations,
+			Fields:           reqIn.Fields,
+			Stream:           reqIn.Stream,
+			Sort:             reqIn.Sort,
+			Query:            reqIn.Query,
+		}
+	}
+
+	// if the input has a query field that is an object type
+	// then it is a search request
+	if qf, ok := input.Field("query"); ok && qf.Type() == value.OBJECT {
+		rv, query, err = BuildSearchRequest(field, input)
+		if err != nil {
+			return nil, nil, err
+		}
+	} else {
+		query, err = BuildQuery(field, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		rv.Query, err = json.Marshal(query)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	queryFields, err := FetchFieldsToSearchFromQuery(query)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	queryFields, err := FetchFieldsToSearchFromQuery(q)
-	if err != nil {
-		return nil, nil, err
+	return queryFields, rv, nil
+}
+
+func ParseSortOrderFields(sortBytes []byte) ([]string, error) {
+	if sortBytes == nil {
+		return nil, nil
 	}
 
-	qBytes, err := json.Marshal(q)
+	var tmp []string
+	err := json.Unmarshal(sortBytes, &tmp)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-
-	return queryFields, qBytes, err
+	return tmp, nil
 }
 
 // Value MUST be an object

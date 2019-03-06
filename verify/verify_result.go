@@ -43,7 +43,8 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 		return nil, util.N1QLError(nil, "query/options not provided")
 	}
 
-	queryFields, qBytes, err := util.FetchQueryFields(field, query)
+	queryFields, searchRequest, err := util.ParseQueryToSearchRequest(
+		field, query, nil)
 	if err != nil {
 		return nil, util.N1QLError(err, "")
 	}
@@ -84,7 +85,7 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 		}
 	}
 
-	q, err := util.BuildQueryFromBytes(field, qBytes)
+	q, err := util.BuildQueryFromBytes(field, searchRequest.Query)
 	if err != nil {
 		return nil, util.N1QLError(err, "")
 	}

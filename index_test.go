@@ -3,6 +3,7 @@ package n1fty
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/couchbase/cbgt"
@@ -56,6 +57,41 @@ func TestIndexSargability(t *testing.T) {
 
 	if count != 3 {
 		t.Fatalf("Expected sargable count of 3, but got: %v", count)
+	}
+
+	if indexedCount != 4 {
+		t.Fatalf("Expected indexed count of 4, but got: %v", indexedCount)
+	}
+}
+
+func TestIndexSargabilityWithSearchRequest(t *testing.T) {
+	index, err := setupSampleIndex(util.SampleCustomIndexDef)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	field := ""
+	query := expression.NewConstant(map[string]interface{}{
+		"query": map[string]interface{}{
+			"match": "united",
+			"field": "countryX",
+		},
+		"Size":    10,
+		"From":    0,
+		"Explain": false})
+
+	count, indexedCount, exact, _, n1qlErr := index.Sargable(field, query,
+		expression.NewConstant(``), nil)
+	if n1qlErr != nil {
+		t.Fatal(n1qlErr)
+	}
+
+	if !exact {
+		t.Fatalf("Expected the query to be sargable")
+	}
+
+	if count != 1 {
+		t.Fatalf("Expected sargable_count of 1, but got count: %v", count)
 	}
 
 	if indexedCount != 4 {
@@ -275,5 +311,95 @@ func TestCompatibleCustomDefaultMappedIndexSargability(t *testing.T) {
 
 	if indexedCount != 2 {
 		t.Fatalf("Expected indexed count of 2, but got: %v", indexedCount)
+	}
+}
+
+func TestIndexPageable(t *testing.T) {
+	index, err := setupSampleIndex(util.SampleCustomIndexDef)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// non matching sort fields in order and in search request
+	query := expression.NewConstant(map[string]interface{}{
+		"query": map[string]interface{}{
+			"match": "united",
+			"field": "countryX",
+		},
+		"Size":    10,
+		"From":    0,
+		"Explain": false,
+	})
+
+	pageable := index.Pageable([]string{"score DESC"}, 0, 10, query,
+		expression.NewConstant(``))
+
+	if pageable {
+		t.Fatalf("Expected to be non pageable, but got: %v", pageable)
+	}
+
+	// matching sort fields in order and in search request
+	query = expression.NewConstant(map[string]interface{}{
+		"query": map[string]interface{}{
+			"match": "united",
+			"field": "countryX",
+		},
+		"Size":    10,
+		"From":    0,
+		"Explain": false,
+		"Sort":    []interface{}{"country", "city", "-_score"},
+	})
+
+	expOrder := []string{"country", "city", "-_score"}
+	order := []string{"country", "city", "-_score"}
+
+	pageable = index.Pageable(order, 0,
+		10, query, expression.NewConstant(``))
+
+	if !pageable {
+		t.Fatalf("Expected to be pageable, but got: %v", pageable)
+	}
+
+	if !reflect.DeepEqual(order, expOrder) {
+		t.Fatalf("order got changed, expected: %v, but got: %v", expOrder, order)
+	}
+
+	// non matching sort fields in order and in search request
+	query = expression.NewConstant(map[string]interface{}{
+		"query": map[string]interface{}{
+			"match": "united",
+			"field": "countryX",
+		},
+		"Size":    10,
+		"From":    0,
+		"Explain": false,
+		"Sort":    []interface{}{"country", "_id", "-_score"},
+	})
+
+	pageable = index.Pageable([]string{"country", "city", "-_score"}, 0,
+		10, query, expression.NewConstant(``))
+
+	if pageable {
+		t.Fatalf("Expected to be non pageable, but got: %v", pageable)
+	}
+
+	// matching sort fields in order and in search request,
+	// but in different order
+	query = expression.NewConstant(map[string]interface{}{
+		"query": map[string]interface{}{
+			"match": "united",
+			"field": "countryX",
+		},
+		"Size":    10,
+		"From":    0,
+		"Explain": false,
+		"Sort":    []interface{}{"country", "_id", "-_score"},
+	})
+
+	pageable = index.Pageable([]string{"_id", "-_score", "country"}, 0,
+		10, query, expression.NewConstant(``))
+
+	if pageable {
+		t.Fatalf("Expected to be non pageable, but got: %v", pageable)
 	}
 }

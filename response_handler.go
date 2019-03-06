@@ -43,6 +43,7 @@ type responseHandler struct {
 	i            *FTSIndex
 	requestID    string
 	backfillFile *os.File
+	searchReq    *pb.SearchRequest
 }
 
 func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
@@ -249,8 +250,20 @@ func (r *responseHandler) sendEntry(hit *search.DocumentMatch,
 		start, blocked = time.Now(), true
 	}
 
+	rv := make(map[string]interface{}, 1)
+	rv["score"] = hit.Score
+	if r.searchReq.IncludeLocations {
+		rv["locations"] = hit.Locations
+	}
+	if len(r.searchReq.Fields) > 0 {
+		rv["fields"] = hit.Fields
+	}
+	if r.searchReq.Explain {
+		rv["explanation"] = *hit.Expl
+	}
+
 	if !sender.SendEntry(&datastore.IndexEntry{PrimaryKey: hit.ID,
-		MetaData: value.NewValue(map[string]interface{}{"score": hit.Score})}) {
+		MetaData: value.NewValue(rv)}) {
 		return false
 	}
 

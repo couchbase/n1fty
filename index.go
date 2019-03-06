@@ -14,7 +14,9 @@ package n1fty
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"math"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -26,6 +28,7 @@ import (
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/expression"
+	"github.com/couchbase/query/logging"
 	"github.com/couchbase/query/timestamp"
 	"github.com/couchbase/query/value"
 )
@@ -150,6 +153,11 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 		return
 	}
 
+	if cons == datastore.SCAN_PLUS {
+		conn.Error(util.N1QLError(nil, "scan_plus consistency not supported"))
+		return
+	}
+
 	fieldStr := ""
 	if searchInfo.Field != nil {
 		fieldStr = searchInfo.Field.Actual().(string)
@@ -171,37 +179,33 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	var waitGroup sync.WaitGroup
 	var backfillSync int64
 	var rh *responseHandler
-
+	var err error
 	ctx, cancel := context.WithCancel(context.Background())
 
 	defer func() {
-		// cleanup the backfill file
 		atomic.StoreInt64(&backfillSync, doneRequest)
 		waitGroup.Wait()
 		sender.Close()
 		cancel()
+		// cleanup the backfill file
 		if rh != nil {
 			rh.cleanupBackfill()
 		}
 	}()
 
-	searchRequest := &pb.SearchRequest{
-		Query:     sargRV.queryBytes,
-		Stream:    false,
-		From:      searchInfo.Offset,
-		Size:      searchInfo.Limit,
-		IndexName: i.name,
-	}
+	parseSearchInfoToSearchRequest(&sargRV.searchRequest, searchInfo,
+		vector, cons, i.name)
 
 	client := i.indexer.srvWrapper.getGrpcClient()
 
-	stream, err := client.Search(ctx, searchRequest)
+	stream, err := client.Search(ctx, sargRV.searchRequest)
 	if err != nil || stream == nil {
 		conn.Error(util.N1QLError(err, "search failed"))
 		return
 	}
 
-	rh = &responseHandler{requestID: requestId, i: i}
+	rh = &responseHandler{requestID: requestId, i: i,
+		searchReq: sargRV.searchRequest}
 
 	rh.handleResponse(conn, &waitGroup, &backfillSync, stream)
 
@@ -209,14 +213,81 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	atomic.AddInt64(&i.indexer.stats.TotalSearchDuration, int64(time.Since(starttm)))
 }
 
+func parseSearchInfoToSearchRequest(searchRequest **pb.SearchRequest,
+	searchInfo *datastore.FTSSearchInfo, vector timestamp.Vector,
+	consistencyLevel datastore.ScanConsistency, indexName string) {
+	(*searchRequest).From = searchInfo.Offset
+	(*searchRequest).Size = searchInfo.Limit
+	(*searchRequest).IndexName = indexName
+
+	// check whether the streaming of results is beneficial
+	if (len((*searchRequest).Sort) == 0 && len(searchInfo.Order) == 0) ||
+		((*searchRequest).Size+(*searchRequest).From) >
+			bleveMaxResultWindow {
+		(*searchRequest).Stream = true
+	}
+
+	var err error
+	if len(searchInfo.Order) > 0 && (*searchRequest).Sort == nil {
+		var tempOrder []string
+		for _, so := range searchInfo.Order {
+			fields := strings.Fields(so)
+			field := fields[0]
+			if field == "score" || field == "id" {
+				field = "_" + field
+			}
+
+			if len(fields) == 1 || (len(fields) == 2 &&
+				fields[1] == "ASC") {
+				tempOrder = append(tempOrder, field)
+				continue
+			}
+
+			tempOrder = append(tempOrder, "-"+field)
+		}
+
+		(*searchRequest).Sort, err = json.Marshal(&tempOrder)
+		if err != nil {
+			logging.Infof("n1fty: index, sort marshal err: %v", err)
+		}
+	}
+
+	if vector != nil && len(vector.Entries()) > 0 {
+		(*searchRequest).QueryCtlParams = &pb.QueryCtlParams{
+			Ctl: &pb.QueryCtl{
+				Consistency: &pb.ConsistencyParams{
+					Vectors: make(map[string]*pb.ConsistencyVectors, 1),
+				},
+			},
+		}
+		(*searchRequest).QueryCtlParams.Ctl.Timeout = cbgt.QUERY_CTL_DEFAULT_TIMEOUT_MS
+
+		if consistencyLevel == datastore.SCAN_PLUS {
+			(*searchRequest).QueryCtlParams.Ctl.Consistency.Level = "at_plus"
+		}
+
+		vMap := &pb.ConsistencyVectors{
+			ConsistencyVector: make(map[string]uint64, 1024),
+		}
+
+		for _, entry := range vector.Entries() {
+			key := strconv.FormatInt(int64(entry.Position()), 10) + "/" + entry.Guard()
+			vMap.ConsistencyVector[key] = uint64(entry.Value())
+		}
+
+		(*searchRequest).QueryCtlParams.Ctl.Consistency.Vectors[indexName] = vMap
+	}
+
+}
+
 // -----------------------------------------------------------------------------
 
 type sargableRV struct {
-	count        int
-	indexedCount int64
-	queryFields  []util.SearchField
-	queryBytes   []byte
-	err          errors.Error
+	count         int
+	indexedCount  int64
+	queryFields   []util.SearchField
+	searchRequest *pb.SearchRequest
+	err           errors.Error
 }
 
 // Sargable checks if the provided request is applicable for the index.
@@ -253,13 +324,14 @@ func (i *FTSIndex) Sargable(field string, query,
 }
 
 func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
-	query, options value.Value, customFields interface{}) *sargableRV {
-	var qBytes []byte
+	query, options value.Value, opaqueObj interface{}) *sargableRV {
 	var err error
 
-	queryFields, ok := customFields.([]util.SearchField)
+	var searchRequest *pb.SearchRequest
+	queryFields, ok := opaqueObj.([]util.SearchField)
 	if !ok {
-		queryFields, qBytes, err = util.FetchQueryFields(field, query)
+		queryFields, searchRequest, err = util.ParseQueryToSearchRequest(field,
+			query, opaqueObj)
 		if err != nil {
 			return &sargableRV{
 				err: util.N1QLError(err, ""),
@@ -335,10 +407,10 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		}
 		if compatibleWithDynamicMapping {
 			return &sargableRV{
-				count:        len(queryFields),
-				indexedCount: math.MaxInt64,
-				queryFields:  queryFields,
-				queryBytes:   qBytes,
+				count:         len(queryFields),
+				indexedCount:  math.MaxInt64,
+				queryFields:   queryFields,
+				searchRequest: searchRequest,
 			}
 		}
 	}
@@ -355,8 +427,8 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			// if searched field contains nested fields, then this field is not
 			// searchable, and the query not sargable.
 			return &sargableRV{
-				queryFields: queryFields,
-				queryBytes:  qBytes,
+				queryFields:   queryFields,
+				searchRequest: searchRequest,
 			}
 		}
 
@@ -372,8 +444,8 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			if len(fieldSplitAtDot) <= 1 {
 				// not sargable
 				return &sargableRV{
-					queryFields: queryFields,
-					queryBytes:  qBytes,
+					queryFields:   queryFields,
+					searchRequest: searchRequest,
 				}
 			}
 
@@ -397,8 +469,8 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			if !matched {
 				// not sargable
 				return &sargableRV{
-					queryFields: queryFields,
-					queryBytes:  qBytes,
+					queryFields:   queryFields,
+					searchRequest: searchRequest,
 				}
 			}
 		}
@@ -406,29 +478,58 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 
 	// sargable
 	return &sargableRV{
-		count:        len(queryFields),
-		indexedCount: int64(len(i.searchFields)),
-		queryFields:  queryFields,
-		queryBytes:   qBytes,
+		count:         len(queryFields),
+		indexedCount:  int64(len(i.searchFields)),
+		queryFields:   queryFields,
+		searchRequest: searchRequest,
 	}
 }
 
 // -----------------------------------------------------------------------------
 
-func (i *FTSIndex) Pageable(order []string, offset, limit int64) bool {
-	// Possibilities for order:
-	// "score DESC", "score ASC", "score" (defaults to "score ASC")
-	if len(order) != 1 {
-		// accepts only one of the above possibilities, for now
+// Pageable returns `true` when it can deliver sorted paged results
+// for the requested parameters, and the options are consistent
+// across the order[] and the query parameters.
+func (i *FTSIndex) Pageable(order []string, offset, limit int64, query,
+	options expression.Expression) bool {
+	var queryVal value.Value
+	if query != nil {
+		queryVal = query.Value()
+	}
+
+	// if query contains a searchRequest
+	if qf, ok := queryVal.Field("query"); ok && qf.Type() == value.OBJECT {
+		_, searchRequest, err := util.ParseQueryToSearchRequest("", queryVal, nil)
+		if err != nil {
+			return false
+		}
+
+		sortOrderFields, err := util.ParseSortOrderFields(searchRequest.Sort)
+		if err != nil {
+			return false
+		}
+
+		if !isEqual(order, sortOrderFields) {
+			return false
+		}
+	}
+
+	return offset+limit <= atomic.LoadInt64(&bleveMaxResultWindow)
+}
+
+func isEqual(a, b []string) bool {
+	if (a == nil) != (b == nil) {
 		return false
 	}
 
-	if _, exists := i.optionsForOrdering[order[0]]; !exists {
+	if len(a) != len(b) {
 		return false
 	}
 
-	if offset+limit > atomic.LoadInt64(&bleveMaxResultWindow) {
-		return false
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
 	}
 
 	return true
