@@ -34,8 +34,12 @@ type MappingDetails struct {
 var mappingsCacheLock sync.RWMutex
 var mappingsCache map[string]*MappingDetails
 
+var EmptyIndexMapping mapping.IndexMapping
+
 func init() {
 	mappingsCache = make(map[string]*MappingDetails)
+
+	EmptyIndexMapping = NewIndexMappingWithAnalyzer("")
 }
 
 func SetIndexMapping(name string, mappingDetails *MappingDetails) {
@@ -50,7 +54,7 @@ func SetIndexMapping(name string, mappingDetails *MappingDetails) {
 func FetchIndexMapping(name, keyspace string) (mapping.IndexMapping, error) {
 	if len(keyspace) == 0 || len(name) == 0 {
 		// Return default index mapping if keyspace not provided.
-		return NewIndexMappingWithAnalyzer(""), nil
+		return EmptyIndexMapping, nil
 	}
 	mappingsCacheLock.RLock()
 	defer mappingsCacheLock.RUnlock()
@@ -160,14 +164,14 @@ func ParseSortOrderFields(sortBytes []byte) ([]string, error) {
 }
 
 // Value MUST be an object
-func ConvertValObjectToIndexMapping(val value.Value) (mapping.IndexMapping, error) {
+func ConvertValObjectToIndexMapping(val value.Value) (
+	im *mapping.IndexMappingImpl, err error) {
 	// TODO: seems inefficient to hop to JSON and back?
 	valBytes, err := val.MarshalJSON()
 	if err != nil {
 		return nil, err
 	}
 
-	var im *mapping.IndexMappingImpl
 	err = json.Unmarshal(valBytes, &im)
 	return im, err
 }

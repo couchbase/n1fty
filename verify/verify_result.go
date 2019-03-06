@@ -55,9 +55,6 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 	if options != nil {
 		_, indexOptionAvailable = options.Field("index")
 	}
-
-	keyspace := util.FetchKeySpace(nameAndKeyspace)
-
 	if !indexOptionAvailable {
 		// in case index option not available, use any query field's analyzer,
 		// as we'd have reached this point only if all the query fields shared
@@ -70,6 +67,13 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 	} else {
 		indexVal, _ := options.Field("index")
 		if indexVal.Type() == value.STRING {
+			keyspace := util.FetchKeySpace(nameAndKeyspace)
+
+			// TODO: This is racy, where a concurrent index update can
+			// lead to the wrong idxMapping.
+			// TODO: One solution is to support an optional
+			// options["indexUUID"] flag that needs to be checked,
+			// allowing users to close the race window if they want.
 			idxMapping, err = util.FetchIndexMapping(
 				indexVal.Actual().(string), keyspace)
 			if err != nil {
