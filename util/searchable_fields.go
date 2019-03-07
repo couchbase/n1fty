@@ -168,6 +168,10 @@ func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 		dynamic = im.DefaultMapping.Dynamic
 	}
 
+	if len(m) <= 0 {
+		return nil, nil, false, ""
+	}
+
 	return m, typeStr, dynamic, defaultAnalyzer
 }
 
