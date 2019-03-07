@@ -23,25 +23,25 @@ import (
 
 func TestIndexDefConversion(t *testing.T) {
 	var indexDef *cbgt.IndexDef
-	err := json.Unmarshal(SampleCustomIndexDef, &indexDef)
+	err := json.Unmarshal(SampleLandmarkIndexDef, &indexDef)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	searchFieldsMap, dynamicMapping, defaultAnalyzer :=
-		SearchableFieldsForIndexDef(indexDef)
-	if searchFieldsMap == nil || dynamicMapping || defaultAnalyzer != "standard" {
+	_, searchFieldsMap, _, dynamicMapping, defaultAnalyzer, err :=
+		ProcessIndexDef(indexDef)
+	if err != nil || searchFieldsMap == nil || dynamicMapping || defaultAnalyzer != "standard" {
 		t.Fatalf("unexpected return values from SearchFieldsForIndexDef")
 	}
 
 	expect := map[SearchField]bool{}
 	expect[SearchField{Name: "reviews.review", Analyzer: "standard"}] = true
-	expect[SearchField{Name: "country", Analyzer: "da", Type: "text"}] = false
+	expect[SearchField{Name: "reviews.review.author", Analyzer: "de", Type: "text"}] = false
 	expect[SearchField{Name: "countryX", Analyzer: "standard", Type: "text"}] = false
 	expect[SearchField{Name: "reviews.id", Analyzer: "standard", Type: "text"}] = false
 
 	if !reflect.DeepEqual(expect, searchFieldsMap) {
-		t.Fatalf("Expected: %v, Got: %v", expect, searchFieldsMap)
+		t.Fatalf("Expected: %v,\n Got: %v", expect, searchFieldsMap)
 	}
 }
 

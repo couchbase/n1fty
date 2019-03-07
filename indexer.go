@@ -495,7 +495,6 @@ func (i *FTSIndexer) fetchBleveMaxResultWindow() (int, error) {
 func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 	map[string]datastore.Index, error) {
 	rv := map[string]datastore.Index{}
-	var err error
 	for _, indexDef := range indexDefs.IndexDefs {
 		// TODO: Also check the keyspace's UUID (or, bucket's UUID)?
 		if indexDef.SourceName != i.keyspace {
@@ -504,14 +503,25 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 			// index.
 			continue
 		}
-		searchFieldsMap, dynamicMapping, defaultAnalyzer :=
-			util.SearchableFieldsForIndexDef(indexDef)
-		if searchFieldsMap != nil || dynamicMapping {
-			rv[indexDef.UUID], err = newFTSIndex(searchFieldsMap,
-				dynamicMapping, defaultAnalyzer, indexDef, i)
+		im, searchFields, condExpr, dynamic, defaultAnalyzer, err :=
+			util.ProcessIndexDef(indexDef)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(searchFields) > 0 || dynamic {
+			rv[indexDef.UUID], err = newFTSIndex(i, indexDef,
+				searchFields, condExpr, dynamic, defaultAnalyzer)
 			if err != nil {
 				return nil, err
 			}
+
+			// set this index mapping into the indexMappings cache
+			util.SetIndexMapping(indexDef.Name, &util.MappingDetails{
+				UUID:       indexDef.UUID,
+				SourceName: indexDef.SourceName,
+				IMapping:   im,
+			})
 		}
 	}
 

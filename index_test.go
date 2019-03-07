@@ -18,18 +18,22 @@ func setupSampleIndex(idef []byte) (*FTSIndex, error) {
 		return nil, err
 	}
 
-	searchFieldsMap, dynamicMapping, defaultAnalyzer :=
-		util.SearchableFieldsForIndexDef(indexDef)
-	if searchFieldsMap != nil || dynamicMapping {
-		return newFTSIndex(searchFieldsMap, dynamicMapping,
-			defaultAnalyzer, indexDef, nil)
+	_, searchFields, condExpr, dynamic, defaultAnalyzer, err :=
+		util.ProcessIndexDef(indexDef)
+	if err != nil {
+		return nil, err
+	}
+
+	if searchFields != nil || dynamic {
+		return newFTSIndex(nil, indexDef,
+			searchFields, condExpr, dynamic, defaultAnalyzer)
 	}
 
 	return nil, fmt.Errorf("failed to setup index")
 }
 
 func TestIndexSargability(t *testing.T) {
-	index, err := setupSampleIndex(util.SampleCustomIndexDef)
+	index, err := setupSampleIndex(util.SampleLandmarkIndexDef)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +69,7 @@ func TestIndexSargability(t *testing.T) {
 }
 
 func TestIndexSargabilityWithSearchRequest(t *testing.T) {
-	index, err := setupSampleIndex(util.SampleCustomIndexDef)
+	index, err := setupSampleIndex(util.SampleLandmarkIndexDef)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +128,7 @@ func TestDynamicIndexSargability(t *testing.T) {
 }
 
 func TestIncompatibleIndexSargability(t *testing.T) {
-	index, err := setupSampleIndex(util.SampleCustomIndexDef)
+	index, err := setupSampleIndex(util.SampleLandmarkIndexDef)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,33 +185,32 @@ func TestIncompatibleIndexSargability(t *testing.T) {
 	if count != 0 {
 		t.Fatalf("Expected count of 0, as query is not sargable for index," +
 			" on grounds that provided mapping in options isn't compatible" +
-			" with the index's mapping.")
+			" with the query's fields.")
 	}
 }
 
 func TestCompatibleIndexSargability(t *testing.T) {
-	index, err := setupSampleIndex(util.SampleCustomIndexDef)
+	index, err := setupSampleIndex(util.SampleLandmarkIndexDef)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	query := expression.NewConstant(map[string]interface{}{
 		"match":    "United States",
-		"field":    "country",
-		"analyzer": "da",
+		"field":    "countryX",
+		"analyzer": "standard",
 	})
 
 	optBytes := []byte(`
 	{
 		"index": {
-			"default_analyzer": "da",
-			"type_field": "_type",
+			"default_analyzer": "standard",
 			"default_mapping": {
 				"dynamic": true,
 				"enabled": false
 			},
 			"types": {
-				"hotel": {
+				"landmark": {
 					"enabled": true,
 					"dynamic": false,
 					"properties": {
@@ -215,7 +218,7 @@ func TestCompatibleIndexSargability(t *testing.T) {
 							"enabled": true,
 							"dynamic": false,
 							"fields": [{
-								"name": "country",
+								"name": "countryX",
 								"type": "text",
 								"store": false,
 								"index": true
@@ -278,14 +281,25 @@ func TestCompatibleCustomDefaultMappedIndexSargability(t *testing.T) {
 				"dynamic": false,
 				"properties": {
 					"city": {
+                        "dynamic": false,
 						"fields": [{
-							"name": "city", "type": "text"
+							"name": "city", "type": "text", "index": true
+						}]
+					},
+					"country": {
+                        "dynamic": false,
+						"fields": [{
+							"name": "country", "type": "text", "index": true
 						}]
 					}
 				}
 			},
 			"default_type": "_default",
-			"default_analyzer": "standard"
+			"default_analyzer": "standard",
+			"doc_config": {
+				"mode": "type_field",
+				"type_field": "type"
+			}
 		}
 	}
 	`)
@@ -315,7 +329,7 @@ func TestCompatibleCustomDefaultMappedIndexSargability(t *testing.T) {
 }
 
 func TestIndexPageable(t *testing.T) {
-	index, err := setupSampleIndex(util.SampleCustomIndexDef)
+	index, err := setupSampleIndex(util.SampleLandmarkIndexDef)
 	if err != nil {
 		t.Fatal(err)
 	}

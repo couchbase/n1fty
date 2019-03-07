@@ -28,6 +28,7 @@ import (
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/expression"
+	"github.com/couchbase/query/expression/parser"
 	"github.com/couchbase/query/logging"
 	"github.com/couchbase/query/timestamp"
 	"github.com/couchbase/query/value"
@@ -38,15 +39,15 @@ const doneRequest = int64(1)
 // FTSIndex implements datastore.FTSIndex interface
 type FTSIndex struct {
 	indexer  *FTSIndexer
-	id       string
-	name     string
 	indexDef *cbgt.IndexDef
 
 	// map of SearchFields to dynamic-ness
 	searchFields map[util.SearchField]bool
-	// true if a top-level dynamic mapping exists on index
-	dynamicMapping bool
-	// default analyzer
+
+	condExpr expression.Expression
+
+	dynamic bool // true if a top-level dynamic mapping is enabled
+
 	defaultAnalyzer string
 
 	// supported options for ordering
@@ -55,18 +56,26 @@ type FTSIndex struct {
 
 // -----------------------------------------------------------------------------
 
-func newFTSIndex(searchFieldsMap map[util.SearchField]bool,
-	dynamicMapping bool,
-	defaultAnalyzer string,
+func newFTSIndex(indexer *FTSIndexer,
 	indexDef *cbgt.IndexDef,
-	indexer *FTSIndexer) (*FTSIndex, error) {
+	searchFields map[util.SearchField]bool,
+	condExprStr string,
+	dynamic bool,
+	defaultAnalyzer string) (rv *FTSIndex, err error) {
+	var condExpr expression.Expression
+	if len(condExprStr) > 0 {
+		condExpr, err = parser.Parse(condExprStr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	index := &FTSIndex{
 		indexer:            indexer,
-		id:                 indexDef.UUID,
-		name:               indexDef.Name,
 		indexDef:           indexDef,
-		searchFields:       searchFieldsMap,
-		dynamicMapping:     dynamicMapping,
+		searchFields:       searchFields,
+		condExpr:           condExpr,
+		dynamic:            dynamic,
 		defaultAnalyzer:    defaultAnalyzer,
 		optionsForOrdering: make(map[string]struct{}),
 	}
@@ -86,11 +95,11 @@ func (i *FTSIndex) KeyspaceId() string {
 }
 
 func (i *FTSIndex) Id() string {
-	return i.id
+	return i.indexDef.UUID
 }
 
 func (i *FTSIndex) Name() string {
-	return i.name
+	return i.indexDef.Name
 }
 
 func (i *FTSIndex) Type() datastore.IndexType {
@@ -112,8 +121,7 @@ func (i *FTSIndex) RangeKey() expression.Expressions {
 }
 
 func (i *FTSIndex) Condition() expression.Expression {
-	// WHERE clause stuff, not supported
-	return nil
+	return i.condExpr // Non-nil, for example, when 'type="beer"'.
 }
 
 func (i *FTSIndex) IsPrimary() bool {
@@ -194,7 +202,7 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	}()
 
 	parseSearchInfoToSearchRequest(&sargRV.searchRequest, searchInfo,
-		vector, cons, i.name)
+		vector, cons, i.indexDef.Name)
 
 	client := i.indexer.srvWrapper.getGrpcClient()
 
@@ -219,6 +227,8 @@ func parseSearchInfoToSearchRequest(searchRequest **pb.SearchRequest,
 	(*searchRequest).From = searchInfo.Offset
 	(*searchRequest).Size = searchInfo.Limit
 	(*searchRequest).IndexName = indexName
+
+	// TODO: Should also set index UUID too?
 
 	// check whether the streaming of results is beneficial
 	if (len((*searchRequest).Sort) == 0 && len(searchInfo.Order) == 0) ||
@@ -375,26 +385,26 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 				}
 			}
 
-			searchFields, dynamicMapping, _ :=
-				util.SearchableFieldsForIndexMapping(im)
+			searchFields, _, dynamic, _ := util.ProcessIndexMapping(im)
 
-			searchFieldsCompatible := func() bool {
+			if !dynamic {
+				searchFieldsCompatible := true
 				for k, expect := range searchFields {
 					if got, exists := i.searchFields[k]; !exists || got != expect {
-						return false
+						searchFieldsCompatible = false
+						break
 					}
 				}
-				return true
-			}
 
-			if !dynamicMapping && !searchFieldsCompatible() {
-				// not sargable, because explicit mapping isn't compatible
-				return &sargableRV{}
+				if !searchFieldsCompatible {
+					// not sargable, because explicit mapping isn't compatible
+					return &sargableRV{}
+				}
 			}
 		}
 	}
 
-	if i.dynamicMapping {
+	if i.dynamic {
 		// sargable, only if all query fields' analyzers are the same
 		// as default analyzer.
 		compatibleWithDynamicMapping := true
@@ -419,6 +429,9 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		if f.Analyzer == "" {
 			// set analyzer to defaultAnalyzer for those query fields, that
 			// don't have an explicit analyzer set already.
+			//
+			// TODO: double-check if this mutation is ok, or if we
+			// instead need to copy f / copy-on-write.
 			f.Analyzer = i.defaultAnalyzer
 		}
 

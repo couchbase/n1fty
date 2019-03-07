@@ -11,7 +11,9 @@
 
 package util
 
-var SampleCustomIndexDef = []byte(`
+// Note only the landmark type mapping is enabled, as n1fty currently
+// only supports a single enabled type mapping.
+var SampleLandmarkIndexDef = []byte(`
 {
 	"name": "temp",
 	"type": "fulltext-index",
@@ -37,7 +39,7 @@ var SampleCustomIndexDef = []byte(`
 			"type_field": "_type",
 			"types": {
 				"hotel": {
-					"enabled": true,
+					"enabled": false,
 					"dynamic": false,
 					"default_analyzer": "cjk",
 					"properties": {
@@ -226,8 +228,8 @@ var SampleIndexDefWithCustomDefaultMapping = []byte(`
 				}
 			},
 			"default_type": "_default",
-			"docvalues_dynamic": true,
-			"index_dynamic": true,
+			"docvalues_dynamic": false,
+			"index_dynamic": false,
 			"store_dynamic": false,
 			"type_field": "_type"
 		},

@@ -13,177 +13,228 @@ package util
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/blevesearch/bleve/mapping"
 	"github.com/blevesearch/bleve/search/query"
 	"github.com/couchbase/cbft"
 	"github.com/couchbase/cbgt"
-	"github.com/couchbase/query/logging"
 )
 
 type SearchField struct {
-	Name     string
+	Name     string // Ex: "desc", "addr.geo.lat".
 	Type     string
 	Analyzer string
 }
 
-func SearchableFieldsForIndexDef(indexDef *cbgt.IndexDef) (
-	map[SearchField]bool, bool, string) {
+// String is a wrapper that allows for a nil (pointer) value that's
+// distinct from the "" empty string value.
+type String struct {
+	S string
+}
+
+// DisallowedChars represents disallowed characters such as within
+// type field names and docId prefixes.
+var DisallowedChars = "\"\\%"
+
+// ProcessIndexDef determines if an indexDef is supportable as an
+// datastore.FTSIndex, especially by invoking ProcessIndexMapping().
+// The DocConfig.Mode is also checked here with current support for
+// "type_field" and "docid_prefix" modes.
+func ProcessIndexDef(indexDef *cbgt.IndexDef) (imOut *mapping.IndexMappingImpl,
+	m map[SearchField]bool, condExpr string, dynamicOut bool,
+	defaultAnalyzerOut string, err error) {
+	// Other types like "fulltext-alias" are not-FTSIndex'able for now.
+	if indexDef.Type != "fulltext-index" {
+		return nil, nil, "", false, "", nil
+	}
+
 	bp := cbft.NewBleveParams()
-	err := json.Unmarshal([]byte(indexDef.Params), bp)
+	err = json.Unmarshal([]byte(indexDef.Params), bp)
 	if err != nil {
-		logging.Infof("n1fty: skip indexDef: %+v,"+
-			" json unmarshal indexDef.Params, err: %v\n", indexDef, err)
-		return nil, false, ""
-	}
-
-	if bp.DocConfig.Mode != "type_field" {
-		logging.Infof("n1fty: skip indexDef: %+v,"+
-			" wrong DocConfig.Mode\n", indexDef)
-		return nil, false, ""
-	}
-
-	typeField := bp.DocConfig.TypeField
-	if typeField == "" {
-		logging.Infof("n1fty: skip indexDef: %+v,"+
-			" wrong DocConfig.TypeField\n", typeField)
-		return nil, false, ""
+		return nil, nil, "", false, "", err
 	}
 
 	im, ok := bp.Mapping.(*mapping.IndexMappingImpl)
 	if !ok {
-		logging.Infof("n1fty: skip indexDef: %+v, "+
-			" not IndexMappingImpl\n", *indexDef)
-		return nil, false, ""
+		return nil, nil, "", false, "", nil
 	}
 
-	// set this index mapping into the indexMappings cache
-	SetIndexMapping(indexDef.Name, &MappingDetails{
-		UUID:       indexDef.UUID,
-		SourceName: indexDef.SourceName,
-		IMapping:   im,
-	})
+	switch bp.DocConfig.Mode {
+	case "type_field":
+		typeField := bp.DocConfig.TypeField
+		if len(typeField) <= 0 ||
+			strings.ContainsAny(typeField, DisallowedChars) {
+			return nil, nil, "", false, "", nil
+		}
 
-	return searchableFieldsForIndexMappingImpl(im)
+		m, typeStr, dynamic, defaultAnalyzer := ProcessIndexMapping(im)
+		if typeStr != nil {
+			if len(typeStr.S) <= 0 ||
+				strings.ContainsAny(typeStr.S, "\"\\") {
+				return nil, nil, "", false, "", nil
+			}
+
+			// Ex: condExpr == 'type="beer"'.
+			condExpr = typeField + `="` + typeStr.S + `"`
+		}
+
+		return im, m, condExpr, dynamic, defaultAnalyzer, nil
+
+	case "docid_prefix":
+		dc := &bp.DocConfig
+
+		if len(dc.DocIDPrefixDelim) != 1 ||
+			strings.ContainsAny(dc.DocIDPrefixDelim, DisallowedChars) {
+			return nil, nil, "", false, "", nil
+		}
+
+		m, typeStr, dynamic, defaultAnalyzer := ProcessIndexMapping(im)
+		if typeStr != nil {
+			if len(typeStr.S) <= 0 ||
+				strings.ContainsAny(typeStr.S, DisallowedChars) ||
+				strings.ContainsAny(typeStr.S, dc.DocIDPrefixDelim) {
+				return nil, nil, "", false, "", nil
+			}
+
+			// Ex: condExpr == 'META().id LIKE "beer-%"'.
+			condExpr = `META().id LIKE "` + typeStr.S + dc.DocIDPrefixDelim + `%"`
+		}
+
+		return im, m, condExpr, dynamic, defaultAnalyzer, nil
+
+	case "docid_regexp":
+		// N1QL doesn't currently support a generic regexp-based
+		// condExpr, so not-FTSIndex'able.
+		return nil, nil, "", false, "", nil
+
+	default:
+		return nil, nil, "", false, "", nil
+	}
 }
 
-func SearchableFieldsForIndexMapping(im mapping.IndexMapping) (
-	map[SearchField]bool, bool, string) {
-	m, ok := im.(*mapping.IndexMappingImpl)
-	if !ok {
-		logging.Infof("n1fty: index mapping: %+v, "+
-			" not IndexMappingImpl\n", m)
-		return nil, false, ""
+// ProcessIndexMapping currently checks the index mapping for two
+// limited, simple cases of datastore.FTSIndex supportability...
+//
+// A) there's only an enabled default mapping (with no other type
+//    mappings), where the returned typeStr will be nil.
+//
+// B) there's just 1 enabled type mapping (with no default mapping),
+//    where returned typeStr will be, for example, &String{"beer"}.
+//
+// TODO: support multiple enabled type mappings some future day,
+// which would likely change the func signature here.
+//
+// TODO: we only support top-level dynamic right now, but
+// might want to support nested level dynamic in the future?
+func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
+	typeStr *String, dynamic bool, defaultAnalyzer string) {
+	var ok bool
+
+	for t, tm := range im.TypeMapping {
+		if tm.Enabled {
+			if m != nil { // Saw 2nd enabled type mapping, so not-FTSIndex'able.
+				return nil, nil, false, ""
+			}
+
+			m, defaultAnalyzer, ok = ProcessDocumentMapping(
+				im.DefaultAnalyzer, nil, tm, nil)
+			if !ok {
+				return nil, nil, false, ""
+			}
+
+			typeStr = nil
+			dynamic = false
+			if m != nil {
+				typeStr = &String{t}
+				dynamic = tm.Dynamic
+			}
+		}
 	}
 
-	return searchableFieldsForIndexMappingImpl(m)
+	if im.DefaultMapping != nil && im.DefaultMapping.Enabled {
+		// Saw both type mapping(s) & default mapping, so not-FTSIndex'able.
+		if len(im.TypeMapping) > 0 {
+			return nil, nil, false, ""
+		}
+
+		m, defaultAnalyzer, ok = ProcessDocumentMapping(
+			im.DefaultAnalyzer, nil, im.DefaultMapping, nil)
+		if !ok {
+			return nil, nil, false, ""
+		}
+
+		typeStr = nil
+		dynamic = im.DefaultMapping.Dynamic
+	}
+
+	return m, typeStr, dynamic, defaultAnalyzer
 }
 
-func searchableFieldsForIndexMappingImpl(bm *mapping.IndexMappingImpl) (
-	map[SearchField]bool, bool, string) {
-	searchFieldsMap := map[SearchField]bool{}
-
-	var dynamicMapping bool
-	for _, typeMapping := range bm.TypeMapping {
-		if typeMapping.Enabled {
-			analyzer := typeMapping.DefaultAnalyzer
-			if analyzer == "" {
-				analyzer = bm.DefaultAnalyzer
-			}
-			if typeMapping.Dynamic {
-				if analyzer == bm.DefaultAnalyzer {
-					// everything under document type is indexed
-					dynamicMapping = true
-				}
-			} else {
-				searchFieldsMap = fetchSearchableFields("", typeMapping,
-					searchFieldsMap, analyzer)
-			}
-		}
+func ProcessDocumentMapping(defaultAnalyzer string, path []string,
+	dm *mapping.DocumentMapping, m map[SearchField]bool) (
+	mOut map[SearchField]bool, defaultAnalyzerOut string, ok bool) {
+	if !dm.Enabled {
+		return m, defaultAnalyzer, true
 	}
 
-	if bm.DefaultMapping != nil && bm.DefaultMapping.Enabled {
-		analyzer := bm.DefaultMapping.DefaultAnalyzer
-		if analyzer == "" {
-			analyzer = bm.DefaultAnalyzer
-		}
-		if bm.DefaultMapping.Dynamic {
-			if analyzer == bm.DefaultAnalyzer {
-				// everything under document type is indexed
-				dynamicMapping = true
-			}
-		} else {
-			searchFieldsMap = fetchSearchableFields("", bm.DefaultMapping,
-				searchFieldsMap, analyzer)
-		}
+	if m == nil {
+		m = map[SearchField]bool{}
 	}
 
-	return searchFieldsMap, dynamicMapping, bm.DefaultAnalyzer
-}
-
-func fetchSearchableFields(path string,
-	typeMapping *mapping.DocumentMapping,
-	searchFieldsMap map[SearchField]bool,
-	parentAnalyzer string) map[SearchField]bool {
-	if !typeMapping.Enabled {
-		return searchFieldsMap
+	if dm.DefaultAnalyzer != "" {
+		defaultAnalyzer = dm.DefaultAnalyzer
 	}
 
-	if typeMapping.Dynamic &&
-		len(typeMapping.Fields) == 0 &&
-		len(typeMapping.Properties) >= 0 {
-		analyzer := typeMapping.DefaultAnalyzer
-		if analyzer == "" {
-			analyzer = parentAnalyzer
+	for _, f := range dm.Fields {
+		if !f.Index || len(path) <= 0 {
+			continue
 		}
-		searchFieldsMap[SearchField{
-			Name:     path,
-			Analyzer: analyzer,
-		}] = true
-		return searchFieldsMap
-	}
 
-	for _, field := range typeMapping.Fields {
-		fieldName := field.Name
-		if len(path) > 0 {
-			fieldName = path + "." + fieldName
-		}
+		fpath := append([]string(nil), path...) // Copy.
+		fpath[len(fpath)-1] = f.Name
+
 		searchField := SearchField{
-			Name: fieldName,
-			Type: field.Type,
+			Name: strings.Join(fpath, "."),
+			Type: f.Type,
 		}
-		if field.Type == "text" {
-			// analyzer is applicable only when field type is "text"
-			analyzer := field.Analyzer
-			if analyzer == "" {
-				// apply parent analyzer if analyzer not specified
-				analyzer = parentAnalyzer
+
+		if f.Type == "text" {
+			searchField.Analyzer = f.Analyzer
+			if searchField.Analyzer == "" {
+				searchField.Analyzer = defaultAnalyzer
 			}
-			searchField.Analyzer = analyzer
 		}
-		if _, exists := searchFieldsMap[searchField]; !exists {
-			searchFieldsMap[searchField] = false
+
+		if _, exists := m[searchField]; exists {
+			return nil, "", false
+		}
+
+		m[searchField] = false
+	}
+
+	for prop, propDM := range dm.Properties {
+		m, _, ok = ProcessDocumentMapping(defaultAnalyzer,
+			append(path, prop), propDM, m)
+		if !ok {
+			return nil, "", false
 		}
 	}
 
-	for childMappingName, childMapping := range typeMapping.Properties {
-		newPath := path
-		if len(childMapping.Fields) == 0 {
-			if len(path) == 0 {
-				newPath = childMappingName
-			} else {
-				newPath += "." + childMappingName
-			}
+	if dm.Dynamic {
+		searchField := SearchField{
+			Name:     strings.Join(path, "."),
+			Analyzer: defaultAnalyzer,
 		}
-		analyzer := childMapping.DefaultAnalyzer
-		if analyzer == "" {
-			analyzer = parentAnalyzer
+
+		if _, exists := m[searchField]; exists {
+			return nil, "", false
 		}
-		searchFieldsMap = fetchSearchableFields(newPath, childMapping,
-			searchFieldsMap, analyzer)
+
+		m[searchField] = true
 	}
 
-	return searchFieldsMap
+	return m, defaultAnalyzer, true
 }
 
 // -----------------------------------------------------------------------------
