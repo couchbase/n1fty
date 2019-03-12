@@ -27,14 +27,16 @@ import (
 	"github.com/couchbase/query/value"
 )
 
-var kvConfigMoss = map[string]interface{}{
-	"mossCollectionOptions": map[string]interface{}{
-		"MaxPreMergerBatches": math.MaxInt32,
-	},
-}
-
 func init() {
 	mo.SkipStats = true
+}
+
+func KVConfigForMoss() map[string]interface{} {
+	return map[string]interface{}{
+		"mossCollectionOptions": map[string]interface{}{
+			"MaxPreMergerBatches": math.MaxInt32,
+		},
+	}
 }
 
 func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
@@ -96,7 +98,7 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 
 	// Set up an in-memory bleve index using moss for evaluating
 	// the hits.
-	idx, err := bleve.NewUsing("", idxMapping, upsidedown.Name, moss.Name, kvConfigMoss)
+	idx, err := bleve.NewUsing("", idxMapping, upsidedown.Name, moss.Name, KVConfigForMoss())
 	if err != nil {
 		return nil, util.N1QLError(err, "")
 	}

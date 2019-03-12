@@ -151,7 +151,7 @@ func BenchmarkMossUpdateAndSearchWithoutReset(b *testing.B) {
 }
 
 func BenchmarkMossUpdateAndSearchWithReset(b *testing.B) {
-	benchmarkMossUpdateAndSearchResetable(b, kvConfigMoss, true)
+	benchmarkMossUpdateAndSearchResetable(b, KVConfigForMoss(), true)
 }
 
 func benchmarkMossUpdateAndSearchResetable(b *testing.B,
