@@ -210,7 +210,8 @@ func (i *Index) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	close(entryCh)
 }
 
-func (i *Index) Pageable(order []string, offset, limit int64) bool {
+func (i *Index) Pageable(order []string, offset, limit int64,
+	query, options expression.Expression) bool {
 	fmt.Printf("i.Pageable, %s, order: %+v, offset: %v, limit: %v\n",
 		i.IdStr, order, offset, limit)
 
