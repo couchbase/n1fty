@@ -47,6 +47,8 @@ type LastSargableFlex struct {
 }
 
 type Index struct {
+	SourceName string
+
 	Parent  *Indexer
 	IdStr   string
 	NameStr string
@@ -112,12 +114,12 @@ func (i *Index) Scan(requestId string, span *datastore.Span, distinct bool, limi
 	conn.Error(util.N1QLError(nil, "not supported"))
 }
 
-func (i *Index) Sargable(field string, query, options expression.Expression) (
-	int, bool, errors.Error) {
+func (i *Index) Sargable(field string, query, options expression.Expression, opaque interface{}) (
+	int, int64, bool, interface{}, errors.Error) {
 	fmt.Printf("i.Sargable, %s, field: %s, query: %v, options: %v\n",
 		i.IdStr, field, query, options)
 
-	return 0, false, nil
+	return 0, 0, false, opaque, nil
 }
 
 // Search performs a search/scan over this index, with provided SearchInfo settings

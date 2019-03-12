@@ -31,6 +31,7 @@ import (
 	"github.com/couchbase/query/server"
 
 	"github.com/couchbase/n1fty/flex"
+	"github.com/couchbase/n1fty/util"
 )
 
 // These tests seem to break in buildbot environment.
@@ -83,6 +84,12 @@ func initIndexesById(t *testing.T, m map[string]*Index) map[string]*Index {
 				return nil
 			}
 		}
+
+		util.SetIndexMapping(idx.Name(), &util.MappingDetails{
+			UUID:       id,
+			SourceName: idx.SourceName,
+			IMapping:   idx.IndexMapping,
+		})
 	}
 
 	return m
@@ -239,7 +246,7 @@ func TestSearchWithEmptyIndexes(t *testing.T) {
 
 	r, err := ExecuteStatement(s,
 		"select * from data:`1doc` as b"+
-			` WHERE SEARCH(b.a, "hello", {"index": "ftsIdx"})`, nil, nil)
+			` WHERE SEARCH(b.a, "hello")`, nil, nil)
 	if err != nil {
 		t.Errorf("did not expect err: %v", err)
 	}
@@ -254,13 +261,22 @@ func TestNotSargable(t *testing.T) {
 
 	initIndexer := func(indexer *Indexer) (*Indexer, errors.Error) {
 		if indexer.IndexesById == nil {
-			indexer.IndexesById = map[string]*Index{
+			indexer.IndexesById = initIndexesById(t, map[string]*Index{
 				"ftsIdx": {
-					Parent:  indexer,
-					IdStr:   "ftsIdx",
-					NameStr: "ftsIdx",
+					SourceName: "1doc",
+					Parent:     indexer,
+					IdStr:      "ftsIdx",
+					NameStr:    "ftsIdx",
+
+					IndexMapping: &mapping.IndexMappingImpl{
+						DefaultAnalyzer:       "keyword",
+						DefaultDateTimeParser: "disabled",
+						DefaultMapping: &mapping.DocumentMapping{
+							Enabled: true,
+						},
+					},
 				},
-			}
+			})
 		}
 
 		return indexer, nil
@@ -324,13 +340,14 @@ func TestOrdersData(t *testing.T) {
 		if indexer.IndexesById == nil {
 			indexer.IndexesById = initIndexesById(t, map[string]*Index{
 				"ftsIdx": {
-					Parent:  indexer,
-					IdStr:   "ftsIdx",
-					NameStr: "ftsIdx",
+					SourceName: "orders",
+					Parent:     indexer,
+					IdStr:      "ftsIdx",
+					NameStr:    "ftsIdx",
 
 					IndexMapping: &mapping.IndexMappingImpl{
 						DefaultAnalyzer:       "keyword",
-						DefaultDateTimeParser: "dateTimeOptional",
+						DefaultDateTimeParser: "disabled",
 						DefaultMapping: &mapping.DocumentMapping{
 							Enabled: true,
 							Properties: map[string]*mapping.DocumentMapping{

@@ -105,7 +105,9 @@ func (i *Indexer) SetLogLevel(level logging.Level) {
 func MakeWrapCallbacksForIndexType(indexType datastore.IndexType,
 	initIndexer func(*Indexer) (*Indexer, errors.Error)) *WrapCallbacks {
 	if initIndexer == nil {
-		initIndexer = func(i *Indexer) (*Indexer, errors.Error) { return i, nil }
+		initIndexer = func(i *Indexer) (*Indexer, errors.Error) {
+			return i, nil
+		}
 	}
 
 	return &WrapCallbacks{
