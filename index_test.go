@@ -340,9 +340,9 @@ func TestIndexPageable(t *testing.T) {
 			"match": "united",
 			"field": "countryX",
 		},
-		"Size":    10,
-		"From":    0,
-		"Explain": false,
+		"size":    10,
+		"from":    0,
+		"explain": false,
 	})
 
 	pageable := index.Pageable([]string{"score DESC"}, 0, 10, query,
@@ -358,10 +358,10 @@ func TestIndexPageable(t *testing.T) {
 			"match": "united",
 			"field": "countryX",
 		},
-		"Size":    10,
-		"From":    0,
-		"Explain": false,
-		"Sort":    []interface{}{"country", "city", "-_score"},
+		"size":    10,
+		"from":    0,
+		"explain": false,
+		"sort":    []interface{}{"country", "city", "-_score"},
 	})
 
 	expOrder := []string{"country", "city", "-_score"}
@@ -384,10 +384,10 @@ func TestIndexPageable(t *testing.T) {
 			"match": "united",
 			"field": "countryX",
 		},
-		"Size":    10,
-		"From":    0,
-		"Explain": false,
-		"Sort":    []interface{}{"country", "_id", "-_score"},
+		"size":    10,
+		"from":    0,
+		"explain": false,
+		"sort":    []interface{}{"country", "_id", "-_score"},
 	})
 
 	pageable = index.Pageable([]string{"country", "city", "-_score"}, 0,
@@ -404,10 +404,10 @@ func TestIndexPageable(t *testing.T) {
 			"match": "united",
 			"field": "countryX",
 		},
-		"Size":    10,
-		"From":    0,
-		"Explain": false,
-		"Sort":    []interface{}{"country", "_id", "-_score"},
+		"size":    10,
+		"from":    0,
+		"explain": false,
+		"sort":    []interface{}{"country", "_id", "-_score"},
 	})
 
 	pageable = index.Pageable([]string{"_id", "-_score", "country"}, 0,

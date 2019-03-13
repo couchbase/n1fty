@@ -156,7 +156,7 @@ func TestBuildSearchRequest(t *testing.T) {
 				"explain":          true,
 				"includeLocations": true,
 				"fields":           []interface{}{"country", "city"},
-				"Sort": value.NewValue(map[string]interface{}{
+				"sort": value.NewValue(map[string]interface{}{
 					"by":    "geo_distance",
 					"field": "geo",
 					"unit":  "mi",
@@ -210,7 +210,7 @@ func TestBuildSearchRequest(t *testing.T) {
 							"field": "zyx",
 						}},
 				}),
-				"Sort": []interface{}{"country", "_id", "-_score"},
+				"sort": []interface{}{"country", "_id", "-_score"},
 			}),
 		},
 	}

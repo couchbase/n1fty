@@ -101,12 +101,12 @@ func BuildSearchRequest(field string, input value.Value) (*pb.SearchRequest,
 
 	// needs a better way to handle both query and sort fields here??
 	var sortBytes []byte
-	if sq, ok := input.Field("Sort"); ok {
+	if sq, ok := input.Field("sort"); ok {
 		sortBytes, err = sq.MarshalJSON()
 		if err != nil {
 			return nil, nil, err
 		}
-		input.SetField("Sort", nil)
+		input.SetField("sort", nil)
 	}
 
 	srBytes, err := input.MarshalJSON()
