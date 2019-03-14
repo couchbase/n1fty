@@ -179,7 +179,7 @@ func extractHostCertsMap(nodeDefs *cbgt.NodeDefs) (map[string]interface{}, error
 	hostCertsMap := make(map[string]interface{}, 2)
 	var host string
 	for _, v := range nodeDefs.NodeDefs {
-		extrasBindGRPC, er := v.GetFromParsedExtras("bindGRPC")
+		extrasBindGRPC, er := v.GetFromParsedExtras("bindGRPCSSL")
 		if er == nil && extrasBindGRPC != nil {
 			if bindGRPCstr, ok := extrasBindGRPC.(string); ok {
 				host = bindGRPCstr
