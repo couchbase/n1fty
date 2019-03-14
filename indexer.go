@@ -345,7 +345,6 @@ func (i *FTSIndexer) refreshConfigs() (
 	if indexDefs == nil || nodeDefs == nil {
 		ftsEndpoints := i.agent.FtsEps()
 		if len(ftsEndpoints) == 0 {
-			logging.Infof("n1fty: no fts nodes available")
 			return nil, nil, nil
 		}
 		now := time.Now().UnixNano()
