@@ -20,6 +20,7 @@ import (
 	"github.com/blevesearch/bleve"
 	"github.com/blevesearch/bleve/mapping"
 	"github.com/blevesearch/bleve/search/query"
+	"github.com/couchbase/cbft"
 	pb "github.com/couchbase/cbft/protobuf"
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/value"
@@ -29,6 +30,7 @@ type MappingDetails struct {
 	UUID       string
 	SourceName string
 	IMapping   mapping.IndexMapping
+	DocConfig  *cbft.BleveDocumentConfig
 }
 
 var mappingsCacheLock sync.RWMutex
@@ -51,20 +53,20 @@ func SetIndexMapping(name string, mappingDetails *MappingDetails) {
 	mappingsCacheLock.Unlock()
 }
 
-func FetchIndexMapping(name, keyspace string) (mapping.IndexMapping, error) {
+func FetchIndexMapping(name, keyspace string) (mapping.IndexMapping, *cbft.BleveDocumentConfig, error) {
 	if len(keyspace) == 0 || len(name) == 0 {
 		// Return default index mapping if keyspace not provided.
-		return EmptyIndexMapping, nil
+		return EmptyIndexMapping, nil, nil
 	}
 	mappingsCacheLock.RLock()
 	defer mappingsCacheLock.RUnlock()
 	if info, exists := mappingsCache[name]; exists {
 		// TODO: need to check UUID here?
 		if info.SourceName == keyspace {
-			return info.IMapping, nil
+			return info.IMapping, info.DocConfig, nil
 		}
 	}
-	return nil, fmt.Errorf("index mapping not found for: %v", name)
+	return nil, nil, fmt.Errorf("index mapping not found for: %v", name)
 }
 
 func NewIndexMappingWithAnalyzer(analyzer string) mapping.IndexMapping {

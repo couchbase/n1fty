@@ -502,7 +502,7 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 			// index.
 			continue
 		}
-		im, searchFields, condExpr, dynamic, defaultAnalyzer, err :=
+		im, docConfig, searchFields, condExpr, dynamic, defaultAnalyzer, err :=
 			util.ProcessIndexDef(indexDef)
 		if err != nil {
 			return nil, err
@@ -520,6 +520,7 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 				UUID:       indexDef.UUID,
 				SourceName: indexDef.SourceName,
 				IMapping:   im,
+				DocConfig:  docConfig,
 			})
 		}
 	}

@@ -28,7 +28,7 @@ func TestIndexDefConversion(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, searchFieldsMap, _, dynamicMapping, defaultAnalyzer, err :=
+	_, _, searchFieldsMap, _, dynamicMapping, defaultAnalyzer, err :=
 		ProcessIndexDef(indexDef)
 	if err != nil || searchFieldsMap == nil || dynamicMapping || defaultAnalyzer != "standard" {
 		t.Fatalf("unexpected return values from SearchFieldsForIndexDef")
@@ -729,7 +729,7 @@ func TestProcessIndexDef(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		_, searchFields, condExpr, dynamic, defaultAnalyzer, err := ProcessIndexDef(indexDef)
+		_, _, searchFields, condExpr, dynamic, defaultAnalyzer, err := ProcessIndexDef(indexDef)
 		if (err != nil) != (test.expectErr != "") {
 			t.Fatalf("testi: %d, test: %+v,\n mismatch expectErr, got: %v",
 				testi, test, err)

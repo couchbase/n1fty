@@ -18,7 +18,7 @@ func setupSampleIndex(idef []byte) (*FTSIndex, error) {
 		return nil, err
 	}
 
-	_, searchFields, condExpr, dynamic, defaultAnalyzer, err :=
+	_, _, searchFields, condExpr, dynamic, defaultAnalyzer, err :=
 		util.ProcessIndexDef(indexDef)
 	if err != nil {
 		return nil, err

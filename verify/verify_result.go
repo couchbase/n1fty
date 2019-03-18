@@ -19,6 +19,7 @@ import (
 	"github.com/blevesearch/bleve/index/upsidedown"
 	"github.com/blevesearch/bleve/mapping"
 
+	"github.com/couchbase/cbft"
 	mo "github.com/couchbase/moss"
 
 	"github.com/couchbase/n1fty/util"
@@ -52,6 +53,7 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 	}
 
 	var idxMapping mapping.IndexMapping
+	var docConfig *cbft.BleveDocumentConfig
 
 	var indexOptionAvailable bool
 	if options != nil {
@@ -76,7 +78,7 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 			// TODO: One solution is to support an optional
 			// options["indexUUID"] flag that needs to be checked,
 			// allowing users to close the race window if they want.
-			idxMapping, err = util.FetchIndexMapping(
+			idxMapping, docConfig, err = util.FetchIndexMapping(
 				indexVal.Actual().(string), keyspace)
 			if err != nil {
 				return nil, util.N1QLError(nil, "index mapping not found")
@@ -113,10 +115,17 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 		}
 	}
 
+	defaultType := "_default"
+	if imi, ok := idxMapping.(*mapping.IndexMappingImpl); ok {
+		defaultType = imi.DefaultType
+	}
+
 	return &VerifyCtx{
-		idx:  idx,
-		sr:   bleve.NewSearchRequest(q),
-		coll: coll,
+		idx:         idx,
+		sr:          bleve.NewSearchRequest(q),
+		coll:        coll,
+		defaultType: defaultType,
+		docConfig:   docConfig,
 	}, nil
 }
 
@@ -129,13 +138,24 @@ type ResetStackDirtyToper interface {
 }
 
 type VerifyCtx struct {
-	idx  bleve.Index
-	sr   *bleve.SearchRequest
-	coll mo.Collection
+	idx         bleve.Index
+	sr          *bleve.SearchRequest
+	coll        mo.Collection
+	defaultType string
+	docConfig   *cbft.BleveDocumentConfig
 }
 
 func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
-	err := v.idx.Index("k", item.Actual())
+	doc := item.Actual()
+	if v.docConfig != nil {
+		val, err := item.MarshalJSON()
+		if err != nil {
+			val = item.Actual().([]byte)
+		}
+		doc, _ = v.docConfig.BuildDocument([]byte("k"), val, v.defaultType)
+	}
+
+	err := v.idx.Index("k", doc)
 	if err != nil {
 		return false, util.N1QLError(err, "could not insert doc into index")
 	}

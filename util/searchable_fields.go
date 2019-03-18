@@ -41,23 +41,25 @@ var DisallowedChars = "\"\\%"
 // datastore.FTSIndex, especially by invoking ProcessIndexMapping().
 // The DocConfig.Mode is also checked here with current support for
 // "type_field" and "docid_prefix" modes.
-func ProcessIndexDef(indexDef *cbgt.IndexDef) (imOut *mapping.IndexMappingImpl,
+func ProcessIndexDef(indexDef *cbgt.IndexDef) (
+	imOut *mapping.IndexMappingImpl,
+	docConfigOut *cbft.BleveDocumentConfig,
 	m map[SearchField]bool, condExpr string, dynamicOut bool,
 	defaultAnalyzerOut string, err error) {
 	// Other types like "fulltext-alias" are not-FTSIndex'able for now.
 	if indexDef.Type != "fulltext-index" {
-		return nil, nil, "", false, "", nil
+		return nil, nil, nil, "", false, "", nil
 	}
 
 	bp := cbft.NewBleveParams()
 	err = json.Unmarshal([]byte(indexDef.Params), bp)
 	if err != nil {
-		return nil, nil, "", false, "", err
+		return nil, nil, nil, "", false, "", err
 	}
 
 	im, ok := bp.Mapping.(*mapping.IndexMappingImpl)
 	if !ok {
-		return nil, nil, "", false, "", nil
+		return nil, nil, nil, "", false, "", nil
 	}
 
 	switch bp.DocConfig.Mode {
@@ -65,28 +67,28 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef) (imOut *mapping.IndexMappingImpl,
 		typeField := bp.DocConfig.TypeField
 		if len(typeField) <= 0 ||
 			strings.ContainsAny(typeField, DisallowedChars) {
-			return nil, nil, "", false, "", nil
+			return nil, nil, nil, "", false, "", nil
 		}
 
 		m, typeStr, dynamic, defaultAnalyzer := ProcessIndexMapping(im)
 		if typeStr != nil {
 			if len(typeStr.S) <= 0 ||
 				strings.ContainsAny(typeStr.S, "\"\\") {
-				return nil, nil, "", false, "", nil
+				return nil, nil, nil, "", false, "", nil
 			}
 
 			// Ex: condExpr == 'type="beer"'.
 			condExpr = typeField + `="` + typeStr.S + `"`
 		}
 
-		return im, m, condExpr, dynamic, defaultAnalyzer, nil
+		return im, &bp.DocConfig, m, condExpr, dynamic, defaultAnalyzer, nil
 
 	case "docid_prefix":
 		dc := &bp.DocConfig
 
 		if len(dc.DocIDPrefixDelim) != 1 ||
 			strings.ContainsAny(dc.DocIDPrefixDelim, DisallowedChars) {
-			return nil, nil, "", false, "", nil
+			return nil, nil, nil, "", false, "", nil
 		}
 
 		m, typeStr, dynamic, defaultAnalyzer := ProcessIndexMapping(im)
@@ -94,22 +96,22 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef) (imOut *mapping.IndexMappingImpl,
 			if len(typeStr.S) <= 0 ||
 				strings.ContainsAny(typeStr.S, DisallowedChars) ||
 				strings.ContainsAny(typeStr.S, dc.DocIDPrefixDelim) {
-				return nil, nil, "", false, "", nil
+				return nil, nil, nil, "", false, "", nil
 			}
 
 			// Ex: condExpr == 'META().id LIKE "beer-%"'.
 			condExpr = `META().id LIKE "` + typeStr.S + dc.DocIDPrefixDelim + `%"`
 		}
 
-		return im, m, condExpr, dynamic, defaultAnalyzer, nil
+		return im, dc, m, condExpr, dynamic, defaultAnalyzer, nil
 
 	case "docid_regexp":
 		// N1QL doesn't currently support a generic regexp-based
 		// condExpr, so not-FTSIndex'able.
-		return nil, nil, "", false, "", nil
+		return nil, nil, nil, "", false, "", nil
 
 	default:
-		return nil, nil, "", false, "", nil
+		return nil, nil, nil, "", false, "", nil
 	}
 }
 
