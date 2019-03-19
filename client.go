@@ -84,6 +84,10 @@ func initWrapper(ftsEps map[string]interface{},
 
 func (c *ftsSrvWrapper) getGrpcClient() pb.SearchServiceClient {
 	c.m.Lock()
+	if len(c.rrMap) <= 0 {
+		c.m.Unlock()
+		return nil
+	}
 	index := r1.Intn(len(c.rrMap))
 	hostPort, _ := c.rrMap[index]
 	conn := c.connPool[hostPort]

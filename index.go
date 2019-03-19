@@ -205,6 +205,10 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 		vector, cons, i.indexDef.Name)
 
 	client := i.indexer.srvWrapper.getGrpcClient()
+	if client == nil {
+		conn.Error(util.N1QLError(nil, "client unavailable, try refreshing"))
+		return
+	}
 
 	stream, err := client.Search(ctx, sargRV.searchRequest)
 	if err != nil || stream == nil {
