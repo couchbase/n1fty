@@ -15,9 +15,11 @@ import (
 	"testing"
 
 	"github.com/blevesearch/bleve"
+	"github.com/blevesearch/bleve/document"
 	"github.com/blevesearch/bleve/index/store/gtreap"
 	"github.com/blevesearch/bleve/index/store/moss"
 	"github.com/blevesearch/bleve/index/upsidedown"
+	"github.com/blevesearch/bleve/mapping"
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/value"
 
@@ -25,7 +27,7 @@ import (
 )
 
 func initIndexAndDocs(index string, kvConfig map[string]interface{},
-	b *testing.B) (bleve.Index, []value.Value) {
+	b *testing.B) (bleve.Index, mapping.IndexMapping, []value.Value) {
 	idxMapping := bleve.NewIndexMapping()
 
 	idx, err := bleve.NewUsing("", idxMapping, upsidedown.Name, index, kvConfig)
@@ -56,7 +58,7 @@ func initIndexAndDocs(index string, kvConfig map[string]interface{},
 		}),
 	}
 
-	return idx, docs
+	return idx, idxMapping, docs
 }
 
 func fetchSearchRequest(b *testing.B) *bleve.SearchRequest {
@@ -94,7 +96,7 @@ func BenchmarkInMemMossIndexUpdateSearchAndDelete(b *testing.B) {
 }
 
 func benchmarkUpdates(index string, b *testing.B) {
-	idx, docs := initIndexAndDocs(index, nil, b)
+	idx, _, docs := initIndexAndDocs(index, nil, b)
 
 	b.ResetTimer()
 
@@ -107,7 +109,7 @@ func benchmarkUpdates(index string, b *testing.B) {
 }
 
 func benchmarkUpdateAndSearch(index string, b *testing.B) {
-	idx, docs := initIndexAndDocs(index, nil, b)
+	idx, _, docs := initIndexAndDocs(index, nil, b)
 	sr := fetchSearchRequest(b)
 
 	b.ResetTimer()
@@ -126,7 +128,7 @@ func benchmarkUpdateAndSearch(index string, b *testing.B) {
 }
 
 func benchmarkUpdateSearchAndDelete(index string, b *testing.B) {
-	idx, docs := initIndexAndDocs(index, nil, b)
+	idx, _, docs := initIndexAndDocs(index, nil, b)
 	sr := fetchSearchRequest(b)
 
 	b.ResetTimer()
@@ -146,26 +148,31 @@ func benchmarkUpdateSearchAndDelete(index string, b *testing.B) {
 	}
 }
 
-func BenchmarkMossUpdateAndSearchWithoutReset(b *testing.B) {
-	benchmarkMossUpdateAndSearchResetable(b, nil, false)
+func BenchmarkMossWithoutOptimizations(b *testing.B) {
+	benchmarkMossOptimizable(b, nil, false, false)
 }
 
-func BenchmarkMossUpdateAndSearchWithReset(b *testing.B) {
-	benchmarkMossUpdateAndSearchResetable(b, KVConfigForMoss(), true)
+func BenchmarkMossWithOptimizeReset(b *testing.B) {
+	benchmarkMossOptimizable(b, KVConfigForMoss(), true, false)
 }
 
-func benchmarkMossUpdateAndSearchResetable(b *testing.B,
-	kvConfig map[string]interface{}, withReset bool) {
+func BenchmarkMossWithOptimizeResetAndUpdate(b *testing.B) {
+	benchmarkMossOptimizable(b, KVConfigForMoss(), true, true)
+}
+
+func benchmarkMossOptimizable(b *testing.B,
+	kvConfig map[string]interface{}, optimizeReset, optimizeUpdate bool) {
 	oldSkipStats := mo.SkipStats
 	mo.SkipStats = true
 	defer func() {
 		mo.SkipStats = oldSkipStats
 	}()
 
-	idx, docs := initIndexAndDocs(moss.Name, kvConfig, b)
+	idx, m, docs := initIndexAndDocs(moss.Name, kvConfig, b)
 	sr := fetchSearchRequest(b)
 
-	_, kvstore, _ := idx.Advanced()
+	bleveIndex, kvstore, _ := idx.Advanced()
+	udc := bleveIndex.(*upsidedown.UpsideDownCouch)
 	collh := kvstore.(CollectionHolder)
 	coll := collh.Collection()
 
@@ -174,17 +181,31 @@ func benchmarkMossUpdateAndSearchResetable(b *testing.B,
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		err := idx.Index("k", docs[i%len(docs)].Actual())
+		if optimizeUpdate {
+			doc := document.NewDocument("k")
+
+			err := m.MapDocument(doc, docs[i%len(docs)].Actual())
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			err = udc.UpdateWithAnalysis(doc, udc.Analyze(doc), nil)
+			if err != nil {
+				b.Fatal(err)
+			}
+		} else {
+			err := idx.Index("k", docs[i%len(docs)].Actual())
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+
+		_, err := idx.Search(sr)
 		if err != nil {
 			b.Fatal(err)
 		}
 
-		_, err = idx.Search(sr)
-		if err != nil {
-			b.Fatal(err)
-		}
-
-		if withReset {
+		if optimizeReset {
 			_ = rsdt.ResetStackDirtyTop()
 		}
 	}

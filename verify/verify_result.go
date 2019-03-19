@@ -15,6 +15,7 @@ import (
 	"math"
 
 	"github.com/blevesearch/bleve"
+	"github.com/blevesearch/bleve/document"
 	"github.com/blevesearch/bleve/index/store/moss"
 	"github.com/blevesearch/bleve/index/upsidedown"
 	"github.com/blevesearch/bleve/mapping"
@@ -100,14 +101,21 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 		return nil, util.N1QLError(err, "")
 	}
 
-	// fetch moss collection associated with the underlying store
-	var coll mo.Collection
-	_, kvstore, err := idx.Advanced()
-	if err == nil {
-		collh, ok := kvstore.(CollectionHolder)
-		if ok {
-			coll = collh.Collection()
-		}
+	// fetch upsidedown & moss collection associated with underlying store
+
+	bleveIndex, kvstore, err := idx.Advanced()
+	if err != nil {
+		return nil, util.N1QLError(err, "idx.Advanced error")
+	}
+
+	udc, ok := bleveIndex.(*upsidedown.UpsideDownCouch)
+	if !ok {
+		return nil, util.N1QLError(nil, "expected UpsideDownCouch")
+	}
+
+	collh, ok := kvstore.(CollectionHolder)
+	if !ok {
+		return nil, util.N1QLError(nil, "expected kvstore.CollectionHolder")
 	}
 
 	defaultType := "_default"
@@ -117,8 +125,10 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 
 	return &VerifyCtx{
 		idx:         idx,
+		m:           idxMapping,
 		sr:          bleve.NewSearchRequest(q),
-		coll:        coll,
+		udc:         udc,
+		coll:        collh.Collection(),
 		defaultType: defaultType,
 		docConfig:   docConfig,
 	}, nil
@@ -134,25 +144,32 @@ type ResetStackDirtyToper interface {
 
 type VerifyCtx struct {
 	idx         bleve.Index
+	m           mapping.IndexMapping
 	sr          *bleve.SearchRequest
+	udc         *upsidedown.UpsideDownCouch
 	coll        mo.Collection
 	defaultType string
 	docConfig   *cbft.BleveDocumentConfig
 }
 
+var kBytes = []byte("k")
+
 func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
 	doc := item.Actual()
 	if v.docConfig != nil {
-		val, err := item.MarshalJSON()
-		if err != nil {
-			val = item.Actual().([]byte)
-		}
-		doc, _ = v.docConfig.BuildDocument([]byte("k"), val, v.defaultType)
+		doc = v.docConfig.BuildDocumentFromObj(kBytes, doc, v.defaultType)
 	}
 
-	err := v.idx.Index("k", doc)
+	kdoc := document.NewDocument("k")
+
+	err := v.m.MapDocument(kdoc, doc)
 	if err != nil {
-		return false, util.N1QLError(err, "could not insert doc into index")
+		return false, util.N1QLError(err, "MapDocument error")
+	}
+
+	err = v.udc.UpdateWithAnalysis(kdoc, v.udc.Analyze(kdoc), nil)
+	if err != nil {
+		return false, util.N1QLError(err, "UpdateWithAnalysis error")
 	}
 
 	res, err := v.idx.Search(v.sr)
