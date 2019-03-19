@@ -83,6 +83,8 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 			if err != nil {
 				return nil, util.N1QLError(nil, "index mapping not found")
 			}
+
+			idxMapping = OptimizeIndexMapping(idxMapping, queryFields)
 		} else if indexVal.Type() == value.OBJECT {
 			idxMapping, _ = util.ConvertValObjectToIndexMapping(indexVal)
 			if idxMapping == nil {
