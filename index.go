@@ -420,8 +420,14 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			}
 		}
 		if compatibleWithDynamicMapping {
+			sargableCount := len(queryFields)
+			if sargableCount == 0 {
+				// if field(s) not provided or unavailable within query,
+				// search is applicable on all indexed fields.
+				sargableCount = math.MaxInt64
+			}
 			return &sargableRV{
-				count:         len(queryFields),
+				count:         sargableCount,
 				indexedCount:  math.MaxInt64,
 				queryFields:   queryFields,
 				searchRequest: searchRequest,
@@ -437,6 +443,17 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			// TODO: double-check if this mutation is ok, or if we
 			// instead need to copy f / copy-on-write.
 			f.Analyzer = i.defaultAnalyzer
+		}
+
+		if f.Name == "" {
+			// field name not provided/available => sargable on all indexed fields,
+			// can skip processing the rest of the fields.
+			return &sargableRV{
+				count:         len(i.searchFields),
+				indexedCount:  int64(len(i.searchFields)),
+				queryFields:   queryFields,
+				searchRequest: searchRequest,
+			}
 		}
 
 		dynamic, exists := i.searchFields[f]
@@ -493,9 +510,16 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		}
 	}
 
+	sargableCount := len(queryFields)
+	if sargableCount == 0 {
+		// if field(s) not provided or unavailable within query,
+		// search is applicable on all indexed fields.
+		sargableCount = len(i.searchFields)
+	}
+
 	// sargable
 	return &sargableRV{
-		count:         len(queryFields),
+		count:         sargableCount,
 		indexedCount:  int64(len(i.searchFields)),
 		queryFields:   queryFields,
 		searchRequest: searchRequest,

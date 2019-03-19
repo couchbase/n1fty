@@ -136,6 +136,48 @@ var SampleLandmarkIndexDef = []byte(`
 }
 `)
 
+var SampleIndexDefDynamicDefault = []byte(`
+{
+	"name": "temp",
+	"type": "fulltext-index",
+	"params": {
+		"doc_config": {
+			"docid_prefix_delim": "",
+			"docid_regexp": "",
+			"mode": "type_field",
+			"type_field": "type"
+		},
+		"mapping": {
+			"default_analyzer": "standard",
+			"default_datetime_parser": "dateTimeOptional",
+			"default_field": "_all",
+			"default_mapping": {
+				"dynamic": true,
+				"enabled": true
+			},
+			"default_type": "_default",
+			"docvalues_dynamic": true,
+			"index_dynamic": true,
+			"store_dynamic": false,
+			"type_field": "_type"
+		},
+		"store": {
+			"indexType": "scorch",
+			"kvStoreName": ""
+		}
+	},
+	"sourceType": "couchbase",
+	"sourceName": "travel-sample",
+	"sourceUUID": "",
+	"sourceParams": {},
+	"planParams": {
+		"maxPartitionsPerPIndex": 171,
+		"numReplicas": 0
+	},
+	"uuid": ""
+}
+`)
+
 var SampleIndexDefWithAnalyzerEN = []byte(`
 {
 	"name": "temp",
@@ -248,5 +290,4 @@ var SampleIndexDefWithCustomDefaultMapping = []byte(`
 	},
 	"uuid": ""
 }
-
 `)

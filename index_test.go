@@ -3,6 +3,7 @@ package n1fty
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"reflect"
 	"testing"
 
@@ -125,6 +126,49 @@ func TestDynamicIndexSargability(t *testing.T) {
 		t.Fatalf("Expected count of 0, as query is not sargable for index,"+
 			" but got: %v", count)
 	}
+}
+
+func TestDynamicDefaultIndexNoFieldsQuerySargability(t *testing.T) {
+	index, err := setupSampleIndex(util.SampleIndexDefDynamicDefault)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	query := expression.NewConstant(map[string]interface{}{
+		"query": "california",
+	})
+
+	count, indexedCount, exact, _, n1qlErr := index.Sargable("", query,
+		expression.NewConstant(``), nil)
+	if n1qlErr != nil {
+		t.Fatal(n1qlErr)
+	}
+
+	if count != math.MaxInt64 || indexedCount != math.MaxInt64 || !exact {
+		t.Fatal("Unexpected results from Index.Sargable(...) for query")
+	}
+}
+
+func TestCustomIndexNoFieldsQuerySargability(t *testing.T) {
+	index, err := setupSampleIndex(util.SampleIndexDefWithCustomDefaultMapping)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	query := expression.NewConstant(map[string]interface{}{
+		"match": "san francisco",
+	})
+
+	count, indexedCount, exact, _, n1qlErr := index.Sargable("", query,
+		expression.NewConstant(``), nil)
+	if n1qlErr != nil {
+		t.Fatal(n1qlErr)
+	}
+
+	if count != int(indexedCount) || !exact {
+		t.Fatal("Unexpected results from Index.Sargable(...) for query")
+	}
+
 }
 
 func TestIncompatibleIndexSargability(t *testing.T) {
