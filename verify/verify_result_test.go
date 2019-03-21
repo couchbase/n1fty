@@ -19,7 +19,7 @@ import (
 	"github.com/couchbase/query/value"
 )
 
-func TestVerifyResult(t *testing.T) {
+func TestVerifyResultWithIndexOption(t *testing.T) {
 	q := struct {
 		field   string
 		query   value.Value
@@ -74,5 +74,44 @@ func TestVerifyResult(t *testing.T) {
 			t.Fatalf("Expected: %v, Got: %v, for doc: %v",
 				test.expect, got, string(test.input))
 		}
+	}
+}
+
+func TestVerifyResultWithoutIndexOption(t *testing.T) {
+	q := struct {
+		field   string
+		query   value.Value
+		options value.Value
+	}{
+		field: "",
+		query: value.NewValue(map[string]interface{}{
+			"match":    "2019-03-21 12:00:00",
+			"field":    "details.startDate",
+			"analyzer": "keyword",
+		}),
+		options: nil,
+	}
+
+	test := struct {
+		input  []byte
+		expect bool
+	}{
+		input:  []byte(`{"details": {"startDate": "2019-03-21 12:00:00"}}`),
+		expect: true,
+	}
+
+	v, err := NewVerify("`temp_keyspace`", q.field, q.query, q.options)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := v.Evaluate(value.NewValue(test.input))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got != test.expect {
+		t.Fatalf("Expected: %v, Got %v, for doc: %v",
+			test.expect, got, string(test.input))
 	}
 }

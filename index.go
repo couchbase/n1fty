@@ -357,26 +357,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 	if options != nil {
 		_, indexOptionAvailable = options.Field("index")
 	}
-	if !indexOptionAvailable {
-		// if index field isn't provided within the options section,
-		// proceed to check for sargability only if all fields within the
-		// query have a common analyzer, and if in case no fields were
-		// specified only if the default analyzer is set to standard.
-		if len(queryFields) == 0 && i.defaultAnalyzer != "standard" {
-			// in sufficient information, not sargable
-			return &sargableRV{}
-		}
-
-		if len(queryFields) > 0 {
-			commonAnalyzer := queryFields[0].Analyzer
-			for k := 1; k < len(queryFields); k++ {
-				if queryFields[k].Analyzer != commonAnalyzer {
-					// not sargable, because analyzer is different
-					return &sargableRV{}
-				}
-			}
-		}
-	} else {
+	if indexOptionAvailable {
 		indexVal, _ := options.Field("index")
 		if indexVal.Type() == value.OBJECT {
 			// if in case this value were an object, it is expected to be

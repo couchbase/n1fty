@@ -41,7 +41,7 @@ var EmptyIndexMapping mapping.IndexMapping
 func init() {
 	mappingsCache = make(map[string]*MappingDetails)
 
-	EmptyIndexMapping = NewIndexMappingWithAnalyzer("")
+	EmptyIndexMapping = bleve.NewIndexMapping()
 }
 
 func SetIndexMapping(name string, mappingDetails *MappingDetails) {
@@ -74,6 +74,62 @@ func NewIndexMappingWithAnalyzer(analyzer string) mapping.IndexMapping {
 	if analyzer != "" {
 		idxMapping.DefaultAnalyzer = analyzer
 	}
+
+	return idxMapping
+}
+
+func BuildIndexMappingOnFields(fields []SearchField) mapping.IndexMapping {
+	var build func(field SearchField, m *mapping.DocumentMapping) *mapping.DocumentMapping
+	build = func(field SearchField, m *mapping.DocumentMapping) *mapping.DocumentMapping {
+		subs := strings.SplitN(field.Name, ".", 2)
+		if _, exists := m.Properties[subs[0]]; !exists {
+			m.Properties[subs[0]] = &mapping.DocumentMapping{
+				Enabled:    true,
+				Properties: make(map[string]*mapping.DocumentMapping),
+			}
+		}
+
+		if len(subs) == 1 {
+			m.Properties[subs[0]].Fields = append(m.Fields, &mapping.FieldMapping{
+				Name:     field.Name,
+				Type:     field.Type,
+				Analyzer: field.Analyzer,
+				Index:    true,
+			})
+		} else {
+			// length == 2
+			m.Properties[subs[0]] = build(SearchField{
+				Name:     subs[1],
+				Type:     field.Type,
+				Analyzer: field.Analyzer,
+			}, m.Properties[subs[0]])
+		}
+
+		return m
+	}
+
+	idxMapping := bleve.NewIndexMapping()
+	docMapping := &mapping.DocumentMapping{
+		Enabled:    true,
+		Properties: make(map[string]*mapping.DocumentMapping),
+	}
+
+	if len(fields) == 0 {
+		// no fields available, deploy a dynamic default index.
+		docMapping.Dynamic = true
+	} else {
+		for _, field := range fields {
+			if len(field.Name) > 0 {
+				docMapping = build(field, docMapping)
+			} else {
+				// in case one of the searcher's field name is not provided,
+				// set doc mapping to dynamic and skip processing remaining fields.
+				docMapping.Dynamic = true
+				break
+			}
+		}
+	}
+	idxMapping.DefaultMapping = docMapping
 
 	return idxMapping
 }

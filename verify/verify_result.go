@@ -60,14 +60,9 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 		_, indexOptionAvailable = options.Field("index")
 	}
 	if !indexOptionAvailable {
-		// in case index option not available, use any query field's analyzer,
-		// as we'd have reached this point only if all the query fields shared
-		// the same analyzer, if query fields unavailable use "standard".
-		var analyzer string
-		if len(queryFields) > 0 {
-			analyzer = queryFields[0].Analyzer
-		}
-		idxMapping = util.NewIndexMappingWithAnalyzer(analyzer)
+		// in case index option isn't available, use the query fields to
+		// build an index mapping that covers all the necessary fields.
+		idxMapping = util.BuildIndexMappingOnFields(queryFields)
 	} else {
 		indexVal, _ := options.Field("index")
 		if indexVal.Type() == value.STRING {
