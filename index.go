@@ -29,6 +29,7 @@ import (
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/expression"
 	"github.com/couchbase/query/expression/parser"
+	"github.com/couchbase/query/logging"
 	"github.com/couchbase/query/timestamp"
 	"github.com/couchbase/query/value"
 )
@@ -154,6 +155,12 @@ func (i *FTSIndex) Scan(requestId string, span *datastore.Span, distinct bool,
 func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	cons datastore.ScanConsistency, vector timestamp.Vector,
 	conn *datastore.IndexConnection) {
+	if util.Debug > 0 {
+		logging.Infof("n1fty: Search, index: %s, requestId: %s, searchInfo: %+v,"+
+			" cons: %v, vector: %v\n",
+			i.indexDef.Name, requestId, searchInfo, cons, vector)
+	}
+
 	if conn == nil {
 		return
 	}
@@ -270,6 +277,11 @@ func (i *FTSIndex) Sargable(field string, query,
 	exact := (queryVal != nil) && (options == nil || optionsVal != nil)
 
 	rv := i.buildQueryAndCheckIfSargable(field, queryVal, optionsVal, customFields)
+
+	if util.Debug > 0 {
+		logging.Infof("n1fty: Sargable, index: %s, field: %s, query: %v, options: %v, rv: %+v, exact: %t\n",
+			i.indexDef.Name, field, query, options, rv, exact)
+	}
 
 	return rv.count, rv.indexedCount, exact, rv.queryFields, rv.err
 }
@@ -459,6 +471,19 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 // for the requested parameters, and the options are consistent
 // across the order[] and the query parameters.
 func (i *FTSIndex) Pageable(order []string, offset, limit int64, query,
+	options expression.Expression) bool {
+	rv := i.pageable(order, offset, limit, query, options)
+
+	if util.Debug > 0 {
+		logging.Infof("n1fty: Pageable, index: %s, order: %v,"+
+			" offset: %v, limit: %v, query: %v, options: %v, rv: %t\n",
+			i.indexDef.Name, order, offset, limit, query, options, rv)
+	}
+
+	return rv
+}
+
+func (i *FTSIndex) pageable(order []string, offset, limit int64, query,
 	options expression.Expression) bool {
 	var queryVal value.Value
 	if query != nil {
