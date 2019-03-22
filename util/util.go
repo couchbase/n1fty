@@ -69,15 +69,6 @@ func FetchIndexMapping(name, keyspace string) (mapping.IndexMapping, *cbft.Bleve
 	return nil, nil, fmt.Errorf("index mapping not found for: %v", name)
 }
 
-func NewIndexMappingWithAnalyzer(analyzer string) mapping.IndexMapping {
-	idxMapping := bleve.NewIndexMapping()
-	if analyzer != "" {
-		idxMapping.DefaultAnalyzer = analyzer
-	}
-
-	return idxMapping
-}
-
 func BuildIndexMappingOnFields(fields []SearchField) mapping.IndexMapping {
 	var build func(field SearchField, m *mapping.DocumentMapping) *mapping.DocumentMapping
 	build = func(field SearchField, m *mapping.DocumentMapping) *mapping.DocumentMapping {
