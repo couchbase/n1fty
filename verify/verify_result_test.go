@@ -115,3 +115,50 @@ func TestVerifyResultWithoutIndexOption(t *testing.T) {
 			test.expect, got, string(test.input))
 	}
 }
+
+func TestMB33444(t *testing.T) {
+	q := struct {
+		field   string
+		query   value.Value
+		options value.Value
+	}{
+		field:   "",
+		query:   value.NewValue(`title:encryption`),
+		options: nil,
+	}
+
+	tests := []struct {
+		input  []byte
+		expect bool
+	}{
+		{
+			input:  []byte(`{"id":"one","title":"Persistent multi-tasking encryption"}`),
+			expect: true,
+		},
+		{
+			input:  []byte(`{"id":"two","title":"Persevering modular encryption"}`),
+			expect: true,
+		},
+		{
+			input:  []byte(`{"id":"three","title":"encryption"}`),
+			expect: true,
+		},
+	}
+
+	v, err := NewVerify("`temp_keyspace`", q.field, q.query, q.options)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, test := range tests {
+		got, err := v.Evaluate(value.NewValue(test.input))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if got != test.expect {
+			t.Errorf("Expected: %v, Got: %v, for doc: %v",
+				test.expect, got, string(test.input))
+		}
+	}
+}

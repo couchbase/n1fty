@@ -93,9 +93,9 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 		return nil, util.N1QLError(err, "")
 	}
 
-	// Set up an in-memory bleve index using moss for evaluating
-	// the hits.
-	idx, err := bleve.NewUsing("", idxMapping, upsidedown.Name, moss.Name, KVConfigForMoss())
+	// Set up an in-memory bleve index using moss for evaluating the hits.
+	idx, err := bleve.NewUsing("", idxMapping, upsidedown.Name, moss.Name,
+		KVConfigForMoss())
 	if err != nil {
 		return nil, util.N1QLError(err, "")
 	}

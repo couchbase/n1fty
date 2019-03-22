@@ -123,7 +123,7 @@ func TestBuildIndexMappingOnFields(t *testing.T) {
 		"index_dynamic": true,
 		"docvalues_dynamic": true,
 		"analysis": {}
-	}	
+	}
 	`)
 
 	idxMapping := BuildIndexMappingOnFields(fields)
