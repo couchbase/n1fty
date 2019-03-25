@@ -22,9 +22,10 @@ import (
 )
 
 type SearchField struct {
-	Name     string // Ex: "desc", "addr.geo.lat".
-	Type     string
-	Analyzer string
+	Name       string // Ex: "desc", "addr.geo.lat".
+	Type       string
+	Analyzer   string
+	DateFormat string
 }
 
 // String is a wrapper that allows for a nil (pointer) value that's
@@ -45,21 +46,21 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef) (
 	imOut *mapping.IndexMappingImpl,
 	docConfigOut *cbft.BleveDocumentConfig,
 	m map[SearchField]bool, condExpr string, dynamicOut bool,
-	defaultAnalyzerOut string, err error) {
+	defaultAnalyzerOut string, defaultDateTimeParserOut string, err error) {
 	// Other types like "fulltext-alias" are not-FTSIndex'able for now.
 	if indexDef.Type != "fulltext-index" {
-		return nil, nil, nil, "", false, "", nil
+		return nil, nil, nil, "", false, "", "", nil
 	}
 
 	bp := cbft.NewBleveParams()
 	err = json.Unmarshal([]byte(indexDef.Params), bp)
 	if err != nil {
-		return nil, nil, nil, "", false, "", err
+		return nil, nil, nil, "", false, "", "", err
 	}
 
 	im, ok := bp.Mapping.(*mapping.IndexMappingImpl)
 	if !ok {
-		return nil, nil, nil, "", false, "", nil
+		return nil, nil, nil, "", false, "", "", nil
 	}
 
 	switch bp.DocConfig.Mode {
@@ -67,51 +68,55 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef) (
 		typeField := bp.DocConfig.TypeField
 		if len(typeField) <= 0 ||
 			strings.ContainsAny(typeField, DisallowedChars) {
-			return nil, nil, nil, "", false, "", nil
+			return nil, nil, nil, "", false, "", "", nil
 		}
 
-		m, typeStr, dynamic, defaultAnalyzer := ProcessIndexMapping(im)
+		m, typeStr, dynamic, defaultAnalyzer,
+			defaultDateTimeParser := ProcessIndexMapping(im)
 		if typeStr != nil {
 			if len(typeStr.S) <= 0 ||
 				strings.ContainsAny(typeStr.S, "\"\\") {
-				return nil, nil, nil, "", false, "", nil
+				return nil, nil, nil, "", false, "", "", nil
 			}
 
 			// Ex: condExpr == 'type="beer"'.
 			condExpr = typeField + `="` + typeStr.S + `"`
 		}
 
-		return im, &bp.DocConfig, m, condExpr, dynamic, defaultAnalyzer, nil
+		return im, &bp.DocConfig, m, condExpr, dynamic,
+			defaultAnalyzer, defaultDateTimeParser, nil
 
 	case "docid_prefix":
 		dc := &bp.DocConfig
 
 		if len(dc.DocIDPrefixDelim) != 1 ||
 			strings.ContainsAny(dc.DocIDPrefixDelim, DisallowedChars) {
-			return nil, nil, nil, "", false, "", nil
+			return nil, nil, nil, "", false, "", "", nil
 		}
 
-		m, typeStr, dynamic, defaultAnalyzer := ProcessIndexMapping(im)
+		m, typeStr, dynamic, defaultAnalyzer,
+			defaultDateTimeParser := ProcessIndexMapping(im)
 		if typeStr != nil {
 			if len(typeStr.S) <= 0 ||
 				strings.ContainsAny(typeStr.S, DisallowedChars) ||
 				strings.ContainsAny(typeStr.S, dc.DocIDPrefixDelim) {
-				return nil, nil, nil, "", false, "", nil
+				return nil, nil, nil, "", false, "", "", nil
 			}
 
 			// Ex: condExpr == 'META().id LIKE "beer-%"'.
 			condExpr = `META().id LIKE "` + typeStr.S + dc.DocIDPrefixDelim + `%"`
 		}
 
-		return im, dc, m, condExpr, dynamic, defaultAnalyzer, nil
+		return im, dc, m, condExpr, dynamic,
+			defaultAnalyzer, defaultDateTimeParser, nil
 
 	case "docid_regexp":
 		// N1QL doesn't currently support a generic regexp-based
 		// condExpr, so not-FTSIndex'able.
-		return nil, nil, nil, "", false, "", nil
+		return nil, nil, nil, "", false, "", "", nil
 
 	default:
-		return nil, nil, nil, "", false, "", nil
+		return nil, nil, nil, "", false, "", "", nil
 	}
 }
 
@@ -130,19 +135,20 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef) (
 // TODO: we only support top-level dynamic right now, but
 // might want to support nested level dynamic in the future?
 func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
-	typeStr *String, dynamic bool, defaultAnalyzer string) {
+	typeStr *String, dynamic bool, defaultAnalyzer string,
+	defaultDateTimeParser string) {
 	var ok bool
 
 	for t, tm := range im.TypeMapping {
 		if tm.Enabled {
 			if m != nil { // Saw 2nd enabled type mapping, so not-FTSIndex'able.
-				return nil, nil, false, ""
+				return nil, nil, false, "", ""
 			}
 
-			m, defaultAnalyzer, ok = ProcessDocumentMapping(
-				im.DefaultAnalyzer, nil, tm, nil)
+			m, defaultAnalyzer, defaultDateTimeParser, ok = ProcessDocumentMapping(
+				im.DefaultAnalyzer, im.DefaultDateTimeParser, nil, tm, nil)
 			if !ok {
-				return nil, nil, false, ""
+				return nil, nil, false, "", ""
 			}
 
 			typeStr = nil
@@ -157,13 +163,14 @@ func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 	if im.DefaultMapping != nil && im.DefaultMapping.Enabled {
 		// Saw both type mapping(s) & default mapping, so not-FTSIndex'able.
 		if len(im.TypeMapping) > 0 {
-			return nil, nil, false, ""
+			return nil, nil, false, "", ""
 		}
 
-		m, defaultAnalyzer, ok = ProcessDocumentMapping(
-			im.DefaultAnalyzer, nil, im.DefaultMapping, nil)
+		m, defaultAnalyzer, defaultDateTimeParser, ok = ProcessDocumentMapping(
+			im.DefaultAnalyzer, im.DefaultDateTimeParser,
+			nil, im.DefaultMapping, nil)
 		if !ok {
-			return nil, nil, false, ""
+			return nil, nil, false, "", ""
 		}
 
 		typeStr = nil
@@ -171,17 +178,18 @@ func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 	}
 
 	if len(m) <= 0 {
-		return nil, nil, false, ""
+		return nil, nil, false, "", ""
 	}
 
-	return m, typeStr, dynamic, defaultAnalyzer
+	return m, typeStr, dynamic, defaultAnalyzer, defaultDateTimeParser
 }
 
-func ProcessDocumentMapping(defaultAnalyzer string, path []string,
-	dm *mapping.DocumentMapping, m map[SearchField]bool) (
-	mOut map[SearchField]bool, defaultAnalyzerOut string, ok bool) {
+func ProcessDocumentMapping(defaultAnalyzer, defaultDateTimeParser string,
+	path []string, dm *mapping.DocumentMapping, m map[SearchField]bool) (
+	mOut map[SearchField]bool, defaultAnalyzerOut string,
+	defaultDateTimeParserOut string, ok bool) {
 	if !dm.Enabled {
-		return m, defaultAnalyzer, true
+		return m, defaultAnalyzer, defaultDateTimeParser, true
 	}
 
 	if m == nil {
@@ -210,20 +218,26 @@ func ProcessDocumentMapping(defaultAnalyzer string, path []string,
 			if searchField.Analyzer == "" {
 				searchField.Analyzer = defaultAnalyzer
 			}
+		} else if f.Type == "datetime" {
+			searchField.DateFormat = f.DateFormat
+			if searchField.DateFormat == "" {
+				searchField.DateFormat = defaultDateTimeParser
+			}
 		}
 
 		if _, exists := m[searchField]; exists {
-			return nil, "", false
+			return nil, "", "", false
 		}
 
 		m[searchField] = false
 	}
 
 	for prop, propDM := range dm.Properties {
-		m, _, ok = ProcessDocumentMapping(defaultAnalyzer,
+		m, _, _, ok = ProcessDocumentMapping(defaultAnalyzer,
+			defaultDateTimeParser,
 			append(path, prop), propDM, m)
 		if !ok {
-			return nil, "", false
+			return nil, "", "", false
 		}
 	}
 
@@ -234,13 +248,13 @@ func ProcessDocumentMapping(defaultAnalyzer string, path []string,
 		}
 
 		if _, exists := m[searchField]; exists {
-			return nil, "", false
+			return nil, "", "", false
 		}
 
 		m[searchField] = true
 	}
 
-	return m, defaultAnalyzer, true
+	return m, defaultAnalyzer, defaultDateTimeParser, true
 }
 
 // -----------------------------------------------------------------------------

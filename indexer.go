@@ -499,15 +499,16 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 			// index.
 			continue
 		}
-		im, docConfig, searchFields, condExpr, dynamic, defaultAnalyzer, err :=
-			util.ProcessIndexDef(indexDef)
+		im, docConfig, searchFields, condExpr, dynamic, defaultAnalyzer,
+			defaultDateTimeParser, err := util.ProcessIndexDef(indexDef)
 		if err != nil {
 			return nil, err
 		}
 
 		if len(searchFields) > 0 || dynamic {
 			rv[indexDef.UUID], err = newFTSIndex(i, indexDef,
-				searchFields, condExpr, dynamic, defaultAnalyzer)
+				searchFields, condExpr, dynamic,
+				defaultAnalyzer, defaultDateTimeParser)
 			if err != nil {
 				return nil, err
 			}

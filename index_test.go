@@ -19,15 +19,16 @@ func setupSampleIndex(idef []byte) (*FTSIndex, error) {
 		return nil, err
 	}
 
-	_, _, searchFields, condExpr, dynamic, defaultAnalyzer, err :=
-		util.ProcessIndexDef(indexDef)
+	_, _, searchFields, condExpr, dynamic, defaultAnalyzer,
+		defaultDateTimeParser, err := util.ProcessIndexDef(indexDef)
 	if err != nil {
 		return nil, err
 	}
 
 	if searchFields != nil || dynamic {
 		return newFTSIndex(nil, indexDef,
-			searchFields, condExpr, dynamic, defaultAnalyzer)
+			searchFields, condExpr, dynamic,
+			defaultAnalyzer, defaultDateTimeParser)
 	}
 
 	return nil, fmt.Errorf("failed to setup index")

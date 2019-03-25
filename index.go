@@ -47,7 +47,8 @@ type FTSIndex struct {
 
 	dynamic bool // true if a top-level dynamic mapping is enabled
 
-	defaultAnalyzer string
+	defaultAnalyzer       string
+	defaultDateTimeParser string
 
 	// supported options for ordering
 	optionsForOrdering map[string]struct{}
@@ -60,7 +61,8 @@ func newFTSIndex(indexer *FTSIndexer,
 	searchFields map[util.SearchField]bool,
 	condExprStr string,
 	dynamic bool,
-	defaultAnalyzer string) (rv *FTSIndex, err error) {
+	defaultAnalyzer string,
+	defaultDateTimeParser string) (rv *FTSIndex, err error) {
 	var condExpr expression.Expression
 	if len(condExprStr) > 0 {
 		condExpr, err = parser.Parse(condExprStr)
@@ -70,13 +72,14 @@ func newFTSIndex(indexer *FTSIndexer,
 	}
 
 	index := &FTSIndex{
-		indexer:            indexer,
-		indexDef:           indexDef,
-		searchFields:       searchFields,
-		condExpr:           condExpr,
-		dynamic:            dynamic,
-		defaultAnalyzer:    defaultAnalyzer,
-		optionsForOrdering: make(map[string]struct{}),
+		indexer:               indexer,
+		indexDef:              indexDef,
+		searchFields:          searchFields,
+		condExpr:              condExpr,
+		dynamic:               dynamic,
+		defaultAnalyzer:       defaultAnalyzer,
+		defaultDateTimeParser: defaultDateTimeParser,
+		optionsForOrdering:    make(map[string]struct{}),
 	}
 
 	v := struct{}{}
@@ -306,7 +309,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 					}
 				}
 
-				searchFields, _, dynamic, _ := util.ProcessIndexMapping(im)
+				searchFields, _, dynamic, _, _ := util.ProcessIndexMapping(im)
 
 				if !dynamic {
 					searchFieldsCompatible := true
@@ -361,6 +364,10 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			// TODO: double-check if this mutation is ok, or if we
 			// instead need to copy f / copy-on-write.
 			f.Analyzer = i.defaultAnalyzer
+			f.DateFormat = ""
+		} else if f.Type == "datetime" && f.DateFormat == "" {
+			f.Analyzer = ""
+			f.DateFormat = i.defaultDateTimeParser
 		}
 
 		if f.Name == "" {
