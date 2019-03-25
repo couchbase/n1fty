@@ -116,6 +116,32 @@ func TestVerifyResultWithoutIndexOption(t *testing.T) {
 	}
 }
 
+func TestNewVerifyWithInvalidIndexUUID(t *testing.T) {
+	util.SetIndexMapping("temp", &util.MappingDetails{
+		UUID:       "tempUUID",
+		SourceName: "temp_keyspace",
+		IMapping:   bleve.NewIndexMapping(),
+	})
+
+	q := struct {
+		field   string
+		query   value.Value
+		options value.Value
+	}{
+		field: "",
+		query: value.NewValue(`search_term`),
+		options: value.NewValue(map[string]interface{}{
+			"index":     "temp",
+			"indexUUID": "incorrectUUID",
+		}),
+	}
+
+	_, err := NewVerify("`temp_keyspace`", q.field, q.query, q.options)
+	if err == nil {
+		t.Fatal(err)
+	}
+}
+
 func TestMB33444(t *testing.T) {
 	q := struct {
 		field   string

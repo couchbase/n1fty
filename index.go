@@ -353,37 +353,35 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		}
 	}
 
-	var indexOptionAvailable bool
 	if options != nil {
-		_, indexOptionAvailable = options.Field("index")
-	}
-	if indexOptionAvailable {
-		indexVal, _ := options.Field("index")
-		if indexVal.Type() == value.OBJECT {
-			// if in case this value were an object, it is expected to be
-			// a mapping, check if this mapping is compatible with the
-			// current index's mapping.
-			im, err := util.ConvertValObjectToIndexMapping(indexVal)
-			if err != nil {
-				return &sargableRV{
-					err: util.N1QLError(err, ""),
-				}
-			}
-
-			searchFields, _, dynamic, _ := util.ProcessIndexMapping(im)
-
-			if !dynamic {
-				searchFieldsCompatible := true
-				for k, expect := range searchFields {
-					if got, exists := i.searchFields[k]; !exists || got != expect {
-						searchFieldsCompatible = false
-						break
+		indexVal, exists := options.Field("index")
+		if exists {
+			if indexVal.Type() == value.OBJECT {
+				// if in case this value were an object, it is expected to be
+				// a mapping, check if this mapping is compatible with the
+				// current index's mapping.
+				im, err := util.ConvertValObjectToIndexMapping(indexVal)
+				if err != nil {
+					return &sargableRV{
+						err: util.N1QLError(err, ""),
 					}
 				}
 
-				if !searchFieldsCompatible {
-					// not sargable, because explicit mapping isn't compatible
-					return &sargableRV{}
+				searchFields, _, dynamic, _ := util.ProcessIndexMapping(im)
+
+				if !dynamic {
+					searchFieldsCompatible := true
+					for k, expect := range searchFields {
+						if got, exists := i.searchFields[k]; !exists || got != expect {
+							searchFieldsCompatible = false
+							break
+						}
+					}
+
+					if !searchFieldsCompatible {
+						// not sargable, because explicit mapping isn't compatible
+						return &sargableRV{}
+					}
 				}
 			}
 		}

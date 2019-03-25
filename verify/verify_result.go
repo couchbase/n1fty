@@ -69,13 +69,17 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 		if indexVal.Type() == value.STRING {
 			keyspace := util.FetchKeySpace(nameAndKeyspace)
 
-			// TODO: This is racy, where a concurrent index update can
-			// lead to the wrong idxMapping.
-			// TODO: One solution is to support an optional
-			// options["indexUUID"] flag that needs to be checked,
-			// allowing users to close the race window if they want.
+			// check if indexUUID string is also available from the options.
+			var indexUUID string
+			indexUUIDVal, indexUUIDAvailable := options.Field("indexUUID")
+			if indexUUIDAvailable {
+				if indexUUIDVal.Type() == value.STRING {
+					indexUUID = indexUUIDVal.Actual().(string)
+				}
+			}
+
 			idxMapping, docConfig, err = util.FetchIndexMapping(
-				indexVal.Actual().(string), keyspace)
+				indexVal.Actual().(string), indexUUID, keyspace)
 			if err != nil {
 				return nil, util.N1QLError(nil, "index mapping not found")
 			}

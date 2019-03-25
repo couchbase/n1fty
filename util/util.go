@@ -53,7 +53,7 @@ func SetIndexMapping(name string, mappingDetails *MappingDetails) {
 	mappingsCacheLock.Unlock()
 }
 
-func FetchIndexMapping(name, keyspace string) (mapping.IndexMapping, *cbft.BleveDocumentConfig, error) {
+func FetchIndexMapping(name, uuid, keyspace string) (mapping.IndexMapping, *cbft.BleveDocumentConfig, error) {
 	if len(keyspace) == 0 || len(name) == 0 {
 		// Return default index mapping if keyspace not provided.
 		return EmptyIndexMapping, nil, nil
@@ -61,9 +61,11 @@ func FetchIndexMapping(name, keyspace string) (mapping.IndexMapping, *cbft.Bleve
 	mappingsCacheLock.RLock()
 	defer mappingsCacheLock.RUnlock()
 	if info, exists := mappingsCache[name]; exists {
-		// TODO: need to check UUID here?
+		// validate sourceName/keyspace, additionally check UUID if provided
 		if info.SourceName == keyspace {
-			return info.IMapping, info.DocConfig, nil
+			if uuid == "" || info.UUID == uuid {
+				return info.IMapping, info.DocConfig, nil
+			}
 		}
 	}
 	return nil, nil, fmt.Errorf("index mapping not found for: %v", name)
