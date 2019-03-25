@@ -168,7 +168,6 @@ func TestCustomIndexNoFieldsQuerySargability(t *testing.T) {
 	if count != int(indexedCount) || !exact {
 		t.Fatal("Unexpected results from Index.Sargable(...) for query")
 	}
-
 }
 
 func TestIncompatibleIndexSargability(t *testing.T) {
@@ -367,7 +366,7 @@ func TestCompatibleCustomDefaultMappedIndexSargability(t *testing.T) {
 		t.Fatalf("Expected sargable count of 2, but got: %v", count)
 	}
 
-	if indexedCount != 2 {
+	if indexedCount != 3 {
 		t.Fatalf("Expected indexed count of 2, but got: %v", indexedCount)
 	}
 }
@@ -459,5 +458,30 @@ func TestIndexPageable(t *testing.T) {
 
 	if pageable {
 		t.Fatalf("Expected to be non pageable, but got: %v", pageable)
+	}
+}
+
+func TestDateTimeSargability(t *testing.T) {
+	index, err := setupSampleIndex(util.SampleIndexDefWithCustomDefaultMapping)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	query := expression.NewConstant(map[string]interface{}{
+		"start":           "2019-03-25 12:00:00",
+		"inclusive_start": true,
+		"field":           "currentTime",
+		"end":             "2019-03-25 12:00:00",
+		"inclusive_end":   true,
+	})
+
+	count, indexedCount, exact, _, n1qlErr := index.Sargable("", query,
+		expression.NewConstant(``), nil)
+	if n1qlErr != nil {
+		t.Fatal(n1qlErr)
+	}
+
+	if count != 1 || indexedCount != 3 || !exact {
+		t.Fatal("Unexpected results from Index.Sargable(...) for query")
 	}
 }

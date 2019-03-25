@@ -266,6 +266,20 @@ var SampleIndexDefWithCustomDefaultMapping = []byte(`
 							"type": "text"
 						}
 						]
+					},
+					"currentTime": {
+						"enabled": true,
+						"dynamic": false,
+						"fields": [
+						{
+							"docvalues": true,
+							"include_in_all": true,
+							"include_term_vectors": true,
+							"index": true,
+							"name": "currentTime",
+							"type": "datetime"
+						}
+						]
 					}
 				}
 			},

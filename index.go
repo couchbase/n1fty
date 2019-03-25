@@ -354,9 +354,9 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 	}
 
 	for _, f := range queryFields {
-		if f.Analyzer == "" {
-			// set analyzer to defaultAnalyzer for those query fields, that
-			// don't have an explicit analyzer set already.
+		if f.Type == "text" && f.Analyzer == "" {
+			// set analyzer to defaultAnalyzer for those query fields of type:text,
+			// that don't have an explicit analyzer set already.
 			//
 			// TODO: double-check if this mutation is ok, or if we
 			// instead need to copy f / copy-on-write.
@@ -396,6 +396,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			if len(fieldSplitAtDot) <= 1 {
 				// not sargable
 				return &sargableRV{
+					indexedCount:  int64(len(i.searchFields)),
 					queryFields:   queryFields,
 					searchRequest: sr,
 				}
@@ -421,6 +422,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			if !matched {
 				// not sargable
 				return &sargableRV{
+					indexedCount:  int64(len(i.searchFields)),
 					queryFields:   queryFields,
 					searchRequest: sr,
 				}
