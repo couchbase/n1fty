@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/blevesearch/bleve"
 	"github.com/blevesearch/bleve/mapping"
@@ -25,6 +26,8 @@ import (
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/value"
 )
+
+var bleveMaxResultWindow = int64(10000)
 
 type MappingDetails struct {
 	UUID       string
@@ -151,11 +154,11 @@ func FetchKeySpace(nameAndKeyspace string) string {
 }
 
 func ParseQueryToSearchRequest(field string, input value.Value,
-	opaqueObj interface{}) ([]SearchField, *pb.SearchRequest, error) {
+	opaqueObj interface{}) ([]SearchField, *pb.SearchRequest, bool, error) {
 	field = CleanseField(field)
 
 	if input == nil {
-		return []SearchField{{Name: field}}, nil, nil
+		return []SearchField{{Name: field}}, nil, false, nil
 	}
 
 	var err error
@@ -164,54 +167,39 @@ func ParseQueryToSearchRequest(field string, input value.Value,
 	rv := &pb.SearchRequest{}
 	if reqIn, ok := opaqueObj.(pb.SearchRequest); ok {
 		rv = &pb.SearchRequest{
-			Size:             reqIn.Size,
-			From:             reqIn.From,
-			Explain:          reqIn.Explain,
-			IncludeLocations: reqIn.IncludeLocations,
-			Fields:           reqIn.Fields,
-			Stream:           reqIn.Stream,
-			Sort:             reqIn.Sort,
-			Query:            reqIn.Query,
+			Contents:  reqIn.Contents,
+			Stream:    reqIn.Stream,
+			IndexUUID: reqIn.IndexUUID,
+			IndexName: reqIn.IndexName,
 		}
 	}
-
+	isSearchRequest := false
 	// if the input has a query field that is an object type
 	// then it is a search request
 	if qf, ok := input.Field("query"); ok && qf.Type() == value.OBJECT {
 		rv, query, err = BuildSearchRequest(field, input)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, true, err
 		}
+		isSearchRequest = true
 	} else {
 		query, err = BuildQuery(field, input)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, false, err
 		}
-		rv.Query, err = json.Marshal(query)
+		sr := bleve.SearchRequest{Query: query}
+		rv.Contents, err = json.Marshal(sr)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, false, err
 		}
 	}
 
 	queryFields, err := FetchFieldsToSearchFromQuery(query)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, isSearchRequest, err
 	}
 
-	return queryFields, rv, nil
-}
-
-func ParseSortOrderFields(sortBytes []byte) ([]string, error) {
-	if sortBytes == nil {
-		return nil, nil
-	}
-
-	var tmp []string
-	err := json.Unmarshal(sortBytes, &tmp)
-	if err != nil {
-		return nil, err
-	}
-	return tmp, nil
+	return queryFields, rv, isSearchRequest, nil
 }
 
 // Value MUST be an object
@@ -229,4 +217,12 @@ func ConvertValObjectToIndexMapping(val value.Value) (
 
 func N1QLError(err error, desc string) errors.Error {
 	return errors.NewError(err, "n1fty: "+desc)
+}
+
+func GetBleveMaxResultWindow() int64 {
+	return atomic.LoadInt64(&bleveMaxResultWindow)
+}
+
+func SetBleveMaxResultWindow(v int64) {
+	atomic.StoreInt64(&bleveMaxResultWindow, v)
 }

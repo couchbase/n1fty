@@ -414,8 +414,8 @@ func TestIndexPageable(t *testing.T) {
 	pageable = index.Pageable(order, 0,
 		10, query, expression.NewConstant(``))
 
-	if !pageable {
-		t.Fatalf("Expected to be pageable, but got: %v", pageable)
+	if pageable {
+		t.Fatalf("Expected to be non pageable, but got: %v", pageable)
 	}
 
 	if !reflect.DeepEqual(order, expOrder) {

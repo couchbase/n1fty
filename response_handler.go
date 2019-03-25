@@ -25,6 +25,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/blevesearch/bleve"
 	"github.com/blevesearch/bleve/search"
 
 	pb "github.com/couchbase/cbft/protobuf"
@@ -43,7 +44,19 @@ type responseHandler struct {
 	i            *FTSIndex
 	requestID    string
 	backfillFile *os.File
-	searchReq    *pb.SearchRequest
+	sr           *bleve.SearchRequest
+}
+
+func newResponseHandler(i *FTSIndex, requestID string, srBytes []byte) *responseHandler {
+	rv := &responseHandler{
+		i:         i,
+		requestID: requestID,
+	}
+	err := json.Unmarshal(srBytes, &rv.sr)
+	if err != nil {
+		return nil
+	}
+	return rv
 }
 
 func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
@@ -150,7 +163,8 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 		}
 
 		var hits []*search.DocumentMatch
-		switch r := results.PayLoad.(type) {
+		var result *bleve.SearchResult
+		switch r := results.Contents.(type) {
 		case *pb.StreamSearchResults_Hits:
 			err = json.Unmarshal(r.Hits.Bytes, &hits)
 			if err != nil {
@@ -158,13 +172,14 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 				continue
 			}
 
-		case *pb.StreamSearchResults_Results:
-			if r.Results.Hits != nil {
-				err = json.Unmarshal(r.Results.Hits, &hits)
+		case *pb.StreamSearchResults_SearchResult:
+			if r.SearchResult != nil {
+				err = json.Unmarshal(r.SearchResult, &result)
 				if err != nil {
 					logging.Infof("response_handler: json.Unmarshal, err: %v", err)
 					continue
 				}
+				hits = result.Hits
 			}
 		}
 
@@ -252,13 +267,13 @@ func (r *responseHandler) sendEntry(hit *search.DocumentMatch,
 
 	rv := make(map[string]interface{}, 1)
 	rv["score"] = hit.Score
-	if r.searchReq.IncludeLocations {
+	if r.sr.IncludeLocations {
 		rv["locations"] = hit.Locations
 	}
-	if len(r.searchReq.Fields) > 0 {
+	if len(r.sr.Fields) > 0 {
 		rv["fields"] = hit.Fields
 	}
-	if r.searchReq.Explain {
+	if r.sr.Explain {
 		rv["explanation"] = *hit.Expl
 	}
 

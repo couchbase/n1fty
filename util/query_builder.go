@@ -14,9 +14,16 @@ package util
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 
+	"github.com/blevesearch/bleve"
+	"github.com/blevesearch/bleve/search"
 	"github.com/blevesearch/bleve/search/query"
 	pb "github.com/couchbase/cbft/protobuf"
+	"github.com/couchbase/cbgt"
+	"github.com/couchbase/query/datastore"
+	"github.com/couchbase/query/timestamp"
 	"github.com/couchbase/query/value"
 )
 
@@ -78,35 +85,24 @@ func BuildQueryFromBytes(field string, qBytes []byte) (query.Query, error) {
 	return q, nil
 }
 
+func BuildQueryFromSearchRequestBytes(field string, sBytes []byte) (query.Query, error) {
+	sr := bleve.SearchRequest{}
+	err := json.Unmarshal(sBytes, &sr)
+	if err != nil {
+		return nil, err
+	}
+
+	if field != "" {
+		UpdateFieldsInQuery(sr.Query, field)
+	}
+
+	return sr.Query, nil
+}
+
 func BuildSearchRequest(field string, input value.Value) (*pb.SearchRequest,
 	query.Query, error) {
 	if input == nil {
 		return nil, nil, fmt.Errorf("query not provided")
-	}
-
-	// take the query object to parse and update fields
-	var err error
-	var qBytes []byte
-	if tq, ok := input.Field("query"); ok {
-		qBytes, err = tq.MarshalJSON()
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
-	// resetting the query object as to avoid unmarshal
-	// conflicts later wrt to mismatched types on
-	// pb.SearchRequest.Query ([]byte vs object)
-	input.SetField("query", nil)
-
-	// needs a better way to handle both query and sort fields here??
-	var sortBytes []byte
-	if sq, ok := input.Field("sort"); ok {
-		sortBytes, err = sq.MarshalJSON()
-		if err != nil {
-			return nil, nil, err
-		}
-		input.SetField("sort", nil)
 	}
 
 	srBytes, err := input.MarshalJSON()
@@ -114,31 +110,23 @@ func BuildSearchRequest(field string, input value.Value) (*pb.SearchRequest,
 		return nil, nil, err
 	}
 
-	rv := &pb.SearchRequest{}
-	err = json.Unmarshal(srBytes, &rv)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// set the sort bytes
-	rv.Sort = sortBytes
-
-	// get the query
-	q, err := BuildQueryFromBytes(field, qBytes)
+	sr := &bleve.SearchRequest{}
+	err = json.Unmarshal(srBytes, &sr)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	if field != "" {
-		UpdateFieldsInQuery(q, field)
+		UpdateFieldsInQuery(sr.Query, field)
 	}
 
-	rv.Query, err = json.Marshal(q)
+	rv := &pb.SearchRequest{}
+	rv.Contents, err = json.Marshal(sr)
 	if err != nil {
-		return nil, nil, err
+		return rv, sr.Query, err
 	}
 
-	return rv, q, nil
+	return rv, sr.Query, nil
 }
 
 func BuildQueryFromString(field, input string) (query.Query, error) {
@@ -154,4 +142,96 @@ func BuildQueryFromString(field, input string) (query.Query, error) {
 	}
 
 	return q, nil
+}
+
+func BuildSortFromBytes(sBytes []byte) (search.SortOrder, error) {
+	if sBytes == nil {
+		return nil, nil
+	}
+	return search.ParseSortOrderJSON(append([]json.RawMessage(nil), sBytes))
+}
+
+func ParseSearchInfoToSearchRequest(searchRequest **pb.SearchRequest,
+	searchInfo *datastore.FTSSearchInfo, vector timestamp.Vector,
+	consistencyLevel datastore.ScanConsistency, indexName string, isComplete bool) error {
+	sr := &bleve.SearchRequest{}
+	err := json.Unmarshal((*searchRequest).Contents, sr)
+	if err != nil {
+		return err
+	}
+	(*searchRequest).IndexName = indexName
+
+	// need to complete the searchrequest from SearchInfo details
+	if !isComplete {
+		sr.From = int(searchInfo.Offset)
+		if sr.Size == 0 {
+			sr.Size = int(searchInfo.Limit)
+		}
+
+		// searchInfo order takes precedence
+		if len(searchInfo.Order) > 0 {
+			var tempOrder []string
+			for _, so := range searchInfo.Order {
+				fields := strings.Fields(so)
+				field := fields[0]
+				if field == "score" || field == "id" {
+					field = "_" + field
+				}
+
+				if len(fields) == 1 || (len(fields) == 2 &&
+					fields[1] == "ASC") {
+					tempOrder = append(tempOrder, field)
+					continue
+				}
+
+				tempOrder = append(tempOrder, "-"+field)
+			}
+
+			sr.Sort = search.ParseSortOrderStrings(tempOrder)
+		}
+	}
+
+	// check whether the streaming of results is beneficial
+	if (sr.Sort == nil && len(searchInfo.Order) == 0) ||
+		sr.Size+sr.From > int(GetBleveMaxResultWindow()) {
+		(*searchRequest).Stream = true
+	}
+
+	(*searchRequest).Contents, err = json.Marshal(sr)
+	if err != nil {
+		return err
+	}
+
+	if vector != nil && len(vector.Entries()) > 0 {
+		ctlParams := &pb.QueryCtlParams{
+			Ctl: &pb.QueryCtl{
+				Timeout: cbgt.QUERY_CTL_DEFAULT_TIMEOUT_MS,
+				Consistency: &pb.ConsistencyParams{
+					Vectors: make(map[string]*pb.ConsistencyVectors, 1),
+				},
+			},
+		}
+
+		if consistencyLevel == datastore.SCAN_PLUS {
+			ctlParams.Ctl.Consistency.Level = "at_plus"
+		}
+
+		vMap := &pb.ConsistencyVectors{
+			ConsistencyVector: make(map[string]uint64, 1024),
+		}
+
+		for _, entry := range vector.Entries() {
+			key := strconv.FormatInt(int64(entry.Position()), 10) + "/" + entry.Guard()
+			vMap.ConsistencyVector[key] = uint64(entry.Value())
+		}
+
+		ctlParams.Ctl.Consistency.Vectors[indexName] = vMap
+
+		(*searchRequest).QueryCtlParams, err = json.Marshal(ctlParams)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

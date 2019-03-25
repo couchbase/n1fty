@@ -16,6 +16,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/blevesearch/bleve"
 	"github.com/blevesearch/bleve/search/query"
 	"github.com/couchbase/query/value"
 )
@@ -156,7 +157,7 @@ func TestBuildSearchRequest(t *testing.T) {
 				"explain":          true,
 				"includeLocations": true,
 				"fields":           []interface{}{"country", "city"},
-				"sort": value.NewValue(map[string]interface{}{
+				"sort": []interface{}{value.NewValue(map[string]interface{}{
 					"by":    "geo_distance",
 					"field": "geo",
 					"unit":  "mi",
@@ -164,7 +165,7 @@ func TestBuildSearchRequest(t *testing.T) {
 						"lon": -2.235143,
 						"lat": 53.482358,
 					},
-				}),
+				})},
 			}),
 		},
 		{
@@ -210,15 +211,21 @@ func TestBuildSearchRequest(t *testing.T) {
 							"field": "zyx",
 						}},
 				}),
-				"sort": []interface{}{"country", "_id", "-_score"},
+				"sort": []interface{}{"country, _id, -_score"},
 			}),
 		},
 	}
 
 	for i, test := range tests {
-		sr, q, err := BuildSearchRequest("", test.query)
+		pbsr, q, err := BuildSearchRequest("", test.query)
 		if err != nil {
-			t.Fatalf("Expected no error, but got err: %v", err)
+			t.Fatalf("Expected no error for q: %+v, but got err: %v", test.query, err)
+		}
+
+		sr := &bleve.SearchRequest{}
+		err = json.Unmarshal(pbsr.Contents, sr)
+		if err != nil {
+			t.Fatalf("Expected json err: %v", err)
 		}
 
 		switch qq := q.(type) {
@@ -269,9 +276,10 @@ func TestBuildSearchRequest(t *testing.T) {
 				t.Fatalf("Exception in conjunction query")
 			}
 
-			sbytes, _ := json.Marshal([]string{"country", "_id", "-_score"})
-			if !reflect.DeepEqual(sbytes, sr.Sort) {
-				t.Fatalf("incorrect search request, Sort: %v", sr.Sort)
+			sbytes, _ := json.Marshal([]string{"country, _id, -_score"})
+			rbytes, _ := json.Marshal(sr.Sort)
+			if !reflect.DeepEqual(sbytes, rbytes) {
+				t.Fatalf("incorrect search request, expected: %s got: %s", sbytes, rbytes)
 			}
 
 		default:

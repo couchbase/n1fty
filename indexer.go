@@ -19,7 +19,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/couchbase/cbauth"
@@ -33,8 +32,6 @@ import (
 
 	"gopkg.in/couchbase/gocbcore.v7"
 )
-
-var bleveMaxResultWindow = int64(10000)
 
 // FTSIndexer implements datastore.Indexer interface
 type FTSIndexer struct {
@@ -309,8 +306,8 @@ func (i *FTSIndexer) Refresh() errors.Error {
 	i.m.Unlock()
 
 	bmrw, err := i.fetchBleveMaxResultWindow()
-	if err == nil && int64(bmrw) != atomic.LoadInt64(&bleveMaxResultWindow) {
-		atomic.StoreInt64(&bleveMaxResultWindow, int64(bmrw))
+	if err == nil && int64(bmrw) != util.GetBleveMaxResultWindow() {
+		util.SetBleveMaxResultWindow(int64(bmrw))
 	}
 
 	return nil
