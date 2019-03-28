@@ -12,10 +12,12 @@
 package n1fty
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -41,10 +43,15 @@ type FTSIndexer struct {
 
 	agent *gocbcore.Agent
 
+	cfg     cbgt.Cfg
+	stats   *stats
+	closeCh chan struct{}
+
 	// sync RWMutex protects following fields
 	m sync.RWMutex
 
-	lastRefreshTime time.Time
+	client   *ftsClient
+	nodeDefs *cbgt.NodeDefs
 
 	indexIds   []string
 	indexNames []string
@@ -52,11 +59,6 @@ type FTSIndexer struct {
 
 	mapIndexesByID   map[string]datastore.Index
 	mapIndexesByName map[string]datastore.Index
-
-	cfg        cbgt.Cfg
-	srvWrapper *ftsSrvWrapper
-	stats      *stats
-	closeCh    chan struct{}
 }
 
 type stats struct {
@@ -110,17 +112,14 @@ func NewFTSIndexer(serverIn, namespace, keyspace string) (datastore.Indexer,
 	}
 
 	indexer := &FTSIndexer{
-		namespace:       namespace,
-		keyspace:        keyspace,
-		serverURL:       svrs[0],
-		agent:           agent,
-		lastRefreshTime: time.Now(),
-		cfg:             ftsConfig,
-		stats:           &stats{},
-		closeCh:         make(chan struct{}),
+		namespace: namespace,
+		keyspace:  keyspace,
+		serverURL: svrs[0],
+		agent:     agent,
+		cfg:       ftsConfig,
+		stats:     &stats{},
+		closeCh:   make(chan struct{}),
 	}
-
-	indexer.Refresh()
 
 	go backfillMonitor(1*time.Second, indexer) // TODO: configurability.
 
@@ -165,6 +164,36 @@ func (a *Authenticator) Credentials(req gocbcore.AuthCredsRequest) (
 	}}, nil
 }
 
+func (i *FTSIndexer) SetConnectionSecurityConfig(
+	conf *datastore.ConnectionSecurityConfig) {
+	if conf == nil {
+		return
+	}
+
+	newSecuritySetting := &securitySetting{
+		tlsPreference:     &conf.TLSConfig,
+		encryptionEnabled: conf.ClusterEncryptionConfig.EncryptData,
+		disableNonSSLPort: conf.ClusterEncryptionConfig.DisableNonSSLPorts,
+	}
+
+	if len(conf.CertFile) != 0 && len(conf.KeyFile) != 0 {
+		certificate, err := tls.LoadX509KeyPair(conf.CertFile, conf.KeyFile)
+		if err != nil {
+			logging.Fatalf("Failed to generate SSL certificate, err: %v", err)
+		}
+		newSecuritySetting.certificate = &certificate
+
+		newSecuritySetting.certInBytes, err = ioutil.ReadFile(conf.CertFile)
+		if err != nil {
+			logging.Fatalf("Failed to load certificate file, err: %v", err)
+		}
+	}
+
+	updateSecuritySetting(newSecuritySetting)
+
+	i.Refresh()
+}
+
 // Close is an implementation of io.Closer interface
 // It is recommended that query calls Close on the FTSIndexer
 // object once its usage is over, for a graceful cleanup.
@@ -187,7 +216,7 @@ func (i *FTSIndexer) Name() datastore.IndexType {
 }
 
 func (i *FTSIndexer) IndexIds() ([]string, errors.Error) {
-	if err := i.Refresh(); err != nil {
+	if err := i.refresh(false); err != nil {
 		return nil, err
 	}
 
@@ -199,7 +228,7 @@ func (i *FTSIndexer) IndexIds() ([]string, errors.Error) {
 }
 
 func (i *FTSIndexer) IndexNames() ([]string, errors.Error) {
-	if err := i.Refresh(); err != nil {
+	if err := i.refresh(false); err != nil {
 		return nil, err
 	}
 
@@ -245,7 +274,7 @@ func (i *FTSIndexer) PrimaryIndexes() ([]datastore.PrimaryIndex, errors.Error) {
 }
 
 func (i *FTSIndexer) Indexes() ([]datastore.Index, errors.Error) {
-	if err := i.Refresh(); err != nil {
+	if err := i.refresh(false); err != nil {
 		return nil, util.N1QLError(err, "")
 	}
 
@@ -273,14 +302,29 @@ func (i *FTSIndexer) BuildIndexes(requestId string, name ...string) errors.Error
 }
 
 func (i *FTSIndexer) Refresh() errors.Error {
+	return i.refresh(true)
+}
+
+func (i *FTSIndexer) MetadataVersion() uint64 {
+	// FIXME
+	return 0
+}
+
+func (i *FTSIndexer) SetLogLevel(level logging.Level) {
+	logging.SetLevel(level)
+}
+
+// -----------------------------------------------------------------------------
+
+func (i *FTSIndexer) refresh(force bool) errors.Error {
 	mapIndexesByID, nodeDefs, err := i.refreshConfigs()
 	if err != nil {
 		return util.N1QLError(err, "refresh failed")
 	}
 
-	err = i.initSrvWrapper(nodeDefs)
+	err = i.initClient(nodeDefs, force)
 	if err != nil {
-		return util.N1QLError(err, "initSrvWrapper failed")
+		return util.N1QLError(err, "initClient failed")
 	}
 
 	numIndexes := len(mapIndexesByID)
@@ -312,17 +356,6 @@ func (i *FTSIndexer) Refresh() errors.Error {
 
 	return nil
 }
-
-func (i *FTSIndexer) MetadataVersion() uint64 {
-	// FIXME
-	return 0
-}
-
-func (i *FTSIndexer) SetLogLevel(level logging.Level) {
-	logging.SetLevel(level)
-}
-
-// -----------------------------------------------------------------------------
 
 func (i *FTSIndexer) refreshConfigs() (
 	map[string]datastore.Index, *cbgt.NodeDefs, error) {
@@ -366,22 +399,53 @@ func (i *FTSIndexer) refreshConfigs() (
 	return imap, nodeDefs, err
 }
 
-func (i *FTSIndexer) initSrvWrapper(nodeDefs *cbgt.NodeDefs) error {
-	if nodeDefs == nil {
+func (i *FTSIndexer) nodeDefsUnchangedLOCKED(newNodeDefs *cbgt.NodeDefs) bool {
+	oldBytes, err1 := json.Marshal(i.nodeDefs)
+	newBytes, err2 := json.Marshal(newNodeDefs)
+	if err1 != nil || err2 != nil {
+		return false
+	}
+	var oldI, newI interface{}
+	err1 = json.Unmarshal(oldBytes, &oldI)
+	err2 = json.Unmarshal(newBytes, &newI)
+	if err1 != nil || err2 != nil {
+		return false
+	}
+	return reflect.DeepEqual(oldI, newI)
+}
+
+func (i *FTSIndexer) initClient(nodeDefs *cbgt.NodeDefs, force bool) error {
+	i.m.RLock()
+	if i.client != nil && i.nodeDefsUnchangedLOCKED(nodeDefs) && !force {
+		i.m.RUnlock()
+		return nil
+	}
+	i.m.RUnlock()
+
+	i.m.Lock()
+	defer i.m.Unlock()
+	if i.client != nil && i.nodeDefsUnchangedLOCKED(nodeDefs) && !force {
 		return nil
 	}
 
-	hostMap, err := extractHostCertsMap(nodeDefs)
+	// setup new client
+	var err error
+	i.client, err = setupFTSClient(nodeDefs)
 	if err != nil {
-		return util.N1QLError(err, "indexer, extractHostCertsMap err")
+		return err
 	}
 
-	i.srvWrapper, err = initWrapper(hostMap, nil)
-	if err != nil {
-		return util.N1QLError(err, "indexer, initWrapper err")
-	}
+	i.nodeDefs = nodeDefs
 
 	return nil
+}
+
+func (i *FTSIndexer) getClient() *ftsClient {
+	var client *ftsClient
+	i.m.RLock()
+	client = i.client
+	i.m.RUnlock()
+	return client
 }
 
 func (i *FTSIndexer) retrieveIndexDefs(node string) (

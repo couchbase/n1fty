@@ -213,7 +213,13 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 	util.ParseSearchInfoToSearchRequest(&sargRV.searchRequest.protoMsg, searchInfo,
 		vector, cons, i.indexDef.Name, sargRV.searchRequest.complete)
 
-	client := i.indexer.srvWrapper.getGrpcClient()
+	ftsClient := i.indexer.getClient()
+	if ftsClient == nil {
+		conn.Error(util.N1QLError(nil, "client unavailable, try refreshing"))
+		return
+	}
+
+	client := ftsClient.getGrpcClient()
 	if client == nil {
 		conn.Error(util.N1QLError(nil, "client unavailable, try refreshing"))
 		return

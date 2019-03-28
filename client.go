@@ -12,12 +12,13 @@
 package n1fty
 
 import (
+	"crypto/tls"
 	"crypto/x509"
 	"fmt"
 	"math/rand"
-	"reflect"
-	"sync"
+	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/couchbase/cbauth"
 	"github.com/couchbase/cbgt"
@@ -29,6 +30,25 @@ import (
 	"google.golang.org/grpc/keepalive"
 )
 
+// CBAUTH security/encryption seting
+type securitySetting struct {
+	encryptionEnabled bool
+	disableNonSSLPort bool
+	certificate       *tls.Certificate
+	certInBytes       []byte
+	tlsPreference     *cbauth.TLSConfig
+}
+
+var security unsafe.Pointer = unsafe.Pointer(new(securitySetting))
+
+func getSecuritySetting() *securitySetting {
+	return (*securitySetting)(atomic.LoadPointer(&security))
+}
+
+func updateSecuritySetting(s *securitySetting) {
+	atomic.StorePointer(&security, unsafe.Pointer(s))
+}
+
 // default values same as that for http/rest connections
 var DefaultGrpcConnectionIdleTimeout = time.Duration(60) * time.Second
 var DefaultGrpcConnectionHeartBeatInterval = time.Duration(60) * time.Second
@@ -38,8 +58,6 @@ var DefaultGrpcMaxBackOffDelay = time.Duration(10) * time.Second
 var DefaultGrpcMaxRecvMsgSize = 1024 * 1024 * 20 // 20 MB
 var DefaultGrpcMaxSendMsgSize = 1024 * 1024 * 20 // 20 MB
 
-var defaultPoolSize = int(1)
-
 var rsource rand.Source
 var r1 *rand.Rand
 
@@ -48,156 +66,133 @@ func init() {
 	r1 = rand.New(rsource)
 }
 
-type ftsSrvWrapper struct {
-	m          sync.Mutex
-	ftsGrpcEps map[string]interface{}
-	connPool   map[string]*grpc.ClientConn // now only a single connection
-	rrMap      map[int]string
-	configs    map[string]interface{} // future
+type ftsClient struct {
+	gRPCConnMap map[string]*grpc.ClientConn
+	serverMap   map[int]string
 }
 
-// singleton instance for handling all the
-// grpc connection handling
-var muclient sync.Mutex
-var singletonClient *ftsSrvWrapper
-
-func initWrapper(ftsEps map[string]interface{},
-	cfg map[string]interface{}) (*ftsSrvWrapper, error) {
-	muclient.Lock()
-	if singletonClient == nil {
-		singletonClient = &ftsSrvWrapper{
-			configs:  cfg,
-			connPool: make(map[string]*grpc.ClientConn),
-			rrMap:    make(map[int]string),
-		}
-	}
-
-	err := singletonClient.refresh(ftsEps)
-	if err != nil {
-		muclient.Unlock()
-		return nil, err
-	}
-
-	muclient.Unlock()
-	return singletonClient, nil
-}
-
-func (c *ftsSrvWrapper) getGrpcClient() pb.SearchServiceClient {
-	c.m.Lock()
-	if len(c.rrMap) <= 0 {
-		c.m.Unlock()
+func (c *ftsClient) getGrpcClient() pb.SearchServiceClient {
+	if len(c.serverMap) == 0 {
 		return nil
 	}
-	index := r1.Intn(len(c.rrMap))
-	hostPort, _ := c.rrMap[index]
-	conn := c.connPool[hostPort]
-	c.m.Unlock()
+	index := r1.Intn(len(c.serverMap))
+	conn := c.gRPCConnMap[c.serverMap[index]]
 	return pb.NewSearchServiceClient(conn)
 }
 
-func (c *ftsSrvWrapper) refresh(ftsEps map[string]interface{}) error {
-	c.m.Lock()
-	defer c.m.Unlock()
-	if ftsEps != nil {
-		if reflect.DeepEqual(ftsEps, c.ftsGrpcEps) {
-			return nil
-		}
-		c.ftsGrpcEps = ftsEps
-	}
-
-	connPool := make(map[string]*grpc.ClientConn, len(ftsEps))
-	rrMap := make(map[int]string, len(ftsEps))
-	var pos int
-	for hostPort, certsPem := range c.ftsGrpcEps {
-		rrMap[pos] = hostPort
-		pos++
-		certPool := x509.NewCertPool()
-		ok := certPool.AppendCertsFromPEM([]byte(certsPem.(string)))
-		if !ok {
-			return fmt.Errorf("client: failed to append ca certs")
-		}
-		cred := credentials.NewClientTLSFromCert(certPool, "")
-
-		cbUser, cbPasswd, err := cbauth.GetHTTPServiceAuth(hostPort)
-		if err != nil {
-			return fmt.Errorf("client: cbauth err: %v", err)
-		}
-
-		opts := []grpc.DialOption{
-			grpc.WithTransportCredentials(cred),
-
-			// TODO: grpc.WithInsecure() ?
-
-			grpc.WithBackoffMaxDelay(DefaultGrpcMaxBackOffDelay),
-
-			grpc.WithKeepaliveParams(keepalive.ClientParameters{
-				// send keepalive every N seconds to check the
-				// connection liveliness
-				Time: DefaultGrpcConnectionHeartBeatInterval,
-				// client waits for a duration of timeout
-				Timeout: DefaultGrpcConnectionIdleTimeout,
-
-				PermitWithoutStream: true,
-			}),
-
-			grpc.WithDefaultCallOptions(
-				grpc.MaxCallRecvMsgSize(DefaultGrpcMaxRecvMsgSize),
-				grpc.MaxCallSendMsgSize(DefaultGrpcMaxSendMsgSize),
-			),
-
-			// TODO: addClientInterceptor() ?
-
-			grpc.WithPerRPCCredentials(&basicAuthCreds{
-				username: cbUser,
-				password: cbPasswd,
-			}),
-		}
-
-		if gconn, initialised := c.connPool[hostPort]; !initialised {
-			for i := 0; i < defaultPoolSize; i++ {
-				conn, err := grpc.Dial(hostPort, opts...)
-				if err != nil {
-					logging.Infof("client: grpc.Dial, err: %v", err)
-					return err
-				}
-				logging.Infof("client: %d grpc ClientConn Created for host %s",
-					hostPort, i+1)
-				connPool[hostPort] = conn
-			}
-		} else {
-			// take the already established connection
-			connPool[hostPort] = gconn
-		}
-	}
-
-	c.connPool = connPool
-	c.rrMap = rrMap
-	return nil
-}
-
-func extractHostCertsMap(nodeDefs *cbgt.NodeDefs) (map[string]interface{}, error) {
+func setupFTSClient(nodeDefs *cbgt.NodeDefs) (*ftsClient, error) {
 	if nodeDefs == nil {
 		return nil, nil
 	}
 
-	hostCertsMap := make(map[string]interface{}, 2)
-	var host string
+	client := &ftsClient{
+		gRPCConnMap: make(map[string]*grpc.ClientConn),
+		serverMap:   make(map[int]string),
+	}
+
+	hosts, sslHosts := extractHosts(nodeDefs)
+	securityCfg := getSecuritySetting()
+	gRPCOpts := []grpc.DialOption{
+		grpc.WithBackoffMaxDelay(DefaultGrpcMaxBackOffDelay),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			// send keepalive every N seconds to check the
+			// connection liveliness
+			Time: DefaultGrpcConnectionHeartBeatInterval,
+			// client waits for a duration of timeout
+			Timeout: DefaultGrpcConnectionIdleTimeout,
+
+			PermitWithoutStream: true,
+		}),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(DefaultGrpcMaxRecvMsgSize),
+			grpc.MaxCallSendMsgSize(DefaultGrpcMaxSendMsgSize),
+		),
+		// TODO: addClientInterceptor() ?
+	}
+
+	if securityCfg.encryptionEnabled && len(sslHosts) != 0 {
+		certPool := x509.NewCertPool()
+		ok := certPool.AppendCertsFromPEM(securityCfg.certInBytes)
+		if !ok {
+			return nil, fmt.Errorf("client: failed to append ca certs")
+		}
+		cred := credentials.NewClientTLSFromCert(certPool, "")
+		gRPCOpts = append(gRPCOpts, grpc.WithTransportCredentials(cred))
+
+		for i, hostPort := range sslHosts {
+			client.serverMap[i] = hostPort
+			cbUser, cbPasswd, err := cbauth.GetHTTPServiceAuth(hostPort)
+			if err != nil {
+				return nil, fmt.Errorf("client: cbauth err: %v", err)
+			}
+
+			// copy
+			opts := gRPCOpts[:]
+			opts = append(opts, grpc.WithPerRPCCredentials(&basicAuthCreds{
+				username: cbUser,
+				password: cbPasswd,
+			}))
+
+			conn, err := grpc.Dial(hostPort, opts...)
+			if err != nil {
+				logging.Infof("client: grpc.Dial, err: %v", err)
+				return nil, err
+			}
+			logging.Infof("client: grpc client connection created for host: %v", hostPort)
+			client.gRPCConnMap[hostPort] = conn
+		}
+	} else if len(hosts) != 0 {
+		gRPCOpts = append(gRPCOpts, grpc.WithInsecure())
+		for i, hostPort := range hosts {
+			client.serverMap[i] = hostPort
+			cbUser, cbPasswd, err := cbauth.GetHTTPServiceAuth(hostPort)
+			if err != nil {
+				return nil, fmt.Errorf("client: cbauth err: %v", err)
+			}
+
+			// copy
+			opts := gRPCOpts[:]
+			opts = append(opts, grpc.WithPerRPCCredentials(&basicAuthCreds{
+				username: cbUser,
+				password: cbPasswd,
+			}))
+
+			conn, err := grpc.Dial(hostPort, opts...)
+			if err != nil {
+				logging.Infof("client: grpc.Dial, err: %v", err)
+				return nil, err
+			}
+			logging.Infof("client: grpc client connection created for host: %v", hostPort)
+			client.gRPCConnMap[hostPort] = conn
+		}
+	}
+
+	return client, nil
+}
+
+func extractHosts(nodeDefs *cbgt.NodeDefs) ([]string, []string) {
+	hosts := []string{}
+	sslHosts := []string{}
+
 	for _, v := range nodeDefs.NodeDefs {
-		extrasBindGRPC, er := v.GetFromParsedExtras("bindGRPCSSL")
-		if er == nil && extrasBindGRPC != nil {
+		extrasBindGRPC, err := v.GetFromParsedExtras("bindGRPC")
+		if err == nil && extrasBindGRPC != nil {
 			if bindGRPCstr, ok := extrasBindGRPC.(string); ok {
-				host = bindGRPCstr
+				if bindGRPCstr != "" {
+					hosts = append(hosts, bindGRPCstr)
+				}
 			}
 		}
 
-		if host != "" {
-			hostCertsMap[host] = nil
-			extrasCertPEM, er := v.GetFromParsedExtras("tlsCertPEM")
-			if er == nil && extrasCertPEM != nil {
-				hostCertsMap[host] = extrasCertPEM
+		extrasBindGRPCSSL, err := v.GetFromParsedExtras("bindGRPCSSL")
+		if err == nil && extrasBindGRPCSSL != nil {
+			if bindGRPCSSLstr, ok := extrasBindGRPCSSL.(string); ok {
+				if bindGRPCSSLstr != "" {
+					sslHosts = append(sslHosts, bindGRPCSSLstr)
+				}
 			}
 		}
 	}
 
-	return hostCertsMap, nil
+	return hosts, sslHosts
 }
