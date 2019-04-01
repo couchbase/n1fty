@@ -386,12 +386,10 @@ func (i *FTSIndexer) refreshConfigs() (
 	}
 
 	if indexDefs == nil {
-		logging.Infof("n1fty: no index definitions available")
 		return nil, nil, nil
 	}
 
 	if nodeDefs == nil {
-		logging.Infof("n1fty: no node definitions available")
 		return nil, nil, nil
 	}
 
