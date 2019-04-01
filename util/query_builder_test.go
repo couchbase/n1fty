@@ -13,6 +13,7 @@ package util
 
 import (
 	"encoding/json"
+	"math"
 	"reflect"
 	"testing"
 
@@ -171,8 +172,7 @@ func TestBuildSearchRequest(t *testing.T) {
 		{
 			id: 2,
 			query: value.NewValue(map[string]interface{}{
-				"from": 100,
-				"size": 10,
+				"size": -10,
 				"query": value.NewValue(map[string]interface{}{
 					"match":     "avengers",
 					"field":     "title",
@@ -214,6 +214,16 @@ func TestBuildSearchRequest(t *testing.T) {
 				"sort": []interface{}{"country, _id, -_score"},
 			}),
 		},
+		{
+			id: 5,
+			query: value.NewValue(map[string]interface{}{
+				"query": value.NewValue(map[string]interface{}{
+					"prefix": "Avengers",
+					"field":  "title",
+				}),
+				"sort": []interface{}{"country, _id, -_score"},
+			}),
+		},
 	}
 
 	for i, test := range tests {
@@ -222,8 +232,8 @@ func TestBuildSearchRequest(t *testing.T) {
 			t.Fatalf("Expected no error for q: %+v, but got err: %v", test.query, err)
 		}
 
-		sr := &bleve.SearchRequest{}
-		err = json.Unmarshal(pbsr.Contents, sr)
+		var sr *bleve.SearchRequest
+		sr, err = unmarshalSearchRequest(pbsr.Contents)
 		if err != nil {
 			t.Fatalf("Expected json err: %v", err)
 		}
@@ -235,9 +245,25 @@ func TestBuildSearchRequest(t *testing.T) {
 					qq.Match, qq.FieldVal, qq.Fuzziness)
 			}
 
-			if sr.Size != 10 || sr.From != 100 {
+			if sr.Size != -10 || sr.From != math.MaxInt64 {
 				t.Fatalf("incorrect search request formed, with size: %v,"+
 					" from: %v", sr.Size, sr.From)
+			}
+
+		case *query.PrefixQuery:
+			if sr.Size != math.MaxInt64 || sr.From != math.MaxInt64 {
+				t.Fatalf("incorrect search request formed, with size: %v,"+
+					" from: %v", sr.Size, sr.From)
+			}
+			if sr.Sort == nil {
+				t.Fatalf("incorrect search request formed, with Sort ,"+
+					"expected to be nil, got: %v ", sr.Sort)
+			}
+
+			sbytes, _ := json.Marshal([]string{"country, _id, -_score"})
+			rbytes, _ := json.Marshal(sr.Sort)
+			if !reflect.DeepEqual(sbytes, rbytes) {
+				t.Fatalf("incorrect search request, expected: %s got: %s", sbytes, rbytes)
 			}
 
 		case *query.WildcardQuery:
@@ -260,6 +286,11 @@ func TestBuildSearchRequest(t *testing.T) {
 			if sr.Size != 10 || sr.From != 1000 {
 				t.Fatalf("incorrect search request formed, with size: %v,"+
 					" from: %v", sr.Size, sr.From)
+			}
+
+			if sr.Sort != nil {
+				t.Fatalf("incorrect search request formed, with Sort ,"+
+					"expected to be nil, got: %v ", sr.Sort)
 			}
 
 			if !reflect.DeepEqual(sr.Fields, []string{"country", "city"}) {

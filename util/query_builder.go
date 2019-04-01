@@ -14,6 +14,7 @@ package util
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -26,6 +27,64 @@ import (
 	"github.com/couchbase/query/timestamp"
 	"github.com/couchbase/query/value"
 )
+
+// SearchRequest needs to be in sync with the bleve.SearchRequest
+type SearchRequest struct {
+	Q                json.RawMessage         `json:"query"`
+	Size             *int                    `json:"size"`
+	From             *int                    `json:"from"`
+	Highlight        *bleve.HighlightRequest `json:"highlight"`
+	Fields           []string                `json:"fields"`
+	Facets           bleve.FacetsRequest     `json:"facets"`
+	Explain          bool                    `json:"explain"`
+	Sort             []json.RawMessage       `json:"sort"`
+	IncludeLocations bool                    `json:"includeLocations"`
+	Score            string                  `json:"score"`
+}
+
+func unmarshalSearchRequest(input []byte) (*bleve.SearchRequest, error) {
+	var temp SearchRequest
+	err := json.Unmarshal(input, &temp)
+	if err != nil {
+		return nil, err
+	}
+
+	r := &bleve.SearchRequest{}
+
+	if temp.Size == nil {
+		r.Size = math.MaxInt64
+	} else {
+		r.Size = *temp.Size
+	}
+
+	if temp.From == nil {
+		r.From = math.MaxInt64
+	} else {
+		r.From = *temp.From
+	}
+
+	if temp.Sort == nil {
+		r.Sort = nil
+	} else {
+		r.Sort, err = search.ParseSortOrderJSON(temp.Sort)
+		if err != nil {
+			return r, err
+		}
+	}
+
+	r.Explain = temp.Explain
+	r.Highlight = temp.Highlight
+	r.Fields = temp.Fields
+	r.Facets = temp.Facets
+	r.IncludeLocations = temp.IncludeLocations
+	r.Score = temp.Score
+	r.Query, err = query.ParseQuery(temp.Q)
+	if err != nil {
+		return r, err
+	}
+
+	return r, nil
+}
 
 func UpdateFieldsInQuery(q query.Query, field string) {
 	switch que := q.(type) {
@@ -110,8 +169,8 @@ func BuildSearchRequest(field string, input value.Value) (*pb.SearchRequest,
 		return nil, nil, err
 	}
 
-	sr := &bleve.SearchRequest{}
-	err = json.Unmarshal(srBytes, &sr)
+	var sr *bleve.SearchRequest
+	sr, err = unmarshalSearchRequest(srBytes)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -151,50 +210,86 @@ func BuildSortFromBytes(sBytes []byte) (search.SortOrder, error) {
 	return search.ParseSortOrderJSON(append([]json.RawMessage(nil), sBytes))
 }
 
+// CheckForPagination looks for any of the pagination
+// details in the given search request
+func CheckForPagination(input value.Value) bool {
+	if input == nil {
+		return false
+	}
+
+	srBytes, err := input.MarshalJSON()
+	if err != nil {
+		return false
+	}
+
+	var sr *bleve.SearchRequest
+	sr, err = unmarshalSearchRequest(srBytes)
+	if err != nil {
+		return false
+	}
+
+	// if any of them is set, then pagination is found.
+	if (sr.Size >= 0 && sr.Size != math.MaxInt64) ||
+		(sr.From >= 0 && sr.From != math.MaxInt64) ||
+		sr.Sort != nil {
+		return true
+	}
+
+	return false
+}
+
 func ParseSearchInfoToSearchRequest(searchRequest **pb.SearchRequest,
 	searchInfo *datastore.FTSSearchInfo, vector timestamp.Vector,
 	consistencyLevel datastore.ScanConsistency, indexName string, isComplete bool) error {
-	sr := &bleve.SearchRequest{}
-	err := json.Unmarshal((*searchRequest).Contents, sr)
+	sr, err := unmarshalSearchRequest((*searchRequest).Contents)
 	if err != nil {
 		return err
 	}
 	(*searchRequest).IndexName = indexName
 
-	// need to complete the searchrequest from SearchInfo details
-	if !isComplete {
-		sr.From = int(searchInfo.Offset)
-		if sr.Size == 0 {
-			sr.Size = int(searchInfo.Limit)
-		}
-
-		// searchInfo order takes precedence
-		if len(searchInfo.Order) > 0 {
-			var tempOrder []string
-			for _, so := range searchInfo.Order {
-				fields := strings.Fields(so)
-				field := fields[0]
-				if field == "score" || field == "id" {
-					field = "_" + field
-				}
-
-				if len(fields) == 1 || (len(fields) == 2 &&
-					fields[1] == "ASC") {
-					tempOrder = append(tempOrder, field)
-					continue
-				}
-
-				tempOrder = append(tempOrder, "-"+field)
-			}
-
-			sr.Sort = search.ParseSortOrderStrings(tempOrder)
-		}
+	// check whether streaming of results is preferred
+	// - when there is no sort order requested
+	// - when the 2nd param SearchRequest doesn't contain page info
+	// - when the 2nd param is query and searchInfo contains
+	//   maxInt64 as limit
+	if (sr.Sort == nil && len(searchInfo.Order) == 0) ||
+		sr.Size+sr.From > int(GetBleveMaxResultWindow()) ||
+		(sr.Size < 0 && int(searchInfo.Limit) == math.MaxInt64) {
+		(*searchRequest).Stream = true
+		sr.From = 0
+		sr.Size = 0
 	}
 
-	// check whether the streaming of results is beneficial
-	if (sr.Sort == nil && len(searchInfo.Order) == 0) ||
-		sr.Size+sr.From > int(GetBleveMaxResultWindow()) {
-		(*searchRequest).Stream = true
+	// for query request, complete the searchrequest from SearchInfo
+	if sr.From < 0 && int(searchInfo.Offset) != math.MaxInt64 {
+		sr.From = int(searchInfo.Offset)
+	}
+
+	if sr.Size < 0 && int(searchInfo.Limit) != math.MaxInt64 {
+		sr.Size = int(searchInfo.Limit)
+	}
+
+	// if original request was of query form then,
+	// override with searchInfo order details
+	if !isComplete && sr.Sort == nil && len(searchInfo.Order) > 0 {
+		var tempOrder []string
+		for _, so := range searchInfo.Order {
+			fields := strings.Fields(so)
+			field := fields[0]
+			if field == "score" || field == "id" {
+				field = "_" + field
+			}
+
+			if len(fields) == 1 || (len(fields) == 2 &&
+				fields[1] == "ASC") {
+				tempOrder = append(tempOrder, field)
+				continue
+			}
+
+			tempOrder = append(tempOrder, "-"+field)
+		}
+
+		sr.Sort = search.ParseSortOrderStrings(tempOrder)
 	}
 
 	(*searchRequest).Contents, err = json.Marshal(sr)

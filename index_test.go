@@ -378,15 +378,15 @@ func TestIndexPageable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// non matching sort fields in order and in search request
+	// missing pagination info (size) in search request
 	query := expression.NewConstant(map[string]interface{}{
 		"query": map[string]interface{}{
 			"match": "united",
 			"field": "countryX",
 		},
-		"size":    10,
 		"from":    0,
 		"explain": false,
+		"sort":    []interface{}{"-_score"},
 	})
 
 	pageable := index.Pageable([]string{"score DESC"}, 0, 10, query,
@@ -396,14 +396,13 @@ func TestIndexPageable(t *testing.T) {
 		t.Fatalf("Expected to be non pageable, but got: %v", pageable)
 	}
 
-	// matching sort fields in order and in search request
+	// missing pagination info (from) in search request
 	query = expression.NewConstant(map[string]interface{}{
 		"query": map[string]interface{}{
 			"match": "united",
 			"field": "countryX",
 		},
 		"size":    10,
-		"from":    0,
 		"explain": false,
 		"sort":    []interface{}{"country", "city", "-_score"},
 	})
@@ -422,16 +421,34 @@ func TestIndexPageable(t *testing.T) {
 		t.Fatalf("order got changed, expected: %v, but got: %v", expOrder, order)
 	}
 
-	// non matching sort fields in order and in search request
+	// pagination given correctly in search request
 	query = expression.NewConstant(map[string]interface{}{
 		"query": map[string]interface{}{
 			"match": "united",
 			"field": "countryX",
 		},
-		"size":    10,
-		"from":    0,
+		"size":    100,
+		"from":    10,
 		"explain": false,
-		"sort":    []interface{}{"country", "_id", "-_score"},
+	})
+
+	pageable = index.Pageable(nil, 0,
+		10, query, expression.NewConstant(``))
+
+	if pageable {
+		t.Fatalf("Expected to be non pageable, but got: %v", pageable)
+	}
+
+	// pagination given with Sort in the search request
+	query = expression.NewConstant(map[string]interface{}{
+		"query": map[string]interface{}{
+			"match": "united",
+			"field": "countryX",
+		},
+		"size":    100,
+		"from":    10,
+		"explain": false,
+		"sort":    []interface{}{"country", "city", "-_score"},
 	})
 
 	pageable = index.Pageable([]string{"country", "city", "-_score"}, 0,
@@ -441,25 +458,6 @@ func TestIndexPageable(t *testing.T) {
 		t.Fatalf("Expected to be non pageable, but got: %v", pageable)
 	}
 
-	// matching sort fields in order and in search request,
-	// but in different order
-	query = expression.NewConstant(map[string]interface{}{
-		"query": map[string]interface{}{
-			"match": "united",
-			"field": "countryX",
-		},
-		"size":    10,
-		"from":    0,
-		"explain": false,
-		"sort":    []interface{}{"country", "_id", "-_score"},
-	})
-
-	pageable = index.Pageable([]string{"_id", "-_score", "country"}, 0,
-		10, query, expression.NewConstant(``))
-
-	if pageable {
-		t.Fatalf("Expected to be non pageable, but got: %v", pageable)
-	}
 }
 
 func TestDateTimeSargability(t *testing.T) {

@@ -200,7 +200,10 @@ func ParseQueryToSearchRequest(field string, input value.Value,
 		if err != nil {
 			return nil, nil, false, err
 		}
-		sr := bleve.SearchRequest{Query: query}
+		sr := bleve.SearchRequest{Query: query,
+			From: -1, // -ve values to indicate no page info
+			Size: -1,
+			Sort: nil}
 		rv.Contents, err = json.Marshal(sr)
 		if err != nil {
 			return nil, nil, false, err

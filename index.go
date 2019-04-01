@@ -496,9 +496,13 @@ func (i *FTSIndex) pageable(order []string, offset, limit int64, query,
 		queryVal = query.Value()
 	}
 
-	// if query contains a searchRequest, then returns false
+	// if query contains a searchRequest with some valid pagination
+	// info(From, Size or Sort details) then returns false.
 	if qf, ok := queryVal.Field("query"); ok && qf.Type() == value.OBJECT {
-		return false
+		if util.CheckForPagination(queryVal) {
+			return false
+		}
+		return true
 	}
 
 	return offset+limit <= util.GetBleveMaxResultWindow()
