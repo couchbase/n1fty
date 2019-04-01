@@ -100,6 +100,10 @@ func (i *Indexer) MetadataVersion() uint64 {
 func (i *Indexer) SetLogLevel(level logging.Level) {
 }
 
+func (i *Indexer) SetConnectionSecurityConfig(config *datastore.ConnectionSecurityConfig) {
+	// TODO
+}
+
 // -------------------------------------------------
 
 func MakeWrapCallbacksForIndexType(indexType datastore.IndexType,

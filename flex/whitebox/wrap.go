@@ -113,6 +113,10 @@ func (s *WrapDatastore) StatUpdater() (datastore.StatUpdater, errors.Error) {
 	return nil, nil
 }
 
+func (s *WrapDatastore) SetConnectionSecurityConfig(config *datastore.ConnectionSecurityConfig) {
+	// TODO
+}
+
 // ------------------------------------------------------------------------
 
 type WrapNamespace struct {
