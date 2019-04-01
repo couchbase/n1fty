@@ -108,6 +108,11 @@ func (s *WrapDatastore) GetRolesAll() ([]datastore.Role, errors.Error) {
 	return s.W.GetRolesAll()
 }
 
+func (s *WrapDatastore) StatUpdater() (datastore.StatUpdater, errors.Error) {
+	// TODO fix the place holder impl
+	return nil, nil
+}
+
 // ------------------------------------------------------------------------
 
 type WrapNamespace struct {
@@ -241,4 +246,9 @@ func (b *WrapKeyspace) Delete(deletes []string, context datastore.QueryContext) 
 
 func (b *WrapKeyspace) Release() {
 	b.W.Release()
+}
+
+func (b *WrapKeyspace) Size(ctx datastore.QueryContext) (int64, errors.Error) {
+	// TODO fix the place holder impl
+	return b.W.Size(ctx)
 }
