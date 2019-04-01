@@ -145,8 +145,8 @@ func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 				return nil, nil, false, "", ""
 			}
 
-			m, defaultAnalyzer, defaultDateTimeParser, ok = ProcessDocumentMapping(
-				im.DefaultAnalyzer, im.DefaultDateTimeParser, nil, tm, nil)
+			m, ok = ProcessDocumentMapping(im.DefaultAnalyzer, im.DefaultDateTimeParser,
+				nil, tm, nil)
 			if !ok {
 				return nil, nil, false, "", ""
 			}
@@ -166,8 +166,7 @@ func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 			return nil, nil, false, "", ""
 		}
 
-		m, defaultAnalyzer, defaultDateTimeParser, ok = ProcessDocumentMapping(
-			im.DefaultAnalyzer, im.DefaultDateTimeParser,
+		m, ok = ProcessDocumentMapping(im.DefaultAnalyzer, im.DefaultDateTimeParser,
 			nil, im.DefaultMapping, nil)
 		if !ok {
 			return nil, nil, false, "", ""
@@ -181,15 +180,14 @@ func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 		return nil, nil, false, "", ""
 	}
 
-	return m, typeStr, dynamic, defaultAnalyzer, defaultDateTimeParser
+	return m, typeStr, dynamic, im.DefaultAnalyzer, im.DefaultDateTimeParser
 }
 
 func ProcessDocumentMapping(defaultAnalyzer, defaultDateTimeParser string,
 	path []string, dm *mapping.DocumentMapping, m map[SearchField]bool) (
-	mOut map[SearchField]bool, defaultAnalyzerOut string,
-	defaultDateTimeParserOut string, ok bool) {
+	mOut map[SearchField]bool, ok bool) {
 	if !dm.Enabled {
-		return m, defaultAnalyzer, defaultDateTimeParser, true
+		return m, true
 	}
 
 	if m == nil {
@@ -226,18 +224,21 @@ func ProcessDocumentMapping(defaultAnalyzer, defaultDateTimeParser string,
 		}
 
 		if _, exists := m[searchField]; exists {
-			return nil, "", "", false
+			return nil, false
 		}
 
 		m[searchField] = false
 	}
 
 	for prop, propDM := range dm.Properties {
-		m, _, _, ok = ProcessDocumentMapping(defaultAnalyzer,
+		if propDM.DefaultAnalyzer != "" {
+			defaultAnalyzer = propDM.DefaultAnalyzer
+		}
+		m, ok = ProcessDocumentMapping(defaultAnalyzer,
 			defaultDateTimeParser,
 			append(path, prop), propDM, m)
 		if !ok {
-			return nil, "", "", false
+			return nil, false
 		}
 	}
 
@@ -248,13 +249,13 @@ func ProcessDocumentMapping(defaultAnalyzer, defaultDateTimeParser string,
 		}
 
 		if _, exists := m[searchField]; exists {
-			return nil, "", "", false
+			return nil, false
 		}
 
 		m[searchField] = true
 	}
 
-	return m, defaultAnalyzer, defaultDateTimeParser, true
+	return m, true
 }
 
 // -----------------------------------------------------------------------------

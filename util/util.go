@@ -74,7 +74,8 @@ func FetchIndexMapping(name, uuid, keyspace string) (mapping.IndexMapping, *cbft
 	return nil, nil, fmt.Errorf("index mapping not found for: %v", name)
 }
 
-func BuildIndexMappingOnFields(fields []SearchField) mapping.IndexMapping {
+func BuildIndexMappingOnFields(fields []SearchField, defaultAnalyzer string,
+	defaultDateTimeParser string) mapping.IndexMapping {
 	var build func(field SearchField, m *mapping.DocumentMapping) *mapping.DocumentMapping
 	build = func(field SearchField, m *mapping.DocumentMapping) *mapping.DocumentMapping {
 		subs := strings.SplitN(field.Name, ".", 2)
@@ -85,19 +86,31 @@ func BuildIndexMappingOnFields(fields []SearchField) mapping.IndexMapping {
 			}
 		}
 
+		analyzer := field.Analyzer
+		if field.Type == "text" && analyzer == "" {
+			analyzer = defaultAnalyzer
+		}
+		dateFormat := field.DateFormat
+		if field.Type == "datetime" && dateFormat == "" {
+			dateFormat = defaultDateTimeParser
+		}
+
 		if len(subs) == 1 {
 			m.Properties[subs[0]].Fields = append(m.Fields, &mapping.FieldMapping{
-				Name:     field.Name,
-				Type:     field.Type,
-				Analyzer: field.Analyzer,
-				Index:    true,
+				Name:               field.Name,
+				Type:               field.Type,
+				Analyzer:           analyzer,
+				DateFormat:         dateFormat,
+				Index:              true,
+				IncludeTermVectors: true,
 			})
 		} else {
 			// length == 2
 			m.Properties[subs[0]] = build(SearchField{
-				Name:     subs[1],
-				Type:     field.Type,
-				Analyzer: field.Analyzer,
+				Name:       subs[1],
+				Type:       field.Type,
+				Analyzer:   analyzer,
+				DateFormat: dateFormat,
 			}, m.Properties[subs[0]])
 		}
 

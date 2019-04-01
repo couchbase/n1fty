@@ -63,7 +63,7 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 	if !indexOptionAvailable {
 		// in case index option isn't available, use the query fields to
 		// build an index mapping that covers all the necessary fields.
-		idxMapping = util.BuildIndexMappingOnFields(queryFields)
+		idxMapping = util.BuildIndexMappingOnFields(queryFields, "", "")
 	} else {
 		indexVal, _ := options.Field("index")
 		if indexVal.Type() == value.STRING {

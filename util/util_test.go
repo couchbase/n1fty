@@ -58,7 +58,8 @@ func TestBuildIndexMappingOnFields(t *testing.T) {
 							"fields": [{
 								"name": "title",
 								"type": "text",
-								"index": true
+								"index": true,
+								"include_term_vectors": true
 							}]
 						}
 					}
@@ -77,7 +78,8 @@ func TestBuildIndexMappingOnFields(t *testing.T) {
 									"fields": [{
 										"name": "dob",
 										"type": "datetime",
-										"index": true
+										"index": true,
+										"include_term_vectors": true
 									}]
 								},
 								"age": {
@@ -86,7 +88,8 @@ func TestBuildIndexMappingOnFields(t *testing.T) {
 									"fields": [{
 										"name": "age",
 										"type": "number",
-										"index": true
+										"index": true,
+										"include_term_vectors": true
 									}]
 								},
 								"author": {
@@ -95,7 +98,8 @@ func TestBuildIndexMappingOnFields(t *testing.T) {
 									"fields": [{
 										"name": "author",
 										"type": "text",
-										"index": true
+										"index": true,
+										"include_term_vectors": true
 									}]
 								}
 							}
@@ -109,7 +113,8 @@ func TestBuildIndexMappingOnFields(t *testing.T) {
 						"name": "startDate",
 						"type": "text",
 						"analyzer": "keyword",
-						"index": true
+						"index": true,
+						"include_term_vectors": true
 					}]
 				}
 			}
@@ -126,7 +131,7 @@ func TestBuildIndexMappingOnFields(t *testing.T) {
 	}
 	`)
 
-	idxMapping := BuildIndexMappingOnFields(fields)
+	idxMapping := BuildIndexMappingOnFields(fields, "", "")
 	gotBytes, err := json.Marshal(idxMapping)
 	if err != nil {
 		t.Fatal(err)
