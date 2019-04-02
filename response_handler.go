@@ -163,7 +163,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 		}
 
 		var hits []*search.DocumentMatch
-		var result *bleve.SearchResult
+		result := bleve.SearchResult{Status: &bleve.SearchStatus{Errors: make(map[string]error)}}
 		switch r := results.Contents.(type) {
 		case *pb.StreamSearchResults_Hits:
 			err = json.Unmarshal(r.Hits.Bytes, &hits)
@@ -178,6 +178,18 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 				if err != nil {
 					logging.Infof("response_handler: json.Unmarshal, err: %v", err)
 					continue
+				}
+				// pass the status errors back to n1ql
+				if result.Status != nil && len(result.Status.Errors) > 0 {
+					var errs []error
+					for pi, e := range result.Status.Errors {
+						errs = append(errs, fmt.Errorf("partition: %s, err: %v, ", pi, e))
+					}
+					conn.Error(util.N1QLError(fmt.Errorf("search err summary: %v", errs),
+						"response_handler: err"))
+
+					// return here, as no partial results are supported
+					return
 				}
 				hits = result.Hits
 			}
