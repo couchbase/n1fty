@@ -55,8 +55,8 @@ var DefaultGrpcConnectionHeartBeatInterval = time.Duration(60) * time.Second
 
 var DefaultGrpcMaxBackOffDelay = time.Duration(10) * time.Second
 
-var DefaultGrpcMaxRecvMsgSize = 1024 * 1024 * 20 // 20 MB
-var DefaultGrpcMaxSendMsgSize = 1024 * 1024 * 20 // 20 MB
+var DefaultGrpcMaxRecvMsgSize = 1024 * 1024 * 50 // 50 MB
+var DefaultGrpcMaxSendMsgSize = 1024 * 1024 * 50 // 50 MB
 
 var rsource rand.Source
 var r1 *rand.Rand
