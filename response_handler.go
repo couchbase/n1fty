@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/blevesearch/bleve"
-	"github.com/blevesearch/bleve/search"
 
 	pb "github.com/couchbase/cbft/protobuf"
 
@@ -77,7 +76,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 
 	var tmpfile *os.File
 	var backfillFin, backfillEntries int64
-	hits := make([]*search.DocumentMatch, defaultBatchSize)
+	hits := make([]interface{}, defaultBatchSize)
 
 	backfill := func() {
 		name := tmpfile.Name()
@@ -162,8 +161,8 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 			firstResponseByte = true
 		}
 
-		var hits []*search.DocumentMatch
-		result := bleve.SearchResult{Status: &bleve.SearchStatus{Errors: make(map[string]error)}}
+		var hits []interface{}
+		var result map[string]interface{}
 		switch r := results.Contents.(type) {
 		case *pb.StreamSearchResults_Hits:
 			err = json.Unmarshal(r.Hits.Bytes, &hits)
@@ -180,9 +179,11 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 					continue
 				}
 				// pass the status errors back to n1ql
-				if result.Status != nil && len(result.Status.Errors) > 0 {
+				searchStatus := result["status"].(map[string]interface{})
+				errMap, ok := searchStatus["errors"].(map[string]interface{})
+				if ok && len(errMap) > 0 {
 					var errs []error
-					for pi, e := range result.Status.Errors {
+					for pi, e := range errMap {
 						errs = append(errs, fmt.Errorf("partition: %s, err: %v, ", pi, e))
 					}
 					conn.Error(util.N1QLError(fmt.Errorf("search err summary: %v", errs),
@@ -191,7 +192,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 					// return here, as no partial results are supported
 					return
 				}
-				hits = result.Hits
+				hits = result["hits"].([]interface{})
 			}
 		}
 
@@ -235,7 +236,6 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 			atomic.AddInt64(&backfillEntries, 1)
 
 		} else if hits != nil {
-
 			atomic.AddInt64(&r.i.indexer.stats.TotalThrottledFtsDuration,
 				int64(time.Since(ftsDur)))
 
@@ -265,8 +265,14 @@ func (r *responseHandler) cleanupBackfill() {
 	}
 }
 
-func (r *responseHandler) sendEntry(hit *search.DocumentMatch,
+func (r *responseHandler) sendEntry(h interface{},
 	conn *datastore.IndexConnection) bool {
+	if h == nil {
+		return true // so next hit can be processed
+	}
+
+	hit := h.(map[string]interface{})
+
 	var start time.Time
 	blockedtm, blocked := int64(0), false
 
@@ -277,20 +283,26 @@ func (r *responseHandler) sendEntry(hit *search.DocumentMatch,
 		start, blocked = time.Now(), true
 	}
 
-	rv := make(map[string]interface{}, 1)
-	rv["score"] = hit.Score
-	if r.sr.IncludeLocations {
-		rv["locations"] = hit.Locations
+	// remove unnecessary fields
+	delete(hit, "index")
+	delete(hit, "fragments")
+	delete(hit, "sort")
+
+	id := hit["id"].(string)
+	delete(hit, "id")
+
+	if !r.sr.IncludeLocations {
+		delete(hit, "locations")
 	}
-	if len(r.sr.Fields) > 0 {
-		rv["fields"] = hit.Fields
+	if len(r.sr.Fields) == 0 {
+		delete(hit, "fields")
 	}
-	if r.sr.Explain {
-		rv["explanation"] = *hit.Expl
+	if !r.sr.Explain {
+		delete(hit, "explanation")
 	}
 
-	if !sender.SendEntry(&datastore.IndexEntry{PrimaryKey: hit.ID,
-		MetaData: value.NewValue(rv)}) {
+	if !sender.SendEntry(&datastore.IndexEntry{PrimaryKey: id,
+		MetaData: value.NewValue(hit)}) {
 		return false
 	}
 
@@ -396,7 +408,7 @@ func initBackFill(logPrefix, requestID string, rh *responseHandler) (*gob.Encode
 	return enc, gob.NewDecoder(readfd), tmpfile, nil
 }
 
-func writeToBackfill(hits []*search.DocumentMatch, enc *gob.Encoder) error {
+func writeToBackfill(hits []interface{}, enc *gob.Encoder) error {
 	if err := enc.Encode(hits); err != nil {
 		return err
 	}
