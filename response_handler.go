@@ -291,6 +291,9 @@ func (r *responseHandler) sendEntry(h interface{},
 	id := hit["id"].(string)
 	delete(hit, "id")
 
+	if r.sr.Score == "none" {
+		delete(hit, "score")
+	}
 	if !r.sr.IncludeLocations {
 		delete(hit, "locations")
 	}
