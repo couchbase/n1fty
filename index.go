@@ -285,7 +285,8 @@ func (i *FTSIndex) Sargable(field string, query,
 	rv := i.buildQueryAndCheckIfSargable(field, queryVal, optionsVal, customFields)
 
 	if util.Debug > 0 {
-		logging.Infof("n1fty: Sargable, index: %s, field: %s, query: %v, options: %v, rv: %+v, exact: %t\n",
+		logging.Infof("n1fty: Sargable, index: %s, field: %s, query: %v,"+
+			" options: %v, rv: %+v, exact: %t",
 			i.indexDef.Name, field, query, options, rv, exact)
 	}
 
@@ -482,7 +483,7 @@ func (i *FTSIndex) Pageable(order []string, offset, limit int64, query,
 
 	if util.Debug > 0 {
 		logging.Infof("n1fty: Pageable, index: %s, order: %v,"+
-			" offset: %v, limit: %v, query: %v, options: %v, rv: %t\n",
+			" offset: %v, limit: %v, query: %v, options: %v, rv: %t",
 			i.indexDef.Name, order, offset, limit, query, options, rv)
 	}
 
