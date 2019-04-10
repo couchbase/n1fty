@@ -167,16 +167,20 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 		case *pb.StreamSearchResults_Hits:
 			err = json.Unmarshal(r.Hits.Bytes, &hits)
 			if err != nil {
-				logging.Infof("response_handler: json.Unmarshal, err: %v", err)
-				continue
+				conn.Error(util.N1QLError(err, "response_handler: "+
+					"hits unmarshal, err"))
+				// return on any error, as no partial results are supported
+				return
 			}
 
 		case *pb.StreamSearchResults_SearchResult:
 			if r.SearchResult != nil {
 				err = json.Unmarshal(r.SearchResult, &result)
 				if err != nil {
-					logging.Infof("response_handler: json.Unmarshal, err: %v", err)
-					continue
+					conn.Error(util.N1QLError(err, "response_handler: "+
+						"searchResult unmarshal, err"))
+					// return on any error, as no partial results are supported
+					return
 				}
 				// pass the status errors back to n1ql
 				searchStatus := result["status"].(map[string]interface{})
@@ -285,7 +289,6 @@ func (r *responseHandler) sendEntry(h interface{},
 
 	// remove unnecessary fields
 	delete(hit, "index")
-	delete(hit, "fragments")
 	delete(hit, "sort")
 
 	id := hit["id"].(string)
