@@ -484,3 +484,28 @@ func TestDateTimeSargability(t *testing.T) {
 		t.Fatal("Unexpected results from Index.Sargable(...) for query")
 	}
 }
+
+func TestInvalidIndexNameSargability(t *testing.T) {
+	index, err := setupSampleIndex(util.SampleIndexDefDynamicDefault)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	query := expression.NewConstant(map[string]interface{}{
+		"match": "california",
+	})
+
+	options := expression.NewConstant(map[string]interface{}{
+		"index": "wrong_name",
+	})
+
+	count, indexedCount, _, _, n1qlErr := index.Sargable("", query,
+		options, nil)
+	if n1qlErr != nil {
+		t.Fatal(n1qlErr)
+	}
+
+	if count != 0 || indexedCount != 0 {
+		t.Fatal("Unexpected results from Index.Sargable(...) for query")
+	}
+}

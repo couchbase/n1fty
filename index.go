@@ -344,6 +344,22 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 						return &sargableRV{}
 					}
 				}
+			} else if indexVal.Type() == value.STRING {
+				// if an index name has been provided, check if the current index
+				// shares the same name; if not this index is not sargable, also
+				// check for indexUUID if available.
+				if i.Name() != indexVal.Actual().(string) {
+					// not sargable
+					return &sargableRV{}
+				}
+
+				indexUUIDVal, indexUUIDAvailable := options.Field("indexUUID")
+				if indexUUIDAvailable && indexUUIDVal.Type() == value.STRING {
+					if i.Id() != indexUUIDVal.Actual().(string) {
+						// not sargable
+						return &sargableRV{}
+					}
+				}
 			}
 		}
 	}
