@@ -39,24 +39,66 @@ var defaultBackfillLimit = int64(200)      // default tmp space limit
 var defaultSearchTimeoutMS = int64(120000) // 2min
 const backfillPrefix = "search-results"
 
-var cfgm sync.RWMutex
-
 // ftsConfig is the metakv config listener which helps the
 // n1fty indexer to refresh it's config information like
 // index/node definitions.
-var ftsConfig *cbgt.CfgMetaKv
+type ftsConfig struct {
+	cfg     cbgt.Cfg
+	eventCh chan cbgt.CfgEvent
 
-func initConfig() {
-	cfgm.Lock()
-	if ftsConfig == nil {
-		var err error
-		cbgt.CfgMetaKvPrefix = "/fts/cbgt/cfg/"
-		ftsConfig, err = cbgt.NewCfgMetaKv("", make(map[string]string))
-		if err != nil {
-			logging.Infof("n1fty: ftsConfig err: %v", err)
+	m           sync.RWMutex
+	subscribers map[string]datastore.Indexer
+}
+
+var once sync.Once
+
+var srvConfig *ftsConfig
+
+func init() {
+	var err error
+	srvConfig = &ftsConfig{
+		eventCh:     make(chan cbgt.CfgEvent),
+		subscribers: make(map[string]datastore.Indexer),
+	}
+	cbgt.CfgMetaKvPrefix = "/fts/cbgt/cfg/"
+	srvConfig.cfg, err = cbgt.NewCfgMetaKv("", make(map[string]string))
+	if err != nil {
+		logging.Infof("n1fty: ftsConfig err: %v", err)
+	}
+
+	go srvConfig.Listen()
+}
+
+func (c *ftsConfig) Listen() {
+	for {
+		select {
+		case _ = <-c.eventCh:
+			c.m.RLock()
+			for _, i := range c.subscribers {
+				i.Refresh()
+			}
+			c.m.RUnlock()
 		}
 	}
-	cfgm.Unlock()
+}
+
+func (c *ftsConfig) initConfig() {
+	once.Do(func() {
+		c.cfg.Subscribe(cbgt.INDEX_DEFS_KEY, c.eventCh)
+		c.cfg.Subscribe(cbgt.CfgNodeDefsKey(cbgt.NODE_DEFS_KNOWN), c.eventCh)
+	})
+}
+
+func (c *ftsConfig) subscribe(key string, i datastore.Indexer) {
+	c.m.Lock()
+	c.subscribers[key] = i
+	c.m.Unlock()
+}
+
+func (c *ftsConfig) unSubscribe(key string) {
+	c.m.Lock()
+	delete(c.subscribers, key)
+	c.m.Unlock()
 }
 
 type Cfg interface {

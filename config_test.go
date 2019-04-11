@@ -17,13 +17,15 @@ import (
 	"testing"
 )
 
-var tconfig cbgt.Cfg
+var tconfig *ftsConfig
 
 func init() {
-	tconfig = cbgt.NewCfgMem()
+	tconfig = &ftsConfig{
+		cfg: cbgt.NewCfgMem(),
+	}
 }
 func GetTestConfig() (cbgt.Cfg, errors.Error) {
-	return tconfig, nil
+	return tconfig.cfg, nil
 }
 
 func cleanConfig() {
@@ -208,7 +210,7 @@ func TestRetrieveIndexDefs(t *testing.T) {
 		keyspace:  "beer-sample",
 	}
 
-	ftsIndexer.SetCfg(sampleConf)
+	ftsIndexer.SetCfg(tconfig)
 
 	indexMap, _, er := ftsIndexer.refreshConfigs()
 	if er != nil {

@@ -43,9 +43,10 @@ type FTSIndexer struct {
 
 	agent *gocbcore.Agent
 
-	cfg     cbgt.Cfg
+	cfg     *ftsConfig
 	stats   *stats
 	closeCh chan struct{}
+	init    sync.Once
 
 	// sync RWMutex protects following fields
 	m sync.RWMutex
@@ -107,41 +108,17 @@ func NewFTSIndexer(serverIn, namespace, keyspace string) (datastore.Indexer,
 		return nil, util.N1QLError(err, "")
 	}
 
-	if ftsConfig == nil {
-		initConfig()
-	}
-
 	indexer := &FTSIndexer{
 		namespace: namespace,
 		keyspace:  keyspace,
 		serverURL: svrs[0],
 		agent:     agent,
-		cfg:       ftsConfig,
+		cfg:       srvConfig,
 		stats:     &stats{},
 		closeCh:   make(chan struct{}),
 	}
 
-	go backfillMonitor(1*time.Second, indexer) // TODO: configurability.
-
-	go logStats(60*time.Second, indexer) // TODO: configurability.
-
-	go cfgListener(indexer)
-
 	return indexer, nil
-}
-
-func cfgListener(i *FTSIndexer) {
-	ec := make(chan cbgt.CfgEvent)
-	i.cfg.Subscribe(cbgt.INDEX_DEFS_KEY, ec)
-	i.cfg.Subscribe(cbgt.CfgNodeDefsKey(cbgt.NODE_DEFS_KNOWN), ec)
-	for {
-		select {
-		case <-i.closeCh:
-			return
-		case _ = <-ec:
-			i.Refresh()
-		}
-	}
 }
 
 type Authenticator struct{}
@@ -198,12 +175,13 @@ func (i *FTSIndexer) SetConnectionSecurityConfig(
 // It is recommended that query calls Close on the FTSIndexer
 // object once its usage is over, for a graceful cleanup.
 func (i *FTSIndexer) Close() error {
+	i.cfg.unSubscribe(i.namespace + "$" + i.keyspace)
 	close(i.closeCh)
 	return nil
 }
 
 // SetCfg for better testing
-func (i *FTSIndexer) SetCfg(cfg cbgt.Cfg) {
+func (i *FTSIndexer) SetCfg(cfg *ftsConfig) {
 	i.cfg = cfg
 }
 
@@ -349,6 +327,20 @@ func (i *FTSIndexer) refresh(force bool) errors.Error {
 	i.mapIndexesByName = mapIndexesByName
 	i.m.Unlock()
 
+	// as it reaches here for the first time, all initialisations
+	// looks good for the given FTSIndexer and hence spin off the
+	// supporting go routines.
+	i.init.Do(func() {
+
+		go backfillMonitor(1*time.Second, i) // TODO: configurability.
+
+		go logStats(60*time.Second, i) // TODO: configurability.
+
+		i.cfg.initConfig()
+
+		i.cfg.subscribe(i.namespace+"$"+i.keyspace, i)
+	})
+
 	bmrw, err := i.fetchBleveMaxResultWindow()
 	if err == nil && int64(bmrw) != util.GetBleveMaxResultWindow() {
 		util.SetBleveMaxResultWindow(int64(bmrw))
@@ -359,17 +351,16 @@ func (i *FTSIndexer) refresh(force bool) errors.Error {
 
 func (i *FTSIndexer) refreshConfigs() (
 	map[string]datastore.Index, *cbgt.NodeDefs, error) {
-	var cfg cbgt.Cfg
-	cfg = ftsConfig
+	conf := srvConfig
 	if i.cfg != nil {
-		cfg = i.cfg
+		conf = i.cfg
 	}
 
 	var err error
 
 	// first try to load configs from local config cache
-	indexDefs, _ := GetIndexDefs(cfg)
-	nodeDefs, _ := GetNodeDefs(cfg)
+	indexDefs, _ := GetIndexDefs(conf.cfg)
+	nodeDefs, _ := GetNodeDefs(conf.cfg)
 
 	// if not available in config, try fetching them from an fts node
 	if indexDefs == nil || nodeDefs == nil {
