@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -399,31 +398,21 @@ func (i *FTSIndexer) refreshConfigs() (
 }
 
 func (i *FTSIndexer) nodeDefsUnchangedLOCKED(newNodeDefs *cbgt.NodeDefs) bool {
-	oldBytes, err1 := json.Marshal(i.nodeDefs)
-	newBytes, err2 := json.Marshal(newNodeDefs)
-	if err1 != nil || err2 != nil {
+	if i.nodeDefs == nil && newNodeDefs == nil {
+		return true
+	}
+
+	if i.nodeDefs == nil || newNodeDefs == nil {
 		return false
 	}
-	var oldI, newI interface{}
-	err1 = json.Unmarshal(oldBytes, &oldI)
-	err2 = json.Unmarshal(newBytes, &newI)
-	if err1 != nil || err2 != nil {
-		return false
-	}
-	return reflect.DeepEqual(oldI, newI)
+
+	return i.nodeDefs.UUID == newNodeDefs.UUID
 }
 
 func (i *FTSIndexer) initClient(nodeDefs *cbgt.NodeDefs, force bool) error {
-	i.m.RLock()
-	if i.client != nil && i.nodeDefsUnchangedLOCKED(nodeDefs) && !force {
-		i.m.RUnlock()
-		return nil
-	}
-	i.m.RUnlock()
-
 	i.m.Lock()
 	defer i.m.Unlock()
-	if i.client != nil && i.nodeDefsUnchangedLOCKED(nodeDefs) && !force {
+	if !force && i.client != nil && i.nodeDefsUnchangedLOCKED(nodeDefs) {
 		return nil
 	}
 
