@@ -245,13 +245,13 @@ func TestBuildSearchRequest(t *testing.T) {
 					qq.Match, qq.FieldVal, qq.Fuzziness)
 			}
 
-			if sr.Size != -10 || sr.From != math.MaxInt64 {
+			if sr.Size != -10 || sr.From != 0 {
 				t.Fatalf("incorrect search request formed, with size: %v,"+
 					" from: %v", sr.Size, sr.From)
 			}
 
 		case *query.PrefixQuery:
-			if sr.Size != math.MaxInt64 || sr.From != math.MaxInt64 {
+			if sr.Size != math.MaxInt64 || sr.From != 0 {
 				t.Fatalf("incorrect search request formed, with size: %v,"+
 					" from: %v", sr.Size, sr.From)
 			}
