@@ -14,9 +14,6 @@ package n1fty
 import (
 	"context"
 	"encoding/base64"
-
-	"math"
-
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -43,6 +40,8 @@ type FTSIndex struct {
 
 	// map of SearchFields to dynamic-ness
 	searchFields map[util.SearchField]bool
+	// number of indexed fields
+	indexedCount int64
 
 	condExpr expression.Expression
 
@@ -60,6 +59,7 @@ type FTSIndex struct {
 func newFTSIndex(indexer *FTSIndexer,
 	indexDef *cbgt.IndexDef,
 	searchFields map[util.SearchField]bool,
+	indexedCount int64,
 	condExprStr string,
 	dynamic bool,
 	defaultAnalyzer string,
@@ -76,6 +76,7 @@ func newFTSIndex(indexer *FTSIndexer,
 		indexer:               indexer,
 		indexDef:              indexDef,
 		searchFields:          searchFields,
+		indexedCount:          indexedCount,
 		condExpr:              condExpr,
 		dynamic:               dynamic,
 		defaultAnalyzer:       defaultAnalyzer,
@@ -328,7 +329,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 					}
 				}
 
-				searchFields, _, dynamic, _, _ := util.ProcessIndexMapping(im)
+				searchFields, _, _, dynamic, _, _ := util.ProcessIndexMapping(im)
 
 				if !dynamic {
 					searchFieldsCompatible := true
@@ -380,11 +381,11 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			if sargableCount == 0 {
 				// if field(s) not provided or unavailable within query,
 				// search is applicable on all indexed fields.
-				sargableCount = math.MaxInt64
+				sargableCount = int(i.indexedCount)
 			}
 			return &sargableRV{
 				count:         sargableCount,
-				indexedCount:  math.MaxInt64,
+				indexedCount:  i.indexedCount,
 				queryFields:   queryFields,
 				searchRequest: sr,
 			}
@@ -409,8 +410,8 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			// field name not provided/available => sargable on all indexed fields,
 			// can skip processing the rest of the fields.
 			return &sargableRV{
-				count:         len(i.searchFields),
-				indexedCount:  int64(len(i.searchFields)),
+				count:         int(i.indexedCount),
+				indexedCount:  i.indexedCount,
 				queryFields:   queryFields,
 				searchRequest: sr,
 			}
@@ -438,7 +439,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			if len(fieldSplitAtDot) <= 1 {
 				// not sargable
 				return &sargableRV{
-					indexedCount:  int64(len(i.searchFields)),
+					indexedCount:  i.indexedCount,
 					queryFields:   queryFields,
 					searchRequest: sr,
 				}
@@ -464,7 +465,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			if !matched {
 				// not sargable
 				return &sargableRV{
-					indexedCount:  int64(len(i.searchFields)),
+					indexedCount:  i.indexedCount,
 					queryFields:   queryFields,
 					searchRequest: sr,
 				}
@@ -476,13 +477,13 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 	if sargableCount == 0 {
 		// if field(s) not provided or unavailable within query,
 		// search is applicable on all indexed fields.
-		sargableCount = len(i.searchFields)
+		sargableCount = int(i.indexedCount)
 	}
 
 	// sargable
 	return &sargableRV{
 		count:         sargableCount,
-		indexedCount:  int64(len(i.searchFields)),
+		indexedCount:  i.indexedCount,
 		queryFields:   queryFields,
 		searchRequest: sr,
 	}

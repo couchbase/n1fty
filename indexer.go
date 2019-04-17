@@ -498,16 +498,15 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 			// index.
 			continue
 		}
-		im, docConfig, searchFields, condExpr, dynamic, defaultAnalyzer,
-			defaultDateTimeParser, err := util.ProcessIndexDef(indexDef)
+		pip, err := util.ProcessIndexDef(indexDef)
 		if err != nil {
 			return nil, err
 		}
 
-		if len(searchFields) > 0 || dynamic {
-			rv[indexDef.UUID], err = newFTSIndex(i, indexDef,
-				searchFields, condExpr, dynamic,
-				defaultAnalyzer, defaultDateTimeParser)
+		if len(pip.SearchFields) > 0 || pip.Dynamic {
+			rv[indexDef.UUID], err = newFTSIndex(i, indexDef, pip.SearchFields,
+				pip.IndexedCount, pip.CondExpr, pip.Dynamic,
+				pip.DefaultAnalyzer, pip.DefaultDateTimeParser)
 			if err != nil {
 				return nil, err
 			}
@@ -516,8 +515,8 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 			util.SetIndexMapping(indexDef.Name, &util.MappingDetails{
 				UUID:       indexDef.UUID,
 				SourceName: indexDef.SourceName,
-				IMapping:   im,
-				DocConfig:  docConfig,
+				IMapping:   pip.IndexMapping,
+				DocConfig:  pip.DocConfig,
 			})
 		}
 	}

@@ -28,13 +28,12 @@ func TestIndexDefConversion(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, _, searchFieldsMap, _, dynamicMapping,
-		defaultAnalyzer, defaultDateTimeParser, err := ProcessIndexDef(indexDef)
+	pip, err := ProcessIndexDef(indexDef)
 	if err != nil ||
-		searchFieldsMap == nil ||
-		dynamicMapping ||
-		defaultAnalyzer != "standard" ||
-		defaultDateTimeParser != "dateTimeOptional" {
+		pip.SearchFields == nil ||
+		pip.Dynamic ||
+		pip.DefaultAnalyzer != "standard" ||
+		pip.DefaultDateTimeParser != "dateTimeOptional" {
 		t.Fatalf("unexpected return values from SearchFieldsForIndexDef")
 	}
 
@@ -44,8 +43,8 @@ func TestIndexDefConversion(t *testing.T) {
 	expect[SearchField{Name: "countryX", Analyzer: "standard", Type: "text"}] = false
 	expect[SearchField{Name: "reviews.id", Analyzer: "standard", Type: "text"}] = false
 
-	if !reflect.DeepEqual(expect, searchFieldsMap) {
-		t.Fatalf("Expected: %v,\n Got: %v", expect, searchFieldsMap)
+	if !reflect.DeepEqual(expect, pip.SearchFields) {
+		t.Fatalf("Expected: %v,\n Got: %v", expect, pip.SearchFields)
 	}
 }
 
@@ -755,36 +754,35 @@ func TestProcessIndexDef(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		_, _, searchFields, condExpr, dynamic, defaultAnalyzer,
-			defaultDateTimeParser, err := ProcessIndexDef(indexDef)
+		pip, err := ProcessIndexDef(indexDef)
 		if (err != nil) != (test.expectErr != "") {
 			t.Fatalf("testi: %d, test: %+v,\n mismatch expectErr, got: %v",
 				testi, test, err)
 		}
 
-		if !reflect.DeepEqual(test.expectSearchFields, searchFields) {
+		if !reflect.DeepEqual(test.expectSearchFields, pip.SearchFields) {
 			t.Fatalf("testi: %d, test: %+v,\n mismatch searchFields, got: %#v",
-				testi, test, searchFields)
+				testi, test, pip.SearchFields)
 		}
 
-		if test.expectCondExpr != condExpr {
+		if test.expectCondExpr != pip.CondExpr {
 			t.Fatalf("testi: %d, test: %+v,\n mismatch condExpr, got: %+v",
-				testi, test, condExpr)
+				testi, test, pip.CondExpr)
 		}
 
-		if test.expectDynamic != dynamic {
+		if test.expectDynamic != pip.Dynamic {
 			t.Fatalf("testi: %d, test: %+v,\n mismatch dynamic, got: %+v",
-				testi, test, dynamic)
+				testi, test, pip.Dynamic)
 		}
 
-		if test.expectDefaultAnalyzer != defaultAnalyzer {
+		if test.expectDefaultAnalyzer != pip.DefaultAnalyzer {
 			t.Fatalf("testi: %d, test: %+v,\n mismatch defaultAnalyzer, got: %+v",
-				testi, test, defaultAnalyzer)
+				testi, test, pip.DefaultAnalyzer)
 		}
 
-		if test.expectDefaultDateTimeParser != defaultDateTimeParser {
+		if test.expectDefaultDateTimeParser != pip.DefaultDateTimeParser {
 			t.Fatalf("testi: %d, test: %+v,\n mismatch dateTimeParser, got: %+v",
-				testi, test, defaultDateTimeParser)
+				testi, test, pip.DefaultDateTimeParser)
 		}
 	}
 }

@@ -19,16 +19,15 @@ func setupSampleIndex(idef []byte) (*FTSIndex, error) {
 		return nil, err
 	}
 
-	_, _, searchFields, condExpr, dynamic, defaultAnalyzer,
-		defaultDateTimeParser, err := util.ProcessIndexDef(indexDef)
+	pip, err := util.ProcessIndexDef(indexDef)
 	if err != nil {
 		return nil, err
 	}
 
-	if searchFields != nil || dynamic {
+	if pip.SearchFields != nil || pip.Dynamic {
 		return newFTSIndex(nil, indexDef,
-			searchFields, condExpr, dynamic,
-			defaultAnalyzer, defaultDateTimeParser)
+			pip.SearchFields, pip.IndexedCount, pip.CondExpr,
+			pip.Dynamic, pip.DefaultAnalyzer, pip.DefaultDateTimeParser)
 	}
 
 	return nil, fmt.Errorf("failed to setup index")
@@ -65,8 +64,8 @@ func TestIndexSargability(t *testing.T) {
 		t.Fatalf("Expected sargable count of 3, but got: %v", count)
 	}
 
-	if indexedCount != 4 {
-		t.Fatalf("Expected indexed count of 4, but got: %v", indexedCount)
+	if indexedCount != math.MaxInt64 {
+		t.Fatalf("Expected indexed count of MaxInt64, but got: %v", indexedCount)
 	}
 }
 
@@ -100,8 +99,8 @@ func TestIndexSargabilityWithSearchRequest(t *testing.T) {
 		t.Fatalf("Expected sargable_count of 1, but got count: %v", count)
 	}
 
-	if indexedCount != 4 {
-		t.Fatalf("Expected indexed count of 4, but got: %v", indexedCount)
+	if indexedCount != math.MaxInt64 {
+		t.Fatalf("Expected indexed count of MaxInt64, but got: %v", indexedCount)
 	}
 }
 
