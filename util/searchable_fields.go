@@ -169,7 +169,7 @@ func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 				return nil, 0, nil, false, "", ""
 			}
 
-			m, indexedCount, ok = ProcessDocumentMapping(im.DefaultAnalyzer,
+			m, indexedCount, ok = ProcessDocumentMapping(im, im.DefaultAnalyzer,
 				im.DefaultDateTimeParser, nil, tm, nil, 0)
 			if !ok {
 				return nil, 0, nil, false, "", ""
@@ -190,7 +190,7 @@ func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 			return nil, 0, nil, false, "", ""
 		}
 
-		m, indexedCount, ok = ProcessDocumentMapping(im.DefaultAnalyzer,
+		m, indexedCount, ok = ProcessDocumentMapping(im, im.DefaultAnalyzer,
 			im.DefaultDateTimeParser, nil, im.DefaultMapping, nil, 0)
 		if !ok {
 			return nil, 0, nil, false, "", ""
@@ -207,7 +207,8 @@ func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 	return m, indexedCount, typeStr, dynamic, im.DefaultAnalyzer, im.DefaultDateTimeParser
 }
 
-func ProcessDocumentMapping(defaultAnalyzer, defaultDateTimeParser string,
+func ProcessDocumentMapping(im *mapping.IndexMappingImpl,
+	defaultAnalyzer, defaultDateTimeParser string,
 	path []string, dm *mapping.DocumentMapping, m map[SearchField]bool, indexedCount int64) (
 	mOut map[SearchField]bool, indexedCountOut int64, ok bool) {
 	if !dm.Enabled {
@@ -256,13 +257,22 @@ func ProcessDocumentMapping(defaultAnalyzer, defaultDateTimeParser string,
 		}
 
 		m[searchField] = false
+
+		// Additionally include the same search field with the top-level
+		// default_analyzer as well, to allow queries without the
+		// "analyzer" setting (MB-33821)
+		m[SearchField{
+			Name:     searchField.Name,
+			Type:     searchField.Type,
+			Analyzer: im.DefaultAnalyzer,
+		}] = false
 	}
 
 	for prop, propDM := range dm.Properties {
 		if propDM.DefaultAnalyzer != "" {
 			defaultAnalyzer = propDM.DefaultAnalyzer
 		}
-		m, indexedCount, ok = ProcessDocumentMapping(defaultAnalyzer,
+		m, indexedCount, ok = ProcessDocumentMapping(im, defaultAnalyzer,
 			defaultDateTimeParser,
 			append(path, prop), propDM, m, indexedCount)
 		if !ok {

@@ -263,7 +263,8 @@ var SampleIndexDefWithCustomDefaultMapping = []byte(`
 							"include_term_vectors": true,
 							"index": true,
 							"name": "country",
-							"type": "text"
+							"type": "text",
+							"analyzer": "keyword"
 						}
 						]
 					},

@@ -303,7 +303,8 @@ func TestCompatibleCustomDefaultMappedIndexSargability(t *testing.T) {
 	{
 		"conjuncts":[{
 			"match": "United States",
-			"field": "country"
+			"field": "country",
+			"analyzer": "keyword"
 		}, {
 			"match": "San Francisco",
 			"field": "city"
@@ -332,7 +333,7 @@ func TestCompatibleCustomDefaultMappedIndexSargability(t *testing.T) {
 					"country": {
                         "dynamic": false,
 						"fields": [{
-							"name": "country", "type": "text", "index": true
+							"name": "country", "type": "text", "index": true, "analyzer": "keyword"
 						}]
 					}
 				}
@@ -506,5 +507,34 @@ func TestInvalidIndexNameSargability(t *testing.T) {
 
 	if count != 0 || indexedCount != 0 {
 		t.Fatal("Unexpected results from Index.Sargable(...) for query")
+	}
+}
+
+func TestIndexSargabilityForQueryWithMissingAnalyzer(t *testing.T) {
+	index, err := setupSampleIndex(util.SampleIndexDefWithCustomDefaultMapping)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Note that the index has the field "country" indexed under the
+	// "keyword" analyzer.
+	query := expression.NewConstant(map[string]interface{}{
+		"prefix": "blah",
+		"field":  "country",
+	})
+
+	count, indexedCount, _, _, n1qlErr := index.Sargable("", query,
+		expression.NewConstant(``), nil)
+	if n1qlErr != nil {
+		t.Fatal(n1qlErr)
+	}
+
+	if indexedCount != 3 {
+		t.Fatalf("Expected indexedCount of 3 but got: %v", indexedCount)
+	}
+
+	if count != 1 {
+		t.Fatalf("Expected count of 1, as query is not sargable for index,"+
+			" but got: %v", count)
 	}
 }
