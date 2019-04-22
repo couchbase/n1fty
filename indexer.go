@@ -327,6 +327,14 @@ func (i *FTSIndexer) refresh(force bool) errors.Error {
 	i.mapIndexesByName = mapIndexesByName
 	i.m.Unlock()
 
+	// even with a forced refresh, if both indexes and
+	// node definitions are nil, then no need to spin
+	// supporting routines or fetch the bleve max
+	// result window.
+	if mapIndexesByID == nil && nodeDefs == nil {
+		return nil
+	}
+
 	// as it reaches here for the first time, all initialisations
 	// looks good for the given FTSIndexer and hence spin off the
 	// supporting go routines.
@@ -339,12 +347,14 @@ func (i *FTSIndexer) refresh(force bool) errors.Error {
 		i.cfg.initConfig()
 
 		i.cfg.subscribe(i.namespace+"$"+i.keyspace, i)
-	})
 
-	bmrw, err := i.fetchBleveMaxResultWindow()
-	if err == nil && int64(bmrw) != util.GetBleveMaxResultWindow() {
-		util.SetBleveMaxResultWindow(int64(bmrw))
-	}
+		// perform bleveMaxResultWindow initialisation only
+		// once per FTSIndexer instance.
+		bmrw, err := i.fetchBleveMaxResultWindow()
+		if err == nil && int64(bmrw) != util.GetBleveMaxResultWindow() {
+			util.SetBleveMaxResultWindow(int64(bmrw))
+		}
+	})
 
 	return nil
 }
