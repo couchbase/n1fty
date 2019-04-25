@@ -166,8 +166,8 @@ func FetchKeySpace(nameAndKeyspace string) string {
 	return CleanseField(keyspace)
 }
 
-func ParseQueryToSearchRequest(field string, input value.Value,
-	opaqueObj interface{}) ([]SearchField, *pb.SearchRequest, bool, error) {
+func ParseQueryToSearchRequest(field string, input value.Value) (
+	[]SearchField, *pb.SearchRequest, bool, error) {
 	field = CleanseField(field)
 
 	if input == nil {
@@ -178,15 +178,7 @@ func ParseQueryToSearchRequest(field string, input value.Value,
 	var query query.Query
 
 	rv := &pb.SearchRequest{}
-	if reqIn, ok := opaqueObj.(pb.SearchRequest); ok {
-		rv = &pb.SearchRequest{
-			Contents:  reqIn.Contents,
-			Stream:    reqIn.Stream,
-			IndexUUID: reqIn.IndexUUID,
-			IndexName: reqIn.IndexName,
-		}
-	}
-	isSearchRequest := false
+	var isSearchRequest bool
 	// if the input has a query field that is an object type
 	// then it is a search request
 	if qf, ok := input.Field("query"); ok && qf.Type() == value.OBJECT {

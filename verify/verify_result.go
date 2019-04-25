@@ -48,7 +48,7 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 	}
 
 	queryFields, searchRequest, _, err := util.ParseQueryToSearchRequest(
-		field, query, nil)
+		field, query)
 	if err != nil {
 		return nil, util.N1QLError(err, "")
 	}

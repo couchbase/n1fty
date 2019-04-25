@@ -295,15 +295,17 @@ func (i *FTSIndex) Sargable(field string, query,
 }
 
 func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
-	query, options value.Value, opaqueObj interface{}) *sargableRV {
+	query, options value.Value, customFields interface{}) *sargableRV {
 	var err error
 
 	var req *pb.SearchRequest
 	var isSearchRequest bool
-	queryFields, ok := opaqueObj.([]util.SearchField)
+	queryFields, ok := customFields.([]util.SearchField)
 	if !ok {
-		queryFields, req, isSearchRequest, err = util.ParseQueryToSearchRequest(field,
-			query, opaqueObj)
+		// if customFields not provided/un-readable as array of SearchFields,
+		// go ahead and process query to retrieve queryFields.
+		queryFields, req, isSearchRequest, err = util.ParseQueryToSearchRequest(
+			field, query)
 		if err != nil {
 			return &sargableRV{
 				err: util.N1QLError(err, ""),
@@ -325,7 +327,8 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 				im, err := util.ConvertValObjectToIndexMapping(indexVal)
 				if err != nil {
 					return &sargableRV{
-						err: util.N1QLError(err, ""),
+						queryFields: queryFields,
+						err:         util.N1QLError(err, ""),
 					}
 				}
 
@@ -342,7 +345,9 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 
 					if !searchFieldsCompatible {
 						// not sargable, because explicit mapping isn't compatible
-						return &sargableRV{}
+						return &sargableRV{
+							queryFields: queryFields,
+						}
 					}
 				}
 			} else if indexVal.Type() == value.STRING {
@@ -351,14 +356,18 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 				// check for indexUUID if available.
 				if i.Name() != indexVal.Actual().(string) {
 					// not sargable
-					return &sargableRV{}
+					return &sargableRV{
+						queryFields: queryFields,
+					}
 				}
 
 				indexUUIDVal, indexUUIDAvailable := options.Field("indexUUID")
 				if indexUUIDAvailable && indexUUIDVal.Type() == value.STRING {
 					if i.Id() != indexUUIDVal.Actual().(string) {
 						// not sargable
-						return &sargableRV{}
+						return &sargableRV{
+							queryFields: queryFields,
+						}
 					}
 				}
 			}
