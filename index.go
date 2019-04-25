@@ -535,24 +535,6 @@ func (i *FTSIndex) pageable(order []string, offset, limit int64, query,
 	return offset+limit <= util.GetBleveMaxResultWindow()
 }
 
-func isEqual(a, b []string) bool {
-	if (a == nil) != (b == nil) {
-		return false
-	}
-
-	if len(a) != len(b) {
-		return false
-	}
-
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-
-	return true
-}
-
 // -----------------------------------------------------------------------------
 
 // basicAuthCreds is an implementation of credentials.PerRPCCredentials
