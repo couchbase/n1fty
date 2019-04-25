@@ -294,6 +294,12 @@ func (i *FTSIndexer) SetLogLevel(level logging.Level) {
 // -----------------------------------------------------------------------------
 
 func (i *FTSIndexer) refresh(force bool) errors.Error {
+	// if no fts nodes available, then return
+	ftsEndpoints := i.agent.FtsEps()
+	if len(ftsEndpoints) == 0 {
+		return nil
+	}
+
 	mapIndexesByID, nodeDefs, err := i.refreshConfigs()
 	if err != nil {
 		return util.N1QLError(err, "refresh failed")
@@ -365,31 +371,20 @@ func (i *FTSIndexer) refreshConfigs() (
 		conf = i.cfg
 	}
 
-	var err error
-
-	// first try to load configs from local config cache
-	indexDefs, _ := GetIndexDefs(conf.cfg)
-	nodeDefs, _ := GetNodeDefs(conf.cfg)
-
-	// if not available in config, try fetching them from an fts node
-	if indexDefs == nil || nodeDefs == nil {
-		ftsEndpoints := i.agent.FtsEps()
-		if len(ftsEndpoints) == 0 {
-			return nil, nil, nil
-		}
-		now := time.Now().UnixNano()
-		indexDefs, nodeDefs, err = i.retrieveIndexDefs(
-			ftsEndpoints[now%int64(len(ftsEndpoints))])
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
-	if indexDefs == nil {
+	// first try to load configs from meta kv cfg
+	indexDefs, err := GetIndexDefs(conf.cfg)
+	if err != nil {
+		logging.Infof("n1fty: GetIndexDefs, err: %v", err)
 		return nil, nil, nil
 	}
 
-	if nodeDefs == nil {
+	nodeDefs, err := GetNodeDefs(conf.cfg)
+	if err != nil {
+		logging.Infof("n1fty: GetNodeDefs, err: %v", err)
+		return nil, nil, nil
+	}
+
+	if indexDefs == nil || nodeDefs == nil {
 		return nil, nil, nil
 	}
 
@@ -434,54 +429,6 @@ func (i *FTSIndexer) getClient() *ftsClient {
 	client = i.client
 	i.m.RUnlock()
 	return client
-}
-
-func (i *FTSIndexer) retrieveIndexDefs(node string) (
-	*cbgt.IndexDefs, *cbgt.NodeDefs, error) {
-	httpClient := i.agent.HttpClient()
-	if httpClient == nil {
-		return nil, nil, fmt.Errorf("n1fty: retrieveIndexDefs, client not available")
-	}
-
-	cbauthURL, err := cbgt.CBAuthURL(node + "/api/cfg")
-	if err != nil {
-		return nil, nil, fmt.Errorf("n1fty: retrieveIndexDefs, err: %v", err)
-	}
-
-	resp, err := httpClient.Get(cbauthURL)
-	if err != nil {
-		return nil, nil, fmt.Errorf("n1fty: retrieveIndexDefs, err: %v", err)
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, nil, fmt.Errorf("n1fty: retrieveIndexDefs, resp status code: %v",
-			resp.StatusCode)
-	}
-
-	bodyBuf, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, nil, fmt.Errorf("n1fty: retrieveIndexDefs, resp body read err: %v", err)
-	}
-
-	var body struct {
-		IndexDefs *cbgt.IndexDefs `json:"indexDefs"`
-		NodeDefs  *cbgt.NodeDefs  `json:"nodeDefsKnown"`
-		Status    string          `json:"status"`
-	}
-
-	err = json.Unmarshal(bodyBuf, &body)
-	if err != nil {
-		return nil, nil, fmt.Errorf("retrieveIndexDefs, json err: %v", err)
-	}
-
-	if body.Status != "ok" {
-		return nil, nil, fmt.Errorf("retrieveIndexDefs, status code: %s",
-			body.Status)
-	}
-
-	return body.IndexDefs, body.NodeDefs, nil
 }
 
 func (i *FTSIndexer) fetchBleveMaxResultWindow() (int, error) {
