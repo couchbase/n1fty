@@ -74,18 +74,18 @@ func (i *Indexer) Indexes() (rv []datastore.Index, err errors.Error) {
 	return rv, nil
 }
 
-func (i *Indexer) CreatePrimaryIndex(requestId, name string,
+func (i *Indexer) CreatePrimaryIndex(requestID, name string,
 	with value.Value) (datastore.PrimaryIndex, errors.Error) {
 	return nil, util.N1QLError(nil, "not supported")
 }
 
-func (i *Indexer) CreateIndex(requestId, name string,
+func (i *Indexer) CreateIndex(requestID, name string,
 	seekKey, rangeKey expression.Expressions, where expression.Expression,
 	with value.Value) (datastore.Index, errors.Error) {
 	return nil, util.N1QLError(nil, "not supported")
 }
 
-func (i *Indexer) BuildIndexes(requestId string, names ...string) errors.Error {
+func (i *Indexer) BuildIndexes(requestID string, names ...string) errors.Error {
 	return util.N1QLError(nil, "not supported")
 }
 

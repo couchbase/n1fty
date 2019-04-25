@@ -136,16 +136,16 @@ func (i *FTSIndex) State() (datastore.IndexState, string, errors.Error) {
 	return datastore.ONLINE, "", nil
 }
 
-func (i *FTSIndex) Statistics(requestId string, span *datastore.Span) (
+func (i *FTSIndex) Statistics(requestID string, span *datastore.Span) (
 	datastore.Statistics, errors.Error) {
 	return nil, util.N1QLError(nil, "Statistics not supported yet")
 }
 
-func (i *FTSIndex) Drop(requestId string) errors.Error {
+func (i *FTSIndex) Drop(requestID string) errors.Error {
 	return util.N1QLError(nil, "Drop not supported")
 }
 
-func (i *FTSIndex) Scan(requestId string, span *datastore.Span, distinct bool,
+func (i *FTSIndex) Scan(requestID string, span *datastore.Span, distinct bool,
 	limit int64, cons datastore.ScanConsistency,
 	vector timestamp.Vector, conn *datastore.IndexConnection) {
 	conn.Error(util.N1QLError(nil, "Scan not supported"))
@@ -153,13 +153,13 @@ func (i *FTSIndex) Scan(requestId string, span *datastore.Span, distinct bool,
 }
 
 // Search performs a search/scan over this index, with provided SearchInfo settings
-func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
+func (i *FTSIndex) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 	cons datastore.ScanConsistency, vector timestamp.Vector,
 	conn *datastore.IndexConnection) {
 	if util.Debug > 0 {
-		logging.Infof("n1fty: Search, index: %s, requestId: %s, searchInfo: %+v,"+
+		logging.Infof("n1fty: Search, index: %s, requestID: %s, searchInfo: %+v,"+
 			" cons: %v, vector: %v\n",
-			i.indexDef.Name, requestId, searchInfo, cons, vector)
+			i.indexDef.Name, requestID, searchInfo, cons, vector)
 	}
 
 	if conn == nil {
@@ -232,7 +232,7 @@ func (i *FTSIndex) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
 		return
 	}
 
-	rh = newResponseHandler(i, requestId, sargRV.searchRequest.protoMsg.Contents)
+	rh = newResponseHandler(i, requestID, sargRV.searchRequest.protoMsg.Contents)
 
 	rh.handleResponse(conn, &waitGroup, &backfillSync, stream)
 

@@ -100,16 +100,16 @@ func (i *Index) State() (datastore.IndexState, string, errors.Error) {
 	return datastore.ONLINE, "", nil
 }
 
-func (i *Index) Statistics(requestId string, span *datastore.Span) (
+func (i *Index) Statistics(requestID string, span *datastore.Span) (
 	datastore.Statistics, errors.Error) {
 	return nil, util.N1QLError(nil, "not supported")
 }
 
-func (i *Index) Drop(requestId string) errors.Error {
+func (i *Index) Drop(requestID string) errors.Error {
 	return util.N1QLError(nil, "not supported")
 }
 
-func (i *Index) Scan(requestId string, span *datastore.Span, distinct bool, limit int64,
+func (i *Index) Scan(requestID string, span *datastore.Span, distinct bool, limit int64,
 	cons datastore.ScanConsistency, vector timestamp.Vector, conn *datastore.IndexConnection) {
 	conn.Error(util.N1QLError(nil, "not supported"))
 }
@@ -123,7 +123,7 @@ func (i *Index) Sargable(field string, query, options expression.Expression, opa
 }
 
 // Search performs a search/scan over this index, with provided SearchInfo settings
-func (i *Index) Search(requestId string, searchInfo *datastore.FTSSearchInfo,
+func (i *Index) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 	cons datastore.ScanConsistency, vector timestamp.Vector,
 	conn *datastore.IndexConnection) {
 	if conn == nil {

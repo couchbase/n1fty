@@ -262,19 +262,19 @@ func (i *FTSIndexer) Indexes() ([]datastore.Index, errors.Error) {
 	return allIndexes, nil
 }
 
-func (i *FTSIndexer) CreatePrimaryIndex(requestId, name string,
+func (i *FTSIndexer) CreatePrimaryIndex(requestID, name string,
 	with value.Value) (datastore.PrimaryIndex, errors.Error) {
 	return nil, util.N1QLError(nil, "CreatePrimaryIndex not supported")
 }
 
-func (i *FTSIndexer) CreateIndex(requestId, name string,
+func (i *FTSIndexer) CreateIndex(requestID, name string,
 	seekKey, rangeKey expression.Expressions,
 	where expression.Expression, with value.Value) (
 	datastore.Index, errors.Error) {
 	return nil, util.N1QLError(nil, "CreateIndex not supported")
 }
 
-func (i *FTSIndexer) BuildIndexes(requestId string, name ...string) errors.Error {
+func (i *FTSIndexer) BuildIndexes(requestID string, name ...string) errors.Error {
 	return util.N1QLError(nil, "BuildIndexes not supported")
 }
 
