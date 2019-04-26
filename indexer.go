@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/couchbase/cbauth"
+	"github.com/couchbase/cbft"
 	"github.com/couchbase/cbgt"
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/datastore"
@@ -522,4 +523,11 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 	}
 
 	return rv, nil
+}
+
+func (i *FTSIndexer) supportedByCluster() bool {
+	i.m.RLock()
+	defer i.m.RUnlock()
+
+	return cbgt.IsFeatureSupportedByCluster(cbft.FeatureGRPC, i.nodeDefs)
 }
