@@ -245,7 +245,7 @@ func TestBuildSearchRequest(t *testing.T) {
 					qq.Match, qq.FieldVal, qq.Fuzziness)
 			}
 
-			if sr.Size != -10 || sr.From != 0 {
+			if sr.Size != 10 || sr.From != 0 {
 				t.Fatalf("incorrect search request formed, with size: %v,"+
 					" from: %v", sr.Size, sr.From)
 			}
