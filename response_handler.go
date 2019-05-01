@@ -292,7 +292,6 @@ func (r *responseHandler) sendEntry(h interface{},
 	delete(hit, "sort")
 
 	id := hit["id"].(string)
-	delete(hit, "id")
 
 	if r.sr.Score == "none" {
 		delete(hit, "score")
