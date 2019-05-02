@@ -250,12 +250,13 @@ type SearchRequest struct {
 type sargableRV struct {
 	count         int
 	indexedCount  int64
-	queryFields   []util.SearchField
+	opaque        map[string]interface{}
 	searchRequest *SearchRequest
 	err           errors.Error
 }
 
 // Sargable checks if the provided request is applicable for the index.
+//
 // Return parameters:
 // - sargable_count: This is the number of fields whose names along with
 //                   analyzers from the built query matched with that of
@@ -264,13 +265,20 @@ type sargableRV struct {
 //                   the FTS index.
 // - exact:          True if the query would produce no false positives
 //                   using this FTS index.
-// - queryFields:    The custom map of fields/analyzers obtained from the
-//                   query for checking it's sargability.
+// - opaque:         The map of certain contextual data that can be re-used
+//                   as query iterates through several FTSIndexes.
+//                   (in-out parameter)
+//
+// Contents of opaque:
+//     - an entry for query field-type-analyzers
+//     - an entry for searchable fields obtained from index option
+//     - an entry for the search request generated from the query & field.
+//
 // The caller will have to make the decision on which index to choose based
 // on the sargable_count (higher the better), indexed_count (lower the better),
 // and exact (if true) returned.
 func (i *FTSIndex) Sargable(field string, query,
-	options expression.Expression, customFields interface{}) (
+	options expression.Expression, opaque interface{}) (
 	int, int64, bool, interface{}, errors.Error) {
 	var queryVal, optionsVal value.Value
 	if query != nil {
@@ -283,7 +291,7 @@ func (i *FTSIndex) Sargable(field string, query,
 	// TODO: this does not seem like the right false-positives check?
 	exact := (queryVal != nil) && (options == nil || optionsVal != nil)
 
-	rv := i.buildQueryAndCheckIfSargable(field, queryVal, optionsVal, customFields)
+	rv := i.buildQueryAndCheckIfSargable(field, queryVal, optionsVal, opaque)
 
 	if util.Debug > 0 {
 		logging.Infof("n1fty: Sargable, index: %s, field: %s, query: %v,"+
@@ -291,11 +299,11 @@ func (i *FTSIndex) Sargable(field string, query,
 			i.indexDef.Name, field, query, options, rv, exact)
 	}
 
-	return rv.count, rv.indexedCount, exact, rv.queryFields, rv.err
+	return rv.count, rv.indexedCount, exact, rv.opaque, rv.err
 }
 
 func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
-	query, options value.Value, customFields interface{}) *sargableRV {
+	query, options value.Value, opaque interface{}) *sargableRV {
 	if i.indexer != nil && !i.indexer.supportedByCluster() {
 		// if all nodes in cluster do not support protocol:gRPC,
 		// the query shall not be executed.
@@ -304,13 +312,19 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		return &sargableRV{}
 	}
 
+	opaqueMap, ok := opaque.(map[string]interface{})
+	if !ok {
+		opaqueMap = make(map[string]interface{})
+	}
+
 	var err error
 	var req *pb.SearchRequest
 	var isSearchRequest bool
-	queryFields, ok := customFields.([]util.SearchField)
-	if !ok {
-		// if customFields not provided/un-readable as array of SearchFields,
-		// go ahead and process query to retrieve queryFields.
+	var queryFields []util.SearchField
+
+	if queryFieldsInterface, exists := opaqueMap["query"]; !exists {
+		// if opaque didn't carry a "query" entry, go ahead and
+		// process the field+query provided to retrieve queryFields.
 		queryFields, req, isSearchRequest, err = util.ParseQueryToSearchRequest(
 			field, query)
 		if err != nil {
@@ -318,6 +332,11 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 				err: util.N1QLError(err, ""),
 			}
 		}
+
+		// update opaqueMap
+		opaqueMap["query"] = queryFields
+	} else {
+		queryFields, _ = queryFieldsInterface.([]util.SearchField)
 	}
 
 	sr := &SearchRequest{protoMsg: req,
@@ -334,8 +353,8 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 				im, err := util.ConvertValObjectToIndexMapping(indexVal)
 				if err != nil {
 					return &sargableRV{
-						queryFields: queryFields,
-						err:         util.N1QLError(err, ""),
+						opaque: opaqueMap,
+						err:    util.N1QLError(err, ""),
 					}
 				}
 
@@ -353,7 +372,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 					if !searchFieldsCompatible {
 						// not sargable, because explicit mapping isn't compatible
 						return &sargableRV{
-							queryFields: queryFields,
+							opaque: opaqueMap,
 						}
 					}
 				}
@@ -364,7 +383,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 				if i.Name() != indexVal.Actual().(string) {
 					// not sargable
 					return &sargableRV{
-						queryFields: queryFields,
+						opaque: opaqueMap,
 					}
 				}
 
@@ -373,7 +392,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 					if i.Id() != indexUUIDVal.Actual().(string) {
 						// not sargable
 						return &sargableRV{
-							queryFields: queryFields,
+							opaque: opaqueMap,
 						}
 					}
 				}
@@ -402,7 +421,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			return &sargableRV{
 				count:         sargableCount,
 				indexedCount:  i.indexedCount,
-				queryFields:   queryFields,
+				opaque:        opaqueMap,
 				searchRequest: sr,
 			}
 		}
@@ -428,7 +447,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			return &sargableRV{
 				count:         int(i.indexedCount),
 				indexedCount:  i.indexedCount,
-				queryFields:   queryFields,
+				opaque:        opaqueMap,
 				searchRequest: sr,
 			}
 		}
@@ -438,7 +457,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			// if searched field contains nested fields, then this field is not
 			// searchable, and the query not sargable.
 			return &sargableRV{
-				queryFields:   queryFields,
+				opaque:        opaqueMap,
 				searchRequest: sr,
 			}
 		}
@@ -456,7 +475,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 				// not sargable
 				return &sargableRV{
 					indexedCount:  i.indexedCount,
-					queryFields:   queryFields,
+					opaque:        opaqueMap,
 					searchRequest: sr,
 				}
 			}
@@ -482,7 +501,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 				// not sargable
 				return &sargableRV{
 					indexedCount:  i.indexedCount,
-					queryFields:   queryFields,
+					opaque:        opaqueMap,
 					searchRequest: sr,
 				}
 			}
@@ -500,7 +519,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 	return &sargableRV{
 		count:         sargableCount,
 		indexedCount:  i.indexedCount,
-		queryFields:   queryFields,
+		opaque:        opaqueMap,
 		searchRequest: sr,
 	}
 }
