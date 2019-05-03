@@ -358,18 +358,27 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 					}
 				}
 
-				searchFields, _, _, dynamic, _, _ := util.ProcessIndexMapping(im)
+				searchFields, _, _, dynamic, defaultAnalyzer, defaultDateTimeParser :=
+					util.ProcessIndexMapping(im)
 
-				if !dynamic {
-					searchFieldsCompatible := true
+				if !dynamic && !i.dynamic {
+					compatible := true
 					for k, expect := range searchFields {
 						if got, exists := i.searchFields[k]; !exists || got != expect {
-							searchFieldsCompatible = false
+							compatible = false
 							break
 						}
 					}
 
-					if !searchFieldsCompatible {
+					if compatible {
+						if (defaultAnalyzer != "" && defaultAnalyzer != i.defaultAnalyzer) ||
+							(defaultDateTimeParser != "" &&
+								defaultDateTimeParser != i.defaultDateTimeParser) {
+							compatible = false
+						}
+					}
+
+					if !compatible {
 						// not sargable, because explicit mapping isn't compatible
 						return &sargableRV{
 							opaque: opaqueMap,
