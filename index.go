@@ -19,6 +19,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/blevesearch/bleve/mapping"
 	pb "github.com/couchbase/cbft/protobuf"
 	"github.com/couchbase/cbgt"
 	"github.com/couchbase/n1fty/util"
@@ -318,11 +319,12 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 	}
 
 	var err error
-	var req *pb.SearchRequest
-	var isSearchRequest bool
 	var queryFields []util.SearchField
+	var sr *SearchRequest
 
 	if queryFieldsInterface, exists := opaqueMap["query"]; !exists {
+		var isSearchRequest bool
+		var req *pb.SearchRequest
 		// if opaque didn't carry a "query" entry, go ahead and
 		// process the field+query provided to retrieve queryFields.
 		queryFields, req, isSearchRequest, err = util.ParseQueryToSearchRequest(
@@ -333,29 +335,45 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			}
 		}
 
-		// update opaqueMap
+		sr = &SearchRequest{
+			protoMsg: req,
+			complete: isSearchRequest,
+		}
+
+		// update opaqueMap with query, search_request
 		opaqueMap["query"] = queryFields
+		opaqueMap["search_request"] = sr
 	} else {
 		queryFields, _ = queryFieldsInterface.([]util.SearchField)
-	}
 
-	sr := &SearchRequest{protoMsg: req,
-		complete: isSearchRequest,
+		// if an entry for "query" exists, we can assume that an entry for
+		// "search_request" also exists.
+		srInterface, _ := opaqueMap["search_request"]
+		sr, _ = srInterface.(*SearchRequest)
 	}
 
 	if options != nil {
 		indexVal, exists := options.Field("index")
 		if exists {
 			if indexVal.Type() == value.OBJECT {
-				// if in case this value were an object, it is expected to be
-				// a mapping, check if this mapping is compatible with the
-				// current index's mapping.
-				im, err := util.ConvertValObjectToIndexMapping(indexVal)
-				if err != nil {
-					return &sargableRV{
-						opaque: opaqueMap,
-						err:    util.N1QLError(err, ""),
+				var im *mapping.IndexMappingImpl
+				// check if opaque carries an "index" entry
+				if imInterface, exists := opaqueMap["index"]; !exists {
+					// if in case this value were an object, it is expected to be
+					// a mapping, check if this mapping is compatible with the
+					// current index's mapping.
+					im, err = util.ConvertValObjectToIndexMapping(indexVal)
+					if err != nil {
+						return &sargableRV{
+							opaque: opaqueMap,
+							err:    util.N1QLError(err, ""),
+						}
 					}
+
+					// update opaqueMap
+					opaqueMap["index"] = im
+				} else {
+					im, _ = imInterface.(*mapping.IndexMappingImpl)
 				}
 
 				searchFields, _, _, dynamic, defaultAnalyzer, defaultDateTimeParser :=
