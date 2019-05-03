@@ -333,7 +333,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		queryFields, req, isSearchRequest, err = util.ParseQueryToSearchRequest(
 			field, query)
 		if err != nil {
-			rv.err = util.N1QLError(err, "")
+			rv.err = util.N1QLError(err, "failed to parse query to search request")
 			return rv
 		}
 
@@ -368,7 +368,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 					// current index's mapping.
 					im, err = util.ConvertValObjectToIndexMapping(indexVal)
 					if err != nil {
-						rv.err = util.N1QLError(err, "")
+						rv.err = util.N1QLError(err, "index mapping option isn't valid")
 						return rv
 					}
 
