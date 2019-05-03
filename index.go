@@ -450,9 +450,6 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		if f.Type == "text" && f.Analyzer == "" {
 			// set analyzer to defaultAnalyzer for those query fields of type:text,
 			// that don't have an explicit analyzer set already.
-			//
-			// TODO: double-check if this mutation is ok, or if we
-			// instead need to copy f / copy-on-write.
 			f.Analyzer = i.defaultAnalyzer
 			f.DateFormat = ""
 		} else if f.Type == "datetime" && f.DateFormat == "" {
