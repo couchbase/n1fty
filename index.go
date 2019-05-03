@@ -40,7 +40,7 @@ type FTSIndex struct {
 	indexDef *cbgt.IndexDef
 
 	// map of SearchFields to dynamic-ness
-	searchFields map[util.SearchField]bool
+	searchableFields map[util.SearchField]bool
 	// number of indexed fields
 	indexedCount int64
 
@@ -59,7 +59,7 @@ type FTSIndex struct {
 
 func newFTSIndex(indexer *FTSIndexer,
 	indexDef *cbgt.IndexDef,
-	searchFields map[util.SearchField]bool,
+	searchableFields map[util.SearchField]bool,
 	indexedCount int64,
 	condExprStr string,
 	dynamic bool,
@@ -76,7 +76,7 @@ func newFTSIndex(indexer *FTSIndexer,
 	index := &FTSIndex{
 		indexer:               indexer,
 		indexDef:              indexDef,
-		searchFields:          searchFields,
+		searchableFields:      searchableFields,
 		indexedCount:          indexedCount,
 		condExpr:              condExpr,
 		dynamic:               dynamic,
@@ -378,13 +378,13 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 					im, _ = imInterface.(*mapping.IndexMappingImpl)
 				}
 
-				searchFields, _, _, dynamic, defaultAnalyzer, defaultDateTimeParser :=
+				searchableFields, _, _, dynamic, defaultAnalyzer, defaultDateTimeParser :=
 					util.ProcessIndexMapping(im)
 
 				if !dynamic && !i.dynamic {
 					compatible := true
-					for k, expect := range searchFields {
-						if got, exists := i.searchFields[k]; !exists || got != expect {
+					for k, expect := range searchableFields {
+						if got, exists := i.searchableFields[k]; !exists || got != expect {
 							compatible = false
 							break
 						}
@@ -468,7 +468,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			return rv
 		}
 
-		dynamic, exists := i.searchFields[f]
+		dynamic, exists := i.searchableFields[f]
 		if exists && dynamic {
 			// if searched field contains nested fields, then this field is not
 			// searchable, and the query not sargable.
@@ -496,7 +496,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 					Name:     entry,
 					Analyzer: f.Analyzer,
 				}
-				if dynamic1, exists1 := i.searchFields[searchField]; exists1 {
+				if dynamic1, exists1 := i.searchableFields[searchField]; exists1 {
 					if dynamic1 {
 						matched = true
 						break
