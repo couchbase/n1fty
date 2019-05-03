@@ -296,7 +296,7 @@ func (r *responseHandler) sendEntry(h interface{},
 	if r.sr.Score == "none" {
 		delete(hit, "score")
 	}
-	if !r.sr.IncludeLocations {
+	if !r.sr.IncludeLocations && r.sr.Highlight == nil {
 		delete(hit, "locations")
 	}
 	if len(r.sr.Fields) == 0 {
