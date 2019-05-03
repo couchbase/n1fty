@@ -742,11 +742,13 @@ func TestProcessIndexDef(t *testing.T) {
 					}
 				}
 			}`,
-			expectSearchFields:          nil,
-			expectCondExpr:              "",
+			expectSearchFields: map[SearchField]bool{
+				{Name: "country", Type: "text", Analyzer: "super"}: false,
+			},
+			expectCondExpr:              `type="hotel"`,
 			expectDynamic:               false,
-			expectDefaultAnalyzer:       "",
-			expectDefaultDateTimeParser: "",
+			expectDefaultAnalyzer:       "super",
+			expectDefaultDateTimeParser: "dateTimeOptional",
 			expectErr:                   "",
 		},
 	}

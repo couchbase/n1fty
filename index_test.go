@@ -27,7 +27,8 @@ func setupSampleIndex(idef []byte) (*FTSIndex, error) {
 	if pip.SearchFields != nil || pip.Dynamic {
 		return newFTSIndex(nil, indexDef,
 			pip.SearchFields, pip.IndexedCount, pip.CondExpr,
-			pip.Dynamic, pip.DefaultAnalyzer, pip.DefaultDateTimeParser)
+			pip.Dynamic, pip.AllFieldSearchable,
+			pip.DefaultAnalyzer, pip.DefaultDateTimeParser)
 	}
 
 	return nil, fmt.Errorf("failed to setup index")
@@ -165,7 +166,7 @@ func TestCustomIndexNoFieldsQuerySargability(t *testing.T) {
 		t.Fatal(n1qlErr)
 	}
 
-	if count != int(indexedCount) || !exact {
+	if count != 1 || indexedCount != 3 || !exact {
 		t.Fatal("Unexpected results from Index.Sargable(...) for query")
 	}
 }
@@ -536,5 +537,26 @@ func TestIndexSargabilityForQueryWithMissingAnalyzer(t *testing.T) {
 	if count != 1 {
 		t.Fatalf("Expected count of 1, as query is not sargable for index,"+
 			" but got: %v", count)
+	}
+}
+
+func TestCustomIndexNoAllFiedlSargability(t *testing.T) {
+	index, err := setupSampleIndex(util.SampleIndexDefWithNoAllField)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	query := expression.NewConstant(map[string]interface{}{
+		"match": "san francisco",
+	})
+
+	count, _, _, _, n1qlErr := index.Sargable("", query,
+		expression.NewConstant(``), nil)
+	if n1qlErr != nil {
+		t.Fatal(n1qlErr)
+	}
+
+	if count != 0 {
+		t.Fatal("Expect index to NOT be sargable")
 	}
 }

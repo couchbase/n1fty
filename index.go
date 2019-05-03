@@ -46,7 +46,8 @@ type FTSIndex struct {
 
 	condExpr expression.Expression
 
-	dynamic bool // true if a top-level dynamic mapping is enabled
+	dynamic            bool // true if a top-level dynamic mapping is enabled
+	allFieldSearchable bool // true if _all field contains some content
 
 	defaultAnalyzer       string
 	defaultDateTimeParser string
@@ -63,6 +64,7 @@ func newFTSIndex(indexer *FTSIndexer,
 	indexedCount int64,
 	condExprStr string,
 	dynamic bool,
+	allFieldSearchable bool,
 	defaultAnalyzer string,
 	defaultDateTimeParser string) (rv *FTSIndex, err error) {
 	var condExpr expression.Expression
@@ -80,6 +82,7 @@ func newFTSIndex(indexer *FTSIndexer,
 		indexedCount:          indexedCount,
 		condExpr:              condExpr,
 		dynamic:               dynamic,
+		allFieldSearchable:    allFieldSearchable,
 		defaultAnalyzer:       defaultAnalyzer,
 		defaultDateTimeParser: defaultDateTimeParser,
 		optionsForOrdering:    make(map[string]struct{}),
@@ -378,7 +381,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 					im, _ = imInterface.(*mapping.IndexMappingImpl)
 				}
 
-				searchableFields, _, _, dynamic, defaultAnalyzer, defaultDateTimeParser :=
+				searchableFields, _, _, dynamic, _, defaultAnalyzer, defaultDateTimeParser :=
 					util.ProcessIndexMapping(im)
 
 				if !dynamic && !i.dynamic {
@@ -458,11 +461,14 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		}
 
 		if f.Name == "" {
-			// field name not provided/available => sargable on all indexed fields,
-			// can skip processing the rest of the fields.
-			rv.count = int(i.indexedCount)
-			rv.indexedCount = i.indexedCount
-			return rv
+			// field name not provided/available
+			// check if index supports _all field, if not, this query is not sargable
+			if !i.allFieldSearchable {
+				return rv
+			}
+
+			// move on to next query field
+			continue
 		}
 
 		dynamic, exists := i.searchableFields[f]
@@ -513,6 +519,11 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 	rv.count = len(queryFields)
 	if rv.count == 0 {
 		// if field(s) not provided or unavailable within query,
+		// index is not sargable if it does not support _all field
+		if !i.allFieldSearchable {
+			return rv
+		}
+
 		// search is applicable on all indexed fields.
 		rv.count = int(i.indexedCount)
 	}
