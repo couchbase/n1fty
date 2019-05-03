@@ -313,16 +313,19 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		return &sargableRV{}
 	}
 
-	opaqueMap, ok := opaque.(map[string]interface{})
+	rv := &sargableRV{}
+
+	var ok bool
+	rv.opaque, ok = opaque.(map[string]interface{})
 	if !ok {
-		opaqueMap = make(map[string]interface{})
+		rv.opaque = make(map[string]interface{})
 	}
 
 	var err error
 	var queryFields []util.SearchField
 	var sr *SearchRequest
 
-	if queryFieldsInterface, exists := opaqueMap["query"]; !exists {
+	if queryFieldsInterface, exists := rv.opaque["query"]; !exists {
 		var isSearchRequest bool
 		var req *pb.SearchRequest
 		// if opaque didn't carry a "query" entry, go ahead and
@@ -330,9 +333,8 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		queryFields, req, isSearchRequest, err = util.ParseQueryToSearchRequest(
 			field, query)
 		if err != nil {
-			return &sargableRV{
-				err: util.N1QLError(err, ""),
-			}
+			rv.err = util.N1QLError(err, "")
+			return rv
 		}
 
 		sr = &SearchRequest{
@@ -341,16 +343,18 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		}
 
 		// update opaqueMap with query, search_request
-		opaqueMap["query"] = queryFields
-		opaqueMap["search_request"] = sr
+		rv.opaque["query"] = queryFields
+		rv.opaque["search_request"] = sr
 	} else {
 		queryFields, _ = queryFieldsInterface.([]util.SearchField)
 
 		// if an entry for "query" exists, we can assume that an entry for
 		// "search_request" also exists.
-		srInterface, _ := opaqueMap["search_request"]
+		srInterface, _ := rv.opaque["search_request"]
 		sr, _ = srInterface.(*SearchRequest)
 	}
+
+	rv.searchRequest = sr
 
 	if options != nil {
 		indexVal, exists := options.Field("index")
@@ -358,20 +362,18 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			if indexVal.Type() == value.OBJECT {
 				var im *mapping.IndexMappingImpl
 				// check if opaque carries an "index" entry
-				if imInterface, exists := opaqueMap["index"]; !exists {
+				if imInterface, exists := rv.opaque["index"]; !exists {
 					// if in case this value were an object, it is expected to be
 					// a mapping, check if this mapping is compatible with the
 					// current index's mapping.
 					im, err = util.ConvertValObjectToIndexMapping(indexVal)
 					if err != nil {
-						return &sargableRV{
-							opaque: opaqueMap,
-							err:    util.N1QLError(err, ""),
-						}
+						rv.err = util.N1QLError(err, "")
+						return rv
 					}
 
 					// update opaqueMap
-					opaqueMap["index"] = im
+					rv.opaque["index"] = im
 				} else {
 					im, _ = imInterface.(*mapping.IndexMappingImpl)
 				}
@@ -398,9 +400,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 
 					if !compatible {
 						// not sargable, because explicit mapping isn't compatible
-						return &sargableRV{
-							opaque: opaqueMap,
-						}
+						return rv
 					}
 				}
 			} else if indexVal.Type() == value.STRING {
@@ -409,18 +409,14 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 				// check for indexUUID if available.
 				if i.Name() != indexVal.Actual().(string) {
 					// not sargable
-					return &sargableRV{
-						opaque: opaqueMap,
-					}
+					return rv
 				}
 
 				indexUUIDVal, indexUUIDAvailable := options.Field("indexUUID")
 				if indexUUIDAvailable && indexUUIDVal.Type() == value.STRING {
 					if i.Id() != indexUUIDVal.Actual().(string) {
 						// not sargable
-						return &sargableRV{
-							opaque: opaqueMap,
-						}
+						return rv
 					}
 				}
 			}
@@ -439,18 +435,14 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			}
 		}
 		if compatibleWithDynamicMapping {
-			sargableCount := len(queryFields)
-			if sargableCount == 0 {
+			rv.count = len(queryFields)
+			if rv.count == 0 {
 				// if field(s) not provided or unavailable within query,
 				// search is applicable on all indexed fields.
-				sargableCount = int(i.indexedCount)
+				rv.count = int(i.indexedCount)
 			}
-			return &sargableRV{
-				count:         sargableCount,
-				indexedCount:  i.indexedCount,
-				opaque:        opaqueMap,
-				searchRequest: sr,
-			}
+			rv.indexedCount = i.indexedCount
+			return rv
 		}
 	}
 
@@ -471,22 +463,16 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		if f.Name == "" {
 			// field name not provided/available => sargable on all indexed fields,
 			// can skip processing the rest of the fields.
-			return &sargableRV{
-				count:         int(i.indexedCount),
-				indexedCount:  i.indexedCount,
-				opaque:        opaqueMap,
-				searchRequest: sr,
-			}
+			rv.count = int(i.indexedCount)
+			rv.indexedCount = i.indexedCount
+			return rv
 		}
 
 		dynamic, exists := i.searchFields[f]
 		if exists && dynamic {
 			// if searched field contains nested fields, then this field is not
 			// searchable, and the query not sargable.
-			return &sargableRV{
-				opaque:        opaqueMap,
-				searchRequest: sr,
-			}
+			return rv
 		}
 
 		if !exists {
@@ -500,11 +486,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			fieldSplitAtDot := strings.Split(f.Name, ".")
 			if len(fieldSplitAtDot) <= 1 {
 				// not sargable
-				return &sargableRV{
-					indexedCount:  i.indexedCount,
-					opaque:        opaqueMap,
-					searchRequest: sr,
-				}
+				return rv
 			}
 
 			var matched bool
@@ -526,29 +508,21 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 
 			if !matched {
 				// not sargable
-				return &sargableRV{
-					indexedCount:  i.indexedCount,
-					opaque:        opaqueMap,
-					searchRequest: sr,
-				}
+				return rv
 			}
 		}
 	}
 
-	sargableCount := len(queryFields)
-	if sargableCount == 0 {
+	rv.count = len(queryFields)
+	if rv.count == 0 {
 		// if field(s) not provided or unavailable within query,
 		// search is applicable on all indexed fields.
-		sargableCount = int(i.indexedCount)
+		rv.count = int(i.indexedCount)
 	}
 
 	// sargable
-	return &sargableRV{
-		count:         sargableCount,
-		indexedCount:  i.indexedCount,
-		opaque:        opaqueMap,
-		searchRequest: sr,
-	}
+	rv.indexedCount = i.indexedCount
+	return rv
 }
 
 // -----------------------------------------------------------------------------
