@@ -158,15 +158,20 @@ type VerifyCtx struct {
 	docConfig   *cbft.BleveDocumentConfig
 }
 
-var kBytes = []byte("k")
-
 func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
-	doc := item.Actual()
-	if v.docConfig != nil {
-		doc = v.docConfig.BuildDocumentFromObj(kBytes, doc, v.defaultType)
+	key := "k"
+	if annotatedItem, ok := item.(value.AnnotatedValue); ok {
+		if keyStr, ok := annotatedItem.GetId().(string); ok {
+			key = keyStr
+		}
 	}
 
-	kdoc := document.NewDocument("k")
+	doc := item.Actual()
+	if v.docConfig != nil {
+		doc = v.docConfig.BuildDocumentFromObj([]byte(key), doc, v.defaultType)
+	}
+
+	kdoc := document.NewDocument(key)
 
 	err := v.m.MapDocument(kdoc, doc)
 	if err != nil {

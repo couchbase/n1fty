@@ -188,3 +188,27 @@ func TestMB33444(t *testing.T) {
 		}
 	}
 }
+
+func TestDocIDQueryEvaluation(t *testing.T) {
+	item := value.NewAnnotatedValue([]byte(`{"name":"abhi","city":"san francisco"}`))
+	item.SetAttachment("meta", map[string]interface{}{"id": "key-1"})
+	item.SetId("key-1")
+
+	queryVal := value.NewValue(map[string]interface{}{
+		"ids": []interface{}{"key-1"},
+	})
+
+	v, err := NewVerify("`temp_keyspace`", "", queryVal, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ret, err := v.Evaluate(item)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !ret {
+		t.Fatal("Expected evaluation for key-1 to succeed")
+	}
+}
