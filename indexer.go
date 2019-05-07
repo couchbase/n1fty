@@ -35,6 +35,8 @@ import (
 	"gopkg.in/couchbase/gocbcore.v7"
 )
 
+const VERSION = 1
+
 // FTSIndexer implements datastore.Indexer interface
 type FTSIndexer struct {
 	namespace string
@@ -284,8 +286,7 @@ func (i *FTSIndexer) Refresh() errors.Error {
 }
 
 func (i *FTSIndexer) MetadataVersion() uint64 {
-	// FIXME
-	return 0
+	return VERSION
 }
 
 func (i *FTSIndexer) SetLogLevel(level logging.Level) {
