@@ -175,7 +175,8 @@ func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 			}
 
 			m, indexedCount, allFieldSearchable, ok = ProcessDocumentMapping(
-				im, im.DefaultAnalyzer, im.DefaultDateTimeParser, nil, tm, nil, 0)
+				im, im.DefaultAnalyzer, im.DefaultDateTimeParser,
+				nil, tm, nil, 0)
 			if !ok {
 				return nil, 0, nil, false, false, "", ""
 			}
@@ -196,7 +197,8 @@ func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 		}
 
 		m, indexedCount, allFieldSearchable, ok = ProcessDocumentMapping(
-			im, im.DefaultAnalyzer, im.DefaultDateTimeParser, nil, im.DefaultMapping, nil, 0)
+			im, im.DefaultAnalyzer, im.DefaultDateTimeParser,
+			nil, im.DefaultMapping, nil, 0)
 		if !ok {
 			return nil, 0, nil, false, false, "", ""
 		}
@@ -221,8 +223,9 @@ func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 
 func ProcessDocumentMapping(im *mapping.IndexMappingImpl,
 	defaultAnalyzer, defaultDateTimeParser string,
-	path []string, dm *mapping.DocumentMapping, m map[SearchField]bool, indexedCount int64) (
-	mOut map[SearchField]bool, indexedCountOut int64, allFieldSearchable bool, ok bool) {
+	path []string, dm *mapping.DocumentMapping, m map[SearchField]bool,
+	indexedCount int64) (map[SearchField]bool, int64, bool, bool) {
+	var allFieldSearchable, ok bool
 	if !dm.Enabled {
 		return m, indexedCount, allFieldSearchable, true
 	}
