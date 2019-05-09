@@ -211,7 +211,7 @@ func CheckForPagination(input value.Value) bool {
 
 func ParseSearchInfoToSearchRequest(searchRequest **pb.SearchRequest,
 	searchInfo *datastore.FTSSearchInfo, vector timestamp.Vector,
-	consistencyLevel datastore.ScanConsistency, indexName string, isComplete bool) error {
+	consistencyLevel datastore.ScanConsistency, indexName string) error {
 	sr, err := unmarshalSearchRequest((*searchRequest).Contents)
 	if err != nil {
 		return err
@@ -229,7 +229,7 @@ func ParseSearchInfoToSearchRequest(searchRequest **pb.SearchRequest,
 
 	// if original request was of query form then,
 	// override with searchInfo order details
-	if !isComplete && sr.Sort == nil && len(searchInfo.Order) > 0 {
+	if sr.Sort == nil && len(searchInfo.Order) > 0 {
 		var tempOrder []string
 		for _, so := range searchInfo.Order {
 			fields := strings.Fields(so)

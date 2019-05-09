@@ -47,7 +47,7 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 		return nil, util.N1QLError(nil, "query/options not provided")
 	}
 
-	queryFields, searchRequest, _, err := util.ParseQueryToSearchRequest(
+	queryFields, searchRequest, err := util.ParseQueryToSearchRequest(
 		field, query)
 	if err != nil {
 		return nil, util.N1QLError(err, "")

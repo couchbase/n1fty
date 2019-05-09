@@ -167,30 +167,28 @@ func FetchKeySpace(nameAndKeyspace string) string {
 }
 
 func ParseQueryToSearchRequest(field string, input value.Value) (
-	[]SearchField, *pb.SearchRequest, bool, error) {
+	[]SearchField, *pb.SearchRequest, error) {
 	field = CleanseField(field)
 
 	if input == nil {
-		return []SearchField{{Name: field}}, nil, false, nil
+		return []SearchField{{Name: field}}, nil, nil
 	}
 
 	var err error
 	var query query.Query
 
 	rv := &pb.SearchRequest{}
-	var isSearchRequest bool
 	// if the input has a query field that is an object type
 	// then it is a search request
 	if qf, ok := input.Field("query"); ok && qf.Type() == value.OBJECT {
 		rv, query, err = BuildSearchRequest(field, input)
 		if err != nil {
-			return nil, nil, true, err
+			return nil, nil, err
 		}
-		isSearchRequest = true
 	} else {
 		query, err = BuildQuery(field, input)
 		if err != nil {
-			return nil, nil, false, err
+			return nil, nil, err
 		}
 		sr := bleve.SearchRequest{Query: query,
 			From: -1, // -ve values to indicate no page info
@@ -198,16 +196,16 @@ func ParseQueryToSearchRequest(field string, input value.Value) (
 			Sort: nil}
 		rv.Contents, err = json.Marshal(sr)
 		if err != nil {
-			return nil, nil, false, err
+			return nil, nil, err
 		}
 	}
 
 	queryFields, err := FetchFieldsToSearchFromQuery(query)
 	if err != nil {
-		return nil, nil, isSearchRequest, err
+		return nil, nil, err
 	}
 
-	return queryFields, rv, isSearchRequest, nil
+	return queryFields, rv, nil
 }
 
 // Value MUST be an object

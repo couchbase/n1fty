@@ -220,8 +220,8 @@ func (i *FTSIndex) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 		}
 	}()
 
-	util.ParseSearchInfoToSearchRequest(&sargRV.searchRequest.protoMsg, searchInfo,
-		vector, cons, i.indexDef.Name, sargRV.searchRequest.complete)
+	util.ParseSearchInfoToSearchRequest(&sargRV.searchRequest, searchInfo,
+		vector, cons, i.indexDef.Name)
 
 	ftsClient := i.indexer.getClient()
 	if ftsClient == nil {
@@ -235,13 +235,13 @@ func (i *FTSIndex) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 		return
 	}
 
-	stream, err := client.Search(ctx, sargRV.searchRequest.protoMsg)
+	stream, err := client.Search(ctx, sargRV.searchRequest)
 	if err != nil || stream == nil {
 		conn.Error(util.N1QLError(err, "search failed"))
 		return
 	}
 
-	rh = newResponseHandler(i, requestID, sargRV.searchRequest.protoMsg.Contents)
+	rh = newResponseHandler(i, requestID, sargRV.searchRequest.Contents)
 
 	rh.handleResponse(conn, &waitGroup, &backfillSync, stream)
 
@@ -251,16 +251,11 @@ func (i *FTSIndex) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 
 // -----------------------------------------------------------------------------
 
-type SearchRequest struct {
-	protoMsg *pb.SearchRequest
-	complete bool
-}
-
 type sargableRV struct {
 	count         int
 	indexedCount  int64
 	opaque        map[string]interface{}
-	searchRequest *SearchRequest
+	searchRequest *pb.SearchRequest
 	err           errors.Error
 }
 
@@ -331,23 +326,15 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 
 	var err error
 	var queryFields []util.SearchField
-	var sr *SearchRequest
+	var sr *pb.SearchRequest
 
 	if queryFieldsInterface, exists := rv.opaque["query"]; !exists {
-		var isSearchRequest bool
-		var req *pb.SearchRequest
 		// if opaque didn't carry a "query" entry, go ahead and
 		// process the field+query provided to retrieve queryFields.
-		queryFields, req, isSearchRequest, err = util.ParseQueryToSearchRequest(
-			field, query)
+		queryFields, sr, err = util.ParseQueryToSearchRequest(field, query)
 		if err != nil {
 			rv.err = util.N1QLError(err, "failed to parse query to search request")
 			return rv
-		}
-
-		sr = &SearchRequest{
-			protoMsg: req,
-			complete: isSearchRequest,
 		}
 
 		// update opaqueMap with query, search_request
@@ -359,7 +346,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		// if an entry for "query" exists, we can assume that an entry for
 		// "search_request" also exists.
 		srInterface, _ := rv.opaque["search_request"]
-		sr, _ = srInterface.(*SearchRequest)
+		sr, _ = srInterface.(*pb.SearchRequest)
 	}
 
 	rv.searchRequest = sr
