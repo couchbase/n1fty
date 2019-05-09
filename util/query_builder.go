@@ -218,19 +218,6 @@ func ParseSearchInfoToSearchRequest(searchRequest **pb.SearchRequest,
 	}
 	(*searchRequest).IndexName = indexName
 
-	// check whether streaming of results is preferred
-	// - when there is no sort order requested
-	// - when the 2nd param SearchRequest doesn't contain page info
-	// - when the 2nd param is query and searchInfo contains
-	//   maxInt64 as limit
-	if (sr.Sort == nil && len(searchInfo.Order) == 0) ||
-		sr.Size+sr.From > int(GetBleveMaxResultWindow()) ||
-		(sr.Size < 0 && int(searchInfo.Limit) == math.MaxInt64) {
-		(*searchRequest).Stream = true
-		sr.From = 0
-		sr.Size = 0
-	}
-
 	// for query request, complete the searchrequest from SearchInfo
 	if sr.From < 0 && int(searchInfo.Offset) != math.MaxInt64 {
 		sr.From = int(searchInfo.Offset)
@@ -261,6 +248,19 @@ func ParseSearchInfoToSearchRequest(searchRequest **pb.SearchRequest,
 		}
 
 		sr.Sort = search.ParseSortOrderStrings(tempOrder)
+	}
+
+	// check whether streaming of results is preferred
+	// - when there is no sort order requested
+	// - when the 2nd param SearchRequest doesn't contain page info
+	// - when the 2nd param is query and searchInfo contains
+	//   maxInt64 as limit
+	if (sr.Sort == nil && len(searchInfo.Order) == 0) ||
+		(sr.Size+sr.From > int(GetBleveMaxResultWindow())) ||
+		(sr.Size < 0 && int(searchInfo.Limit) == math.MaxInt64) {
+		(*searchRequest).Stream = true
+		sr.From = 0
+		sr.Size = 0
 	}
 
 	(*searchRequest).Contents, err = json.Marshal(sr)
