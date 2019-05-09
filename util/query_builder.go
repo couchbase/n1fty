@@ -278,9 +278,7 @@ func ParseSearchInfoToSearchRequest(searchRequest **pb.SearchRequest,
 			},
 		}
 
-		if consistencyLevel == datastore.SCAN_PLUS {
-			ctlParams.Ctl.Consistency.Level = "at_plus"
-		}
+		ctlParams.Ctl.Consistency.Level = "at_plus"
 
 		vMap := &pb.ConsistencyVectors{
 			ConsistencyVector: make(map[string]uint64, 1024),
