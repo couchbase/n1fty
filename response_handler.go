@@ -183,20 +183,21 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 					return
 				}
 				// pass the status errors back to n1ql
-				searchStatus := result["status"].(map[string]interface{})
-				errMap, ok := searchStatus["errors"].(map[string]interface{})
-				if ok && len(errMap) > 0 {
-					var errs []error
-					for pi, e := range errMap {
-						errs = append(errs, fmt.Errorf("partition: %s, err: %v, ", pi, e))
-					}
-					conn.Error(util.N1QLError(fmt.Errorf("search err summary: %v", errs),
-						"response_handler: err"))
+				if searchStatus, ok := result["status"].(map[string]interface{}); ok {
+					errMap, ok := searchStatus["errors"].(map[string]interface{})
+					if ok && len(errMap) > 0 {
+						var errs []error
+						for pi, e := range errMap {
+							errs = append(errs, fmt.Errorf("partition: %s, err: %v, ", pi, e))
+						}
+						conn.Error(util.N1QLError(fmt.Errorf("search err summary: %v", errs),
+							"response_handler: err"))
 
-					// return here, as no partial results are supported
-					return
+						// return here, as no partial results are supported
+						return
+					}
 				}
-				hits = result["hits"].([]interface{})
+				hits, _ = result["hits"].([]interface{})
 			}
 		}
 
@@ -271,11 +272,10 @@ func (r *responseHandler) cleanupBackfill() {
 
 func (r *responseHandler) sendEntry(h interface{},
 	conn *datastore.IndexConnection) bool {
-	if h == nil {
+	hit, ok := h.(map[string]interface{})
+	if !ok {
 		return true // so next hit can be processed
 	}
-
-	hit := h.(map[string]interface{})
 
 	var start time.Time
 	blockedtm, blocked := int64(0), false
@@ -417,8 +417,10 @@ func initBackFill(logPrefix, requestID string, rh *responseHandler) (*gob.Encode
 }
 
 func writeToBackfill(hits []interface{}, enc *gob.Encoder) error {
-	if err := enc.Encode(hits); err != nil {
-		return err
+	if hits != nil {
+		if err := enc.Encode(hits); err != nil {
+			return err
+		}
 	}
 	return nil
 }

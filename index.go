@@ -180,16 +180,21 @@ func (i *FTSIndex) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 		return
 	}
 
-	fieldStr := ""
+	field := ""
 	if searchInfo.Field != nil {
-		fieldStr = searchInfo.Field.Actual().(string)
+		if fieldStr, ok := searchInfo.Field.Actual().(string); ok {
+			field = fieldStr
+		} else {
+			conn.Error(util.N1QLError(nil, "field provided must be of type:string"))
+			return
+		}
 	}
 
 	// this sargable(...) check is to ensure that the query is indeed "sargable"
 	// at search time, as when the Sargable(..) API is invoked during the
 	// prepare time, the query/options may not have been available.
 	sargRV := i.buildQueryAndCheckIfSargable(
-		fieldStr, searchInfo.Query, searchInfo.Options, nil)
+		field, searchInfo.Query, searchInfo.Options, nil)
 	if sargRV.err != nil || sargRV.count == 0 {
 		conn.Error(util.N1QLError(nil, "not sargable"))
 		return
