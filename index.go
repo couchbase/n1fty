@@ -14,6 +14,7 @@ package n1fty
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -175,8 +176,9 @@ func (i *FTSIndex) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 		return
 	}
 
-	if cons == datastore.SCAN_PLUS {
-		conn.Error(util.N1QLError(nil, "scan_plus consistency not supported"))
+	if cons != "at_plus" && cons != "" {
+		conn.Error(util.N1QLError(nil,
+			fmt.Sprintf("`%s` consistency not supported", cons)))
 		return
 	}
 
