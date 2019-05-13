@@ -268,17 +268,17 @@ func ParseSearchInfoToSearchRequest(searchRequest **pb.SearchRequest,
 		return err
 	}
 
-	if vector != nil && len(vector.Entries()) > 0 {
+	if consistencyLevel == datastore.AT_PLUS &&
+		vector != nil && len(vector.Entries()) > 0 {
 		ctlParams := &pb.QueryCtlParams{
 			Ctl: &pb.QueryCtl{
 				Timeout: cbgt.QUERY_CTL_DEFAULT_TIMEOUT_MS,
 				Consistency: &pb.ConsistencyParams{
+					Level:   "at_plus",
 					Vectors: make(map[string]*pb.ConsistencyVectors, 1),
 				},
 			},
 		}
-
-		ctlParams.Ctl.Consistency.Level = "at_plus"
 
 		vMap := &pb.ConsistencyVectors{
 			ConsistencyVector: make(map[string]uint64, 1024),
