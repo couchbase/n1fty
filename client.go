@@ -12,8 +12,10 @@
 package n1fty
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"fmt"
 	"math/rand"
 	"sync/atomic"
@@ -80,6 +82,38 @@ func (c *ftsClient) getGrpcClient() pb.SearchServiceClient {
 	return pb.NewSearchServiceClient(conn)
 }
 
+// -----------------------------------------------------------------------------
+
+// basicAuthCreds is an implementation of credentials.PerRPCCredentials
+// that transforms the username and password into a base64 encoded value
+// similar to HTTP Basic xxx
+type basicAuthCreds struct {
+	username                 string
+	password                 string
+	requireTransportSecurity bool
+}
+
+// GetRequestMetadata sets the value for "authorization" key
+func (b *basicAuthCreds) GetRequestMetadata(context.Context, ...string) (
+	map[string]string, error) {
+	return map[string]string{
+		"authorization": "Basic " + basicAuth(b.username, b.password),
+	}, nil
+}
+
+// RequireTransportSecurity indicates whether the credentials requires
+// transport security.
+func (b *basicAuthCreds) RequireTransportSecurity() bool {
+	return b.requireTransportSecurity
+}
+
+func basicAuth(username, password string) string {
+	auth := username + ":" + password
+	return base64.StdEncoding.EncodeToString([]byte(auth))
+}
+
+// -----------------------------------------------------------------------------
+
 func setupFTSClient(nodeDefs *cbgt.NodeDefs) (*ftsClient, error) {
 	if nodeDefs == nil {
 		return nil, nil
@@ -129,8 +163,9 @@ func setupFTSClient(nodeDefs *cbgt.NodeDefs) (*ftsClient, error) {
 			// copy
 			opts := gRPCOpts[:]
 			opts = append(opts, grpc.WithPerRPCCredentials(&basicAuthCreds{
-				username: cbUser,
-				password: cbPasswd,
+				username:                 cbUser,
+				password:                 cbPasswd,
+				requireTransportSecurity: true,
 			}))
 
 			conn, err := grpc.Dial(hostPort, opts...)

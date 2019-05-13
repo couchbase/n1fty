@@ -13,7 +13,6 @@ package n1fty
 
 import (
 	"context"
-	"encoding/base64"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -562,35 +561,6 @@ func (i *FTSIndex) pageable(order []string, offset, limit int64, query,
 	}
 
 	return offset+limit <= util.GetBleveMaxResultWindow()
-}
-
-// -----------------------------------------------------------------------------
-
-// basicAuthCreds is an implementation of credentials.PerRPCCredentials
-// that transforms the username and password into a base64 encoded value
-// similar to HTTP Basic xxx
-type basicAuthCreds struct {
-	username string
-	password string
-}
-
-// GetRequestMetadata sets the value for "authorization" key
-func (b *basicAuthCreds) GetRequestMetadata(context.Context, ...string) (
-	map[string]string, error) {
-	return map[string]string{
-		"authorization": "Basic " + basicAuth(b.username, b.password),
-	}, nil
-}
-
-// RequireTransportSecurity should be true as even though the credentials
-// are base64, we want to have it encrypted over the wire.
-func (b *basicAuthCreds) RequireTransportSecurity() bool {
-	return false // TODO - make it true
-}
-
-func basicAuth(username, password string) string {
-	auth := username + ":" + password
-	return base64.StdEncoding.EncodeToString([]byte(auth))
 }
 
 // -----------------------------------------------------------------------------
