@@ -170,13 +170,22 @@ func (i *FTSIndex) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 		return
 	}
 
+	sender := conn.Sender()
+
+	if sender == nil {
+		conn.Error(util.N1QLError(nil, "conn's Sender not defined"))
+		return
+	}
+
 	if searchInfo == nil || searchInfo.Query == nil {
 		conn.Error(util.N1QLError(nil, "no search parameters provided"))
+		sender.Close()
 		return
 	}
 
 	if cons == datastore.SCAN_PLUS {
 		conn.Error(util.N1QLError(nil, "scan_plus consistency not supported"))
+		sender.Close()
 		return
 	}
 
@@ -186,6 +195,7 @@ func (i *FTSIndex) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 			field = fieldStr
 		} else {
 			conn.Error(util.N1QLError(nil, "field provided must be of type:string"))
+			sender.Close()
 			return
 		}
 	}
@@ -197,11 +207,11 @@ func (i *FTSIndex) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 		field, searchInfo.Query, searchInfo.Options, nil)
 	if sargRV.err != nil || sargRV.count == 0 {
 		conn.Error(util.N1QLError(nil, "not sargable"))
+		sender.Close()
 		return
 	}
 
 	starttm := time.Now()
-	sender := conn.Sender()
 
 	var waitGroup sync.WaitGroup
 	var backfillSync int64
