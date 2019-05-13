@@ -416,6 +416,34 @@ func initBackFill(logPrefix, requestID string, rh *responseHandler) (*gob.Encode
 	return enc, gob.NewDecoder(readfd), tmpfile, nil
 }
 
+// -----------------------------------------------------------------------------
+
+func getBackfillSpaceDir() string {
+	conf := clientConfig.GetConfig()
+	if conf == nil {
+		return getDefaultTmpDir()
+	}
+
+	if v, ok := conf[backfillSpaceDir]; ok {
+		return v.(string)
+	}
+
+	return getDefaultTmpDir()
+}
+
+func getBackfillSpaceLimit() int64 {
+	conf := clientConfig.GetConfig()
+	if conf == nil {
+		return defaultBackfillLimit
+	}
+
+	if v, ok := conf[backfillSpaceLimit]; ok {
+		return v.(int64)
+	}
+
+	return defaultBackfillLimit
+}
+
 func writeToBackfill(hits []interface{}, enc *gob.Encoder) error {
 	if hits != nil {
 		if err := enc.Encode(hits); err != nil {

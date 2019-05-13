@@ -562,31 +562,3 @@ func (i *FTSIndex) pageable(order []string, offset, limit int64, query,
 
 	return offset+limit <= util.GetBleveMaxResultWindow()
 }
-
-// -----------------------------------------------------------------------------
-
-func getBackfillSpaceDir() string {
-	conf := clientConfig.GetConfig()
-	if conf == nil {
-		return getDefaultTmpDir()
-	}
-
-	if v, ok := conf[backfillSpaceDir]; ok {
-		return v.(string)
-	}
-
-	return getDefaultTmpDir()
-}
-
-func getBackfillSpaceLimit() int64 {
-	conf := clientConfig.GetConfig()
-	if conf == nil {
-		return defaultBackfillLimit
-	}
-
-	if v, ok := conf[backfillSpaceLimit]; ok {
-		return v.(int64)
-	}
-
-	return defaultBackfillLimit
-}
