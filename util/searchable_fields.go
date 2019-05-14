@@ -160,9 +160,6 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef) (pip ProcessedIndexParams, err err
 //
 // TODO: support multiple enabled type mappings some future day,
 // which would likely change the func signature here.
-//
-// TODO: we only support top-level dynamic right now, but
-// might want to support nested level dynamic in the future?
 func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 	indexedCount int64, typeStr *String, dynamic bool, allFieldSearchable bool,
 	defaultAnalyzer string, defaultDateTimeParser string) {
