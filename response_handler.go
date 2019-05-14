@@ -36,8 +36,9 @@ import (
 	"github.com/couchbase/query/value"
 )
 
-var defaultBatchSize = 100 // TODO: configurability.
-var defaultSizeInMB = float64(1024 * 1024)
+var DefaultBatchSize = 100 // No. of hits per batch
+
+var numBytesPerMB = float64(1024 * 1024)
 
 type responseHandler struct {
 	i            *FTSIndex
@@ -76,7 +77,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 
 	var tmpfile *os.File
 	var backfillFin, backfillEntries int64
-	hits := make([]interface{}, defaultBatchSize)
+	hits := make([]interface{}, DefaultBatchSize)
 
 	backfill := func() {
 		name := tmpfile.Name()
@@ -112,7 +113,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 			}
 
 			cummsize := float64(atomic.LoadInt64(
-				&r.i.indexer.stats.CurBackFillSize)) / defaultSizeInMB
+				&r.i.indexer.stats.CurBackFillSize)) / numBytesPerMB
 			if cummsize > float64(backfillLimit) {
 				fmsg := "%q backfill size: %d exceeded limit: %d"
 				err := fmt.Errorf(fmsg, r.requestID, cummsize, backfillLimit)
@@ -220,7 +221,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 		if tmpfile != nil {
 			// whether temp-file is exhausted the limit.
 			cummsize := float64(atomic.LoadInt64(
-				&r.i.indexer.stats.CurBackFillSize)) / defaultSizeInMB
+				&r.i.indexer.stats.CurBackFillSize)) / numBytesPerMB
 			if cummsize > float64(backfillLimit) {
 				fmsg := "%q backfill exceeded limit %v, %v"
 				err := fmt.Errorf(fmsg, r.requestID, backfillLimit, cummsize)

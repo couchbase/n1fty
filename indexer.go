@@ -37,6 +37,13 @@ import (
 
 const VERSION = 1
 
+var ConnectTimeoutMS = 60000      // 60s
+var ServerConnectTimeoutMS = 7000 // 7s
+var NmvRetryDelayMS = 100         // 0.1s
+
+var BackfillMonitoringIntervalMS = 1000 // 1s
+var StatsLoggingIntervalMS = 60000      // 60s
+
 // FTSIndexer implements datastore.Indexer interface
 type FTSIndexer struct {
 	namespace string
@@ -87,9 +94,9 @@ func NewFTSIndexer(serverIn, namespace, keyspace string) (datastore.Indexer,
 	conf := &gocbcore.AgentConfig{
 		UserString:           "n1fty",
 		BucketName:           bucketName,
-		ConnectTimeout:       60000 * time.Millisecond, // TODO: configurability.
-		ServerConnectTimeout: 7000 * time.Millisecond,
-		NmvRetryDelay:        100 * time.Millisecond,
+		ConnectTimeout:       time.Duration(ConnectTimeoutMS) * time.Millisecond,
+		ServerConnectTimeout: time.Duration(ServerConnectTimeoutMS) * time.Millisecond,
+		NmvRetryDelay:        time.Duration(NmvRetryDelayMS) * time.Millisecond,
 		UseKvErrorMaps:       true,
 		Auth:                 &Authenticator{},
 	}
@@ -347,9 +354,10 @@ func (i *FTSIndexer) refresh(force bool) errors.Error {
 	// supporting go routines.
 	i.init.Do(func() {
 
-		go backfillMonitor(1*time.Second, i) // TODO: configurability.
+		go backfillMonitor(
+			time.Duration(BackfillMonitoringIntervalMS)*time.Millisecond, i)
 
-		go logStats(60*time.Second, i) // TODO: configurability.
+		go logStats(time.Duration(StatsLoggingIntervalMS)*time.Millisecond, i)
 
 		i.cfg.initConfig()
 
