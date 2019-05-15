@@ -32,7 +32,7 @@ func OptimizeIndexMapping(idxMapping mapping.IndexMapping,
 	searchFieldsMap := map[util.SearchField]struct{}{}
 
 	for _, sf := range searchFields {
-		if sf.Name == im.DefaultField {
+		if sf.Name == "" {
 			// For now, early return if "_all" field is searched.
 			return idxMapping
 		}
