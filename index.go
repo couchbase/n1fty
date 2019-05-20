@@ -301,8 +301,10 @@ func (i *FTSIndex) Sargable(field string, query,
 		optionsVal = options.Value()
 	}
 
-	// TODO: this does not seem like the right false-positives check?
-	exact := (queryVal != nil) && (options == nil || optionsVal != nil)
+	// for now, exact is determined just by checking if a query is provided or not;
+	// this is more of a place holder when n1fty can determine whether a certain
+	// index would generate false positives for a given query.
+	exact := queryVal != nil
 
 	rv := i.buildQueryAndCheckIfSargable(field, queryVal, optionsVal, opaque)
 
