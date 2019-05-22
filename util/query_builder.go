@@ -218,17 +218,8 @@ func ParseSearchInfoToSearchRequest(searchRequest **pb.SearchRequest,
 	}
 	(*searchRequest).IndexName = indexName
 
-	// for query request, complete the searchrequest from SearchInfo
-	if sr.From < 0 && int(searchInfo.Offset) != math.MaxInt64 {
-		sr.From = int(searchInfo.Offset)
-	}
-
-	if sr.Size < 0 && int(searchInfo.Limit) != math.MaxInt64 {
-		sr.Size = int(searchInfo.Limit)
-	}
-
-	// if original request was of query form then,
-	// override with searchInfo order details
+	// if original request was of query form then, override with
+	// searchInfo order details
 	if sr.Sort == nil && len(searchInfo.Order) > 0 {
 		var tempOrder []string
 		for _, so := range searchInfo.Order {
@@ -250,14 +241,28 @@ func ParseSearchInfoToSearchRequest(searchRequest **pb.SearchRequest,
 		sr.Sort = search.ParseSortOrderStrings(tempOrder)
 	}
 
-	// check whether streaming of results is preferred
-	// - when there is no sort order requested
-	// - when the 2nd param SearchRequest doesn't contain page info
-	// - when the 2nd param is query and searchInfo contains
-	//   maxInt64 as limit
-	if (sr.Sort == nil && len(searchInfo.Order) == 0) ||
-		(sr.Size+sr.From > int(GetBleveMaxResultWindow())) ||
-		(sr.Size < 0 && int(searchInfo.Limit) == math.MaxInt64) {
+	// Stream results when ..
+	// - SearchRequest: Sort method NOT provided
+	// - SearchRequest: From + Size exceeds window
+
+	if sr.From < 0 {
+		sr.From = int(searchInfo.Offset)
+	}
+
+	if sr.Size < 0 || sr.Size == math.MaxInt64 {
+		if int(searchInfo.Limit) != math.MaxInt64 {
+			sr.Size = int(searchInfo.Limit)
+		} else {
+			sr.Size = 0
+			(*searchRequest).Stream = true
+		}
+	}
+
+	if sr.Sort == nil && len(searchInfo.Order) == 0 {
+		(*searchRequest).Stream = true
+	}
+
+	if sr.Size+sr.From > int(GetBleveMaxResultWindow()) {
 		(*searchRequest).Stream = true
 		sr.From = 0
 		sr.Size = 0
