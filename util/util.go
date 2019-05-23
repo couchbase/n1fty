@@ -14,6 +14,7 @@ package util
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -191,8 +192,8 @@ func ParseQueryToSearchRequest(field string, input value.Value) (
 			return nil, nil, err
 		}
 		sr := bleve.SearchRequest{Query: query,
-			From: -1, // -ve values to indicate no page info
-			Size: -1,
+			From: 0,
+			Size: math.MaxInt64,
 			Sort: nil}
 		rv.Contents, err = json.Marshal(sr)
 		if err != nil {
