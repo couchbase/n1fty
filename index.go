@@ -50,9 +50,6 @@ type FTSIndex struct {
 
 	defaultAnalyzer       string
 	defaultDateTimeParser string
-
-	// supported options for ordering
-	optionsForOrdering map[string]struct{}
 }
 
 // -----------------------------------------------------------------------------
@@ -84,12 +81,6 @@ func newFTSIndex(indexer *FTSIndexer,
 		allFieldSearchable:    allFieldSearchable,
 		defaultAnalyzer:       defaultAnalyzer,
 		defaultDateTimeParser: defaultDateTimeParser,
-		optionsForOrdering:    make(map[string]struct{}),
-	}
-
-	v := struct{}{}
-	for _, entry := range []string{"score", "score ASC", "score DESC"} {
-		index.optionsForOrdering[entry] = v
 	}
 
 	return index, nil
