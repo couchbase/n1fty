@@ -363,6 +363,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 	rv.searchRequest = sr
 
 	if options != nil {
+		// check if an "index" entry exists and if it matches
 		indexVal, exists := options.Field("index")
 		if exists {
 			if indexVal.Type() == value.OBJECT {
@@ -408,14 +409,15 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 					// not sargable
 					return rv
 				}
+			}
+		}
 
-				indexUUIDVal, indexUUIDAvailable := options.Field("indexUUID")
-				if indexUUIDAvailable && indexUUIDVal.Type() == value.STRING {
-					if i.Id() != indexUUIDVal.Actual().(string) {
-						// not sargable
-						return rv
-					}
-				}
+		// check if an "indexUUID" entry exists and if it matches
+		indexUUIDVal, indexUUIDAvailable := options.Field("indexUUID")
+		if indexUUIDAvailable && indexUUIDVal.Type() == value.STRING {
+			if i.Id() != indexUUIDVal.Actual().(string) {
+				// not sargable
+				return rv
 			}
 		}
 	}
