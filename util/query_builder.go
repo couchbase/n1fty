@@ -201,7 +201,7 @@ func CheckForPagination(input value.Value) bool {
 
 	// if any of them is set, then pagination is found.
 	if (sr.Size >= 0 && sr.Size != math.MaxInt64) ||
-		(sr.From >= 0 && sr.From != math.MaxInt64) ||
+		sr.From > 0 ||
 		sr.Sort != nil {
 		return true
 	}
