@@ -554,11 +554,13 @@ func (i *FTSIndex) pageable(order []string, offset, limit int64, query,
 
 	// if query contains a searchRequest with some valid pagination
 	// info(From, Size or Sort details) then returns false.
-	if qf, ok := queryVal.Field("query"); ok && qf.Type() == value.OBJECT {
-		if util.CheckForPagination(queryVal) {
-			// User provided pagination details that could possibly
-			// conflict with higher offset/limit settings
-			return false
+	if queryVal != nil {
+		if qf, ok := queryVal.Field("query"); ok && qf.Type() == value.OBJECT {
+			if util.CheckForPagination(queryVal) {
+				// User provided pagination details that could possibly
+				// conflict with higher offset/limit settings
+				return false
+			}
 		}
 	}
 
