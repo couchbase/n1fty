@@ -47,6 +47,7 @@ type ftsConfig struct {
 	eventCh chan cbgt.CfgEvent
 
 	m           sync.RWMutex
+	version     uint64 // version for the metakv config changes
 	subscribers map[string]datastore.Indexer
 }
 
@@ -59,6 +60,7 @@ func init() {
 	srvConfig = &ftsConfig{
 		eventCh:     make(chan cbgt.CfgEvent),
 		subscribers: make(map[string]datastore.Indexer),
+		version:     1,
 	}
 	cbgt.CfgMetaKvPrefix = "/fts/cbgt/cfg/"
 	srvConfig.cfg, err = cbgt.NewCfgMetaKv("", make(map[string]string))
@@ -72,7 +74,13 @@ func init() {
 func (c *ftsConfig) Listen() {
 	for {
 		select {
-		case _ = <-c.eventCh:
+		case <-c.eventCh:
+			// first bump the version so that the subscribers can
+			// verify the updated version with their cached one.
+			c.m.Lock()
+			c.version++
+			c.m.Unlock()
+
 			c.m.RLock()
 			for _, i := range c.subscribers {
 				i.Refresh()
@@ -99,6 +107,13 @@ func (c *ftsConfig) unSubscribe(key string) {
 	c.m.Lock()
 	delete(c.subscribers, key)
 	c.m.Unlock()
+}
+
+func (c *ftsConfig) getVersion() uint64 {
+	c.m.RLock()
+	rv := c.version
+	c.m.RUnlock()
+	return rv
 }
 
 type Cfg interface {

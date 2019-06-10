@@ -69,6 +69,8 @@ type FTSIndexer struct {
 
 	mapIndexesByID   map[string]datastore.Index
 	mapIndexesByName map[string]datastore.Index
+
+	cfgVersion uint64
 }
 
 type stats struct {
@@ -203,7 +205,7 @@ func (i *FTSIndexer) Name() datastore.IndexType {
 }
 
 func (i *FTSIndexer) IndexIds() ([]string, errors.Error) {
-	if err := i.refresh(false); err != nil {
+	if err := i.Refresh(); err != nil {
 		return nil, err
 	}
 
@@ -215,7 +217,7 @@ func (i *FTSIndexer) IndexIds() ([]string, errors.Error) {
 }
 
 func (i *FTSIndexer) IndexNames() ([]string, errors.Error) {
-	if err := i.refresh(false); err != nil {
+	if err := i.Refresh(); err != nil {
 		return nil, err
 	}
 
@@ -261,7 +263,7 @@ func (i *FTSIndexer) PrimaryIndexes() ([]datastore.PrimaryIndex, errors.Error) {
 }
 
 func (i *FTSIndexer) Indexes() ([]datastore.Index, errors.Error) {
-	if err := i.refresh(false); err != nil {
+	if err := i.Refresh(); err != nil {
 		return nil, util.N1QLError(err, "")
 	}
 
@@ -289,23 +291,15 @@ func (i *FTSIndexer) BuildIndexes(requestID string, name ...string) errors.Error
 }
 
 func (i *FTSIndexer) Refresh() errors.Error {
-	return i.refresh(true)
-}
-
-func (i *FTSIndexer) MetadataVersion() uint64 {
-	return VERSION
-}
-
-func (i *FTSIndexer) SetLogLevel(level logging.Level) {
-	logging.SetLevel(level)
-}
-
-// -----------------------------------------------------------------------------
-
-func (i *FTSIndexer) refresh(force bool) errors.Error {
 	// if no fts nodes available, then return
 	ftsEndpoints := i.agent.FtsEps()
 	if len(ftsEndpoints) == 0 {
+		return nil
+	}
+
+	// check whether the metakv configs have changed
+	cfgVersion := i.cfg.getVersion()
+	if cfgVersion == i.cfgVersion {
 		return nil
 	}
 
@@ -314,7 +308,7 @@ func (i *FTSIndexer) refresh(force bool) errors.Error {
 		return util.N1QLError(err, "refresh failed")
 	}
 
-	err = i.initClient(nodeDefs, force)
+	err = i.initClient(nodeDefs, true)
 	if err != nil {
 		return util.N1QLError(err, "initClient failed")
 	}
@@ -371,8 +365,22 @@ func (i *FTSIndexer) refresh(force bool) errors.Error {
 		}
 	})
 
+	i.m.Lock()
+	i.cfgVersion = cfgVersion
+	i.m.Unlock()
+
 	return nil
 }
+
+func (i *FTSIndexer) MetadataVersion() uint64 {
+	return VERSION
+}
+
+func (i *FTSIndexer) SetLogLevel(level logging.Level) {
+	logging.SetLevel(level)
+}
+
+// -----------------------------------------------------------------------------
 
 func (i *FTSIndexer) refreshConfigs() (
 	map[string]datastore.Index, *cbgt.NodeDefs, error) {
