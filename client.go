@@ -32,8 +32,8 @@ import (
 	"google.golang.org/grpc/keepalive"
 )
 
-// CBAUTH security/encryption seting
-type securitySetting struct {
+// CBAUTH security/encryption config
+type securityConfig struct {
 	encryptionEnabled bool
 	disableNonSSLPort bool
 	certificate       *tls.Certificate
@@ -41,14 +41,14 @@ type securitySetting struct {
 	tlsPreference     *cbauth.TLSConfig
 }
 
-var security unsafe.Pointer = unsafe.Pointer(new(securitySetting))
+var secConfig = unsafe.Pointer(new(securityConfig))
 
-func getSecuritySetting() *securitySetting {
-	return (*securitySetting)(atomic.LoadPointer(&security))
+func loadSecurityConfig() *securityConfig {
+	return (*securityConfig)(atomic.LoadPointer(&secConfig))
 }
 
-func updateSecuritySetting(s *securitySetting) {
-	atomic.StorePointer(&security, unsafe.Pointer(s))
+func updateSecurityConfig(sc *securityConfig) {
+	atomic.StorePointer(&secConfig, unsafe.Pointer(sc))
 }
 
 // default values same as that for http/rest connections
@@ -60,6 +60,9 @@ var DefaultGrpcMaxBackOffDelay = time.Duration(10) * time.Second
 var DefaultGrpcMaxRecvMsgSize = 1024 * 1024 * 50 // 50 MB
 var DefaultGrpcMaxSendMsgSize = 1024 * 1024 * 50 // 50 MB
 
+// DefaultConnPoolSize decides the connection pool size per host
+var DefaultConnPoolSize = 5
+
 var rsource rand.Source
 var r1 *rand.Rand
 
@@ -69,7 +72,7 @@ func init() {
 }
 
 type ftsClient struct {
-	gRPCConnMap map[string]*grpc.ClientConn
+	gRPCConnMap map[string][]*grpc.ClientConn
 	serverMap   map[int]string
 }
 
@@ -77,9 +80,42 @@ func (c *ftsClient) getGrpcClient() pb.SearchServiceClient {
 	if len(c.serverMap) == 0 {
 		return nil
 	}
-	index := r1.Intn(len(c.serverMap))
-	conn := c.gRPCConnMap[c.serverMap[index]]
+	// pick a random fts node
+	randomNodeIndex := r1.Intn(len(c.serverMap))
+	// pick its conn pool
+	connPool := c.gRPCConnMap[c.serverMap[randomNodeIndex]]
+	// pick a random connection from pool
+	conn := connPool[r1.Intn(len(connPool))]
 	return pb.NewSearchServiceClient(conn)
+}
+
+func (c *ftsClient) initConnections(hosts []string,
+	options []grpc.DialOption, secure bool) error {
+	for i, hostPort := range hosts {
+		c.serverMap[i] = hostPort
+		cbUser, cbPasswd, err := cbauth.GetHTTPServiceAuth(hostPort)
+		if err != nil {
+			return fmt.Errorf("client: cbauth err: %v", err)
+		}
+
+		opts := options[:]
+		opts = append(opts, grpc.WithPerRPCCredentials(&basicAuthCreds{
+			username:                 cbUser,
+			password:                 cbPasswd,
+			requireTransportSecurity: secure,
+		}))
+
+		for j := 0; j < DefaultConnPoolSize; j++ {
+			conn, err := grpc.Dial(hostPort, opts...)
+			if err != nil {
+				logging.Infof("client: grpc.Dial for host: %s, err: %v", hostPort, err)
+				return err
+			}
+			logging.Infof("client: grpc client connection #%d created for host: %v", j, hostPort)
+			c.gRPCConnMap[hostPort] = append(c.gRPCConnMap[hostPort], conn)
+		}
+	}
+	return nil
 }
 
 // -----------------------------------------------------------------------------
@@ -120,12 +156,12 @@ func setupFTSClient(nodeDefs *cbgt.NodeDefs) (*ftsClient, error) {
 	}
 
 	client := &ftsClient{
-		gRPCConnMap: make(map[string]*grpc.ClientConn),
+		gRPCConnMap: make(map[string][]*grpc.ClientConn),
 		serverMap:   make(map[int]string),
 	}
 
 	hosts, sslHosts := extractHosts(nodeDefs)
-	securityCfg := getSecuritySetting()
+	secConfig := loadSecurityConfig()
 	gRPCOpts := []grpc.DialOption{
 		grpc.WithBackoffMaxDelay(DefaultGrpcMaxBackOffDelay),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
@@ -144,62 +180,23 @@ func setupFTSClient(nodeDefs *cbgt.NodeDefs) (*ftsClient, error) {
 		// TODO: addClientInterceptor() ?
 	}
 
-	if securityCfg.encryptionEnabled && len(sslHosts) != 0 {
+	if secConfig.encryptionEnabled && len(sslHosts) != 0 {
 		certPool := x509.NewCertPool()
-		ok := certPool.AppendCertsFromPEM(securityCfg.certInBytes)
+		ok := certPool.AppendCertsFromPEM(secConfig.certInBytes)
 		if !ok {
 			return nil, fmt.Errorf("client: failed to append ca certs")
 		}
 		cred := credentials.NewClientTLSFromCert(certPool, "")
 		gRPCOpts = append(gRPCOpts, grpc.WithTransportCredentials(cred))
-
-		for i, hostPort := range sslHosts {
-			client.serverMap[i] = hostPort
-			cbUser, cbPasswd, err := cbauth.GetHTTPServiceAuth(hostPort)
-			if err != nil {
-				return nil, fmt.Errorf("client: cbauth err: %v", err)
-			}
-
-			// copy
-			opts := gRPCOpts[:]
-			opts = append(opts, grpc.WithPerRPCCredentials(&basicAuthCreds{
-				username:                 cbUser,
-				password:                 cbPasswd,
-				requireTransportSecurity: true,
-			}))
-
-			conn, err := grpc.Dial(hostPort, opts...)
-			if err != nil {
-				logging.Infof("client: grpc.Dial, err: %v", err)
-				return nil, err
-			}
-			logging.Infof("client: grpc client connection created for host: %v", hostPort)
-			client.gRPCConnMap[hostPort] = conn
-		}
-	} else if len(hosts) != 0 {
+		hosts = sslHosts
+	} else if len(hosts) > 0 {
 		gRPCOpts = append(gRPCOpts, grpc.WithInsecure())
-		for i, hostPort := range hosts {
-			client.serverMap[i] = hostPort
-			cbUser, cbPasswd, err := cbauth.GetHTTPServiceAuth(hostPort)
-			if err != nil {
-				return nil, fmt.Errorf("client: cbauth err: %v", err)
-			}
+	}
 
-			// copy
-			opts := gRPCOpts[:]
-			opts = append(opts, grpc.WithPerRPCCredentials(&basicAuthCreds{
-				username: cbUser,
-				password: cbPasswd,
-			}))
-
-			conn, err := grpc.Dial(hostPort, opts...)
-			if err != nil {
-				logging.Infof("client: grpc.Dial, err: %v", err)
-				return nil, err
-			}
-			logging.Infof("client: grpc client connection created for host: %v", hostPort)
-			client.gRPCConnMap[hostPort] = conn
-		}
+	err := client.initConnections(hosts, gRPCOpts,
+		secConfig.encryptionEnabled)
+	if err != nil {
+		return nil, err
 	}
 
 	return client, nil

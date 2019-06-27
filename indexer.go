@@ -158,7 +158,7 @@ func (i *FTSIndexer) SetConnectionSecurityConfig(
 		return
 	}
 
-	newSecuritySetting := &securitySetting{
+	newSecurityConfig := &securityConfig{
 		tlsPreference:     &conf.TLSConfig,
 		encryptionEnabled: conf.ClusterEncryptionConfig.EncryptData,
 		disableNonSSLPort: conf.ClusterEncryptionConfig.DisableNonSSLPorts,
@@ -169,15 +169,15 @@ func (i *FTSIndexer) SetConnectionSecurityConfig(
 		if err != nil {
 			logging.Fatalf("Failed to generate SSL certificate, err: %v", err)
 		}
-		newSecuritySetting.certificate = &certificate
+		newSecurityConfig.certificate = &certificate
 
-		newSecuritySetting.certInBytes, err = ioutil.ReadFile(conf.CertFile)
+		newSecurityConfig.certInBytes, err = ioutil.ReadFile(conf.CertFile)
 		if err != nil {
 			logging.Fatalf("Failed to load certificate file, err: %v", err)
 		}
 	}
 
-	updateSecuritySetting(newSecuritySetting)
+	updateSecurityConfig(newSecurityConfig)
 
 	i.Refresh()
 }
