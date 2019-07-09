@@ -47,31 +47,40 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 		return nil, util.N1QLError(nil, "query/options not provided")
 	}
 
+	return &VerifyCtx{
+		nameAndKeyspace: nameAndKeyspace,
+		field:           field,
+		query:           query,
+		options:         options,
+	}, nil
+}
+
+func (v *VerifyCtx) initVerifyCtx() errors.Error {
 	queryFields, searchRequest, err := util.ParseQueryToSearchRequest(
-		field, query)
+		v.field, v.query)
 	if err != nil {
-		return nil, util.N1QLError(err, "")
+		return util.N1QLError(err, "")
 	}
 
 	var idxMapping mapping.IndexMapping
 	var docConfig *cbft.BleveDocumentConfig
 
 	var indexOptionAvailable bool
-	if options != nil {
-		_, indexOptionAvailable = options.Field("index")
+	if v.options != nil {
+		_, indexOptionAvailable = v.options.Field("index")
 	}
 	if !indexOptionAvailable {
 		// in case index option isn't available, use the query fields to
 		// build an index mapping that covers all the necessary fields.
 		idxMapping = util.BuildIndexMappingOnFields(queryFields, "", "")
 	} else {
-		indexVal, _ := options.Field("index")
+		indexVal, _ := v.options.Field("index")
 		if indexVal.Type() == value.STRING {
-			keyspace := util.FetchKeySpace(nameAndKeyspace)
+			keyspace := util.FetchKeySpace(v.nameAndKeyspace)
 
 			// check if indexUUID string is also available from the options.
 			var indexUUID string
-			indexUUIDVal, indexUUIDAvailable := options.Field("indexUUID")
+			indexUUIDVal, indexUUIDAvailable := v.options.Field("indexUUID")
 			if indexUUIDAvailable {
 				if indexUUIDVal.Type() == value.STRING {
 					indexUUID = indexUUIDVal.Actual().(string)
@@ -81,47 +90,46 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 			idxMapping, docConfig, err = util.FetchIndexMapping(
 				indexVal.Actual().(string), indexUUID, keyspace)
 			if err != nil {
-				return nil, util.N1QLError(nil, "index mapping not found")
+				return util.N1QLError(nil, "index mapping not found")
 			}
 
 			idxMapping = OptimizeIndexMapping(idxMapping, queryFields)
 		} else if indexVal.Type() == value.OBJECT {
 			idxMapping, _ = util.ConvertValObjectToIndexMapping(indexVal)
 			if idxMapping == nil {
-				return nil, util.N1QLError(nil, "index object not a valid mapping")
+				return util.N1QLError(nil, "index object not a valid mapping")
 			}
 		} else {
-			return nil, util.N1QLError(nil, "unrecognizable index option")
+			return util.N1QLError(nil, "unrecognizable index option")
 		}
 	}
 
-	q, err := util.BuildQueryFromSearchRequestBytes(field, searchRequest.Contents)
+	q, err := util.BuildQueryFromSearchRequestBytes(v.field, searchRequest.Contents)
 	if err != nil {
-		return nil, util.N1QLError(err, "")
+		return util.N1QLError(err, "")
 	}
 
 	// Set up an in-memory bleve index using moss for evaluating the hits.
 	idx, err := bleve.NewUsing("", idxMapping, upsidedown.Name, moss.Name,
 		KVConfigForMoss())
 	if err != nil {
-		return nil, util.N1QLError(err, "")
+		return util.N1QLError(err, "")
 	}
 
 	// fetch upsidedown & moss collection associated with underlying store
-
 	bleveIndex, kvstore, err := idx.Advanced()
 	if err != nil {
-		return nil, util.N1QLError(err, "idx.Advanced error")
+		return util.N1QLError(err, "idx.Advanced error")
 	}
 
 	udc, ok := bleveIndex.(*upsidedown.UpsideDownCouch)
 	if !ok {
-		return nil, util.N1QLError(nil, "expected UpsideDownCouch")
+		return util.N1QLError(nil, "expected UpsideDownCouch")
 	}
 
 	collh, ok := kvstore.(CollectionHolder)
 	if !ok {
-		return nil, util.N1QLError(nil, "expected kvstore.CollectionHolder")
+		return util.N1QLError(nil, "expected kvstore.CollectionHolder")
 	}
 
 	defaultType := "_default"
@@ -129,15 +137,16 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 		defaultType = imi.DefaultType
 	}
 
-	return &VerifyCtx{
-		idx:         idx,
-		m:           idxMapping,
-		sr:          bleve.NewSearchRequest(q),
-		udc:         udc,
-		coll:        collh.Collection(),
-		defaultType: defaultType,
-		docConfig:   docConfig,
-	}, nil
+	v.idx = idx
+	v.m = idxMapping
+	v.sr = bleve.NewSearchRequest(q)
+	v.udc = udc
+	v.coll = collh.Collection()
+	v.defaultType = defaultType
+	v.docConfig = docConfig
+	v.initialised = true
+
+	return nil
 }
 
 type CollectionHolder interface {
@@ -149,6 +158,12 @@ type ResetStackDirtyToper interface {
 }
 
 type VerifyCtx struct {
+	nameAndKeyspace string
+	field           string
+	query           value.Value
+	options         value.Value
+	initialised     bool
+
 	idx         bleve.Index
 	m           mapping.IndexMapping
 	sr          *bleve.SearchRequest
@@ -159,6 +174,13 @@ type VerifyCtx struct {
 }
 
 func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
+	if !v.initialised {
+		err := v.initVerifyCtx()
+		if err != nil {
+			return false, err
+		}
+	}
+
 	key := "k"
 	if annotatedItem, ok := item.(value.AnnotatedValue); ok {
 		if keyStr, ok := annotatedItem.GetId().(string); ok {

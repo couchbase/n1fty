@@ -136,7 +136,12 @@ func TestNewVerifyWithInvalidIndexUUID(t *testing.T) {
 		}),
 	}
 
-	_, err := NewVerify("`temp_keyspace`", q.field, q.query, q.options)
+	vctx, err := NewVerify("`temp_keyspace`", q.field, q.query, q.options)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = vctx.Evaluate(value.NewValue(nil))
 	if err == nil {
 		t.Fatal(err)
 	}
