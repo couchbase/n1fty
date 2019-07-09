@@ -46,8 +46,9 @@ type ftsConfig struct {
 	cfg     cbgt.Cfg
 	eventCh chan cbgt.CfgEvent
 
+	version uint64 // version for the metakv config changes
+
 	m           sync.RWMutex
-	version     uint64 // version for the metakv config changes
 	subscribers map[string]datastore.Indexer
 }
 
@@ -77,9 +78,7 @@ func (c *ftsConfig) Listen() {
 		case <-c.eventCh:
 			// first bump the version so that the subscribers can
 			// verify the updated version with their cached one.
-			c.m.Lock()
-			c.version++
-			c.m.Unlock()
+			atomic.AddUint64(&c.version, 1)
 
 			c.m.RLock()
 			for _, i := range c.subscribers {
@@ -110,10 +109,7 @@ func (c *ftsConfig) unSubscribe(key string) {
 }
 
 func (c *ftsConfig) getVersion() uint64 {
-	c.m.RLock()
-	rv := c.version
-	c.m.RUnlock()
-	return rv
+	return atomic.LoadUint64(&c.version)
 }
 
 type Cfg interface {
