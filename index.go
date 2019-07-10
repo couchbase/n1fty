@@ -310,16 +310,7 @@ func (i *FTSIndex) Sargable(field string, query,
 
 func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 	query, options value.Value, opaque interface{}) *sargableRV {
-	if i.indexer != nil && !i.indexer.supportedByCluster() {
-		// if all nodes in cluster do not support protocol:gRPC,
-		// the query shall not be executed.
-		// Note: i.indexer would never be nil, the above check is for
-		// unit test purposes only.
-		return &sargableRV{}
-	}
-
 	rv := &sargableRV{}
-
 	var ok bool
 	rv.opaque, ok = opaque.(map[string]interface{})
 	if !ok {

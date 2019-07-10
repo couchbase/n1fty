@@ -91,6 +91,10 @@ func (c *ftsClient) getGrpcClient() pb.SearchServiceClient {
 
 func (c *ftsClient) initConnections(hosts []string,
 	options []grpc.DialOption, secure bool) error {
+	if len(hosts) == 0 {
+		return fmt.Errorf("client: no gRPC enabled fts hosts found in cluster")
+	}
+
 	for i, hostPort := range hosts {
 		c.serverMap[i] = hostPort
 		cbUser, cbPasswd, err := cbauth.GetHTTPServiceAuth(hostPort)

@@ -78,8 +78,10 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 	var tmpfile *os.File
 	var backfillFin, backfillEntries int64
 	hits := make([]interface{}, DefaultBatchSize)
+	var result map[string]interface{}
 
 	backfill := func() {
+		entries := make([]interface{}, DefaultBatchSize)
 		name := tmpfile.Name()
 
 		defer func() {
@@ -121,7 +123,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 				return
 			}
 
-			if err := dec.Decode(&hits); err != nil {
+			if err := dec.Decode(&entries); err != nil {
 				fmsg := "%v %q decoding from backfill file: %v: err: %v"
 				err = fmt.Errorf(fmsg, logPrefix, r.requestID, name, err)
 				conn.Error(util.N1QLError(err, ""))
@@ -131,8 +133,8 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 			atomic.AddInt64(&r.i.indexer.stats.TotalThrottledFtsDuration,
 				int64(time.Since(ftsDur)))
 
-			for i := range hits {
-				connOk := r.sendEntry(hits[i], conn)
+			for i := range entries {
+				connOk := r.sendEntry(entries[i], conn)
 				if !connOk {
 					return
 				}
@@ -162,8 +164,6 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 			firstResponseByte = true
 		}
 
-		var hits []interface{}
-		var result map[string]interface{}
 		switch r := results.Contents.(type) {
 		case *pb.StreamSearchResults_Hits:
 			err = json.Unmarshal(r.Hits.Bytes, &hits)
