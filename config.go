@@ -48,7 +48,7 @@ type ftsConfig struct {
 
 	version uint64 // version for the metakv config changes
 
-	m           sync.RWMutex
+	m           sync.Mutex
 	subscribers map[string]datastore.Indexer
 }
 
@@ -80,11 +80,13 @@ func (c *ftsConfig) Listen() {
 			// verify the updated version with their cached one.
 			atomic.AddUint64(&c.version, 1)
 
-			c.m.RLock()
+			c.m.Lock()
 			for _, i := range c.subscribers {
-				i.Refresh()
+				if indexer, ok := i.(*FTSIndexer); ok {
+					indexer.refresh(true /* config mutex acquired */)
+				}
 			}
-			c.m.RUnlock()
+			c.m.Unlock()
 		}
 	}
 }
@@ -98,8 +100,12 @@ func (c *ftsConfig) initConfig() {
 
 func (c *ftsConfig) subscribe(key string, i datastore.Indexer) {
 	c.m.Lock()
-	c.subscribers[key] = i
+	c.subscribeLOCKED(key, i)
 	c.m.Unlock()
+}
+
+func (c *ftsConfig) subscribeLOCKED(key string, i datastore.Indexer) {
+	c.subscribers[key] = i
 }
 
 func (c *ftsConfig) unSubscribe(key string) {

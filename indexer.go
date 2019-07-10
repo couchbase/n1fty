@@ -291,6 +291,20 @@ func (i *FTSIndexer) BuildIndexes(requestID string, name ...string) errors.Error
 }
 
 func (i *FTSIndexer) Refresh() errors.Error {
+	return i.refresh(false)
+}
+
+func (i *FTSIndexer) MetadataVersion() uint64 {
+	return VERSION
+}
+
+func (i *FTSIndexer) SetLogLevel(level logging.Level) {
+	logging.SetLevel(level)
+}
+
+// -----------------------------------------------------------------------------
+
+func (i *FTSIndexer) refresh(configMutexAcquired bool) errors.Error {
 	// if no fts nodes available, then return
 	ftsEndpoints := i.agent.FtsEps()
 	if len(ftsEndpoints) == 0 {
@@ -355,7 +369,11 @@ func (i *FTSIndexer) Refresh() errors.Error {
 
 		i.cfg.initConfig()
 
-		i.cfg.subscribe(i.namespace+"$"+i.keyspace, i)
+		if configMutexAcquired {
+			i.cfg.subscribeLOCKED(i.namespace+"$"+i.keyspace, i)
+		} else {
+			i.cfg.subscribe(i.namespace+"$"+i.keyspace, i)
+		}
 
 		// perform bleveMaxResultWindow initialisation only
 		// once per FTSIndexer instance.
@@ -371,16 +389,6 @@ func (i *FTSIndexer) Refresh() errors.Error {
 
 	return nil
 }
-
-func (i *FTSIndexer) MetadataVersion() uint64 {
-	return VERSION
-}
-
-func (i *FTSIndexer) SetLogLevel(level logging.Level) {
-	logging.SetLevel(level)
-}
-
-// -----------------------------------------------------------------------------
 
 func (i *FTSIndexer) refreshConfigs() (
 	map[string]datastore.Index, *cbgt.NodeDefs, error) {
