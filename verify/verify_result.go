@@ -104,7 +104,7 @@ func (v *VerifyCtx) initVerifyCtx() errors.Error {
 		}
 	}
 
-	q, err := util.BuildQueryFromSearchRequestBytes(v.field, searchRequest.Contents)
+	q, err := util.BuildQueryFromSearchRequest(v.field, searchRequest)
 	if err != nil {
 		return util.N1QLError(err, "")
 	}

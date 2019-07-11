@@ -113,17 +113,8 @@ func BuildQueryFromBytes(field string, qBytes []byte) (query.Query, error) {
 	return q, nil
 }
 
-func BuildQueryFromSearchRequestBytes(field string, sBytes []byte) (query.Query, error) {
-	var r *cbft.SearchRequest
-	err := json.Unmarshal(sBytes, &r)
-	if err != nil {
-		return nil, err
-	}
-	sr, err := r.ConvertToBleveSearchRequest()
-	if err != nil {
-		return nil, err
-	}
-
+func BuildQueryFromSearchRequest(field string,
+	sr *bleve.SearchRequest) (query.Query, error) {
 	if field != "" {
 		UpdateFieldsInQuery(sr.Query, field)
 	}
@@ -131,7 +122,7 @@ func BuildQueryFromSearchRequestBytes(field string, sBytes []byte) (query.Query,
 	return sr.Query, nil
 }
 
-func BuildSearchRequest(field string, input value.Value) (*pb.SearchRequest,
+func BuildSearchRequest(field string, input value.Value) (*bleve.SearchRequest,
 	query.Query, error) {
 	if input == nil {
 		return nil, nil, fmt.Errorf("query not provided")
@@ -151,13 +142,7 @@ func BuildSearchRequest(field string, input value.Value) (*pb.SearchRequest,
 		UpdateFieldsInQuery(sr.Query, field)
 	}
 
-	rv := &pb.SearchRequest{}
-	rv.Contents, err = json.Marshal(sr)
-	if err != nil {
-		return rv, sr.Query, err
-	}
-
-	return rv, sr.Query, nil
+	return sr, sr.Query, nil
 }
 
 func BuildQueryFromString(field, input string) (query.Query, error) {
@@ -209,14 +194,13 @@ func CheckForPagination(input value.Value) bool {
 	return false
 }
 
-func ParseSearchInfoToSearchRequest(searchRequest **pb.SearchRequest,
+func BuildProtoSearchRequest(sr *bleve.SearchRequest,
 	searchInfo *datastore.FTSSearchInfo, vector timestamp.Vector,
-	consistencyLevel datastore.ScanConsistency, indexName string) error {
-	sr, err := unmarshalSearchRequest((*searchRequest).Contents)
-	if err != nil {
-		return err
+	consistencyLevel datastore.ScanConsistency,
+	indexName string) (*pb.SearchRequest, error) {
+	searchRequest := &pb.SearchRequest{
+		IndexName: indexName,
 	}
-	(*searchRequest).IndexName = indexName
 
 	// if original request was of query form then, override with
 	// searchInfo order details
@@ -254,23 +238,24 @@ func ParseSearchInfoToSearchRequest(searchRequest **pb.SearchRequest,
 			sr.Size = int(searchInfo.Limit)
 		} else {
 			sr.Size = 0
-			(*searchRequest).Stream = true
+			searchRequest.Stream = true
 		}
 	}
 
 	if sr.Sort == nil && len(searchInfo.Order) == 0 {
-		(*searchRequest).Stream = true
+		searchRequest.Stream = true
 	}
 
 	if sr.Size+sr.From > int(GetBleveMaxResultWindow()) {
-		(*searchRequest).Stream = true
+		searchRequest.Stream = true
 		sr.From = 0
 		sr.Size = 0
 	}
 
-	(*searchRequest).Contents, err = json.Marshal(sr)
+	var err error
+	searchRequest.Contents, err = json.Marshal(sr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if consistencyLevel == datastore.AT_PLUS &&
@@ -296,11 +281,11 @@ func ParseSearchInfoToSearchRequest(searchRequest **pb.SearchRequest,
 
 		ctlParams.Ctl.Consistency.Vectors[indexName] = vMap
 
-		(*searchRequest).QueryCtlParams, err = json.Marshal(ctlParams)
+		searchRequest.QueryCtlParams, err = json.Marshal(ctlParams)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	return nil
+	return searchRequest, nil
 }

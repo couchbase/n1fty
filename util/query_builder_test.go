@@ -17,7 +17,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/blevesearch/bleve"
 	"github.com/blevesearch/bleve/search/query"
 	"github.com/couchbase/query/value"
 )
@@ -227,15 +226,9 @@ func TestBuildSearchRequest(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		pbsr, q, err := BuildSearchRequest("", test.query)
+		sr, q, err := BuildSearchRequest("", test.query)
 		if err != nil {
 			t.Fatalf("Expected no error for q: %+v, but got err: %v", test.query, err)
-		}
-
-		var sr *bleve.SearchRequest
-		sr, err = unmarshalSearchRequest(pbsr.Contents)
-		if err != nil {
-			t.Fatalf("Expected json err: %v", err)
 		}
 
 		switch qq := q.(type) {

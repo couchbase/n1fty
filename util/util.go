@@ -23,7 +23,6 @@ import (
 	"github.com/blevesearch/bleve/mapping"
 	"github.com/blevesearch/bleve/search/query"
 	"github.com/couchbase/cbft"
-	pb "github.com/couchbase/cbft/protobuf"
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/value"
 )
@@ -168,7 +167,7 @@ func FetchKeySpace(nameAndKeyspace string) string {
 }
 
 func ParseQueryToSearchRequest(field string, input value.Value) (
-	[]SearchField, *pb.SearchRequest, error) {
+	[]SearchField, *bleve.SearchRequest, error) {
 	field = CleanseField(field)
 
 	if input == nil {
@@ -178,7 +177,8 @@ func ParseQueryToSearchRequest(field string, input value.Value) (
 	var err error
 	var query query.Query
 
-	rv := &pb.SearchRequest{}
+	rv := &bleve.SearchRequest{}
+
 	// if the input has a query field that is an object type
 	// then it is a search request
 	if qf, ok := input.Field("query"); ok && qf.Type() == value.OBJECT {
@@ -191,14 +191,10 @@ func ParseQueryToSearchRequest(field string, input value.Value) (
 		if err != nil {
 			return nil, nil, err
 		}
-		sr := bleve.SearchRequest{Query: query,
-			From: 0,
-			Size: math.MaxInt64,
-			Sort: nil}
-		rv.Contents, err = json.Marshal(sr)
-		if err != nil {
-			return nil, nil, err
-		}
+		rv.Query = query
+		rv.From = 0
+		rv.Size = math.MaxInt64
+		rv.Sort = nil
 	}
 
 	queryFields, err := FetchFieldsToSearchFromQuery(query)

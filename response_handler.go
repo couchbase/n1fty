@@ -47,16 +47,13 @@ type responseHandler struct {
 	sr           *bleve.SearchRequest
 }
 
-func newResponseHandler(i *FTSIndex, requestID string, srBytes []byte) *responseHandler {
-	rv := &responseHandler{
+func newResponseHandler(i *FTSIndex, requestID string,
+	sr *bleve.SearchRequest) *responseHandler {
+	return &responseHandler{
 		i:         i,
 		requestID: requestID,
+		sr:        sr,
 	}
-	err := json.Unmarshal(srBytes, &rv.sr)
-	if err != nil {
-		return nil
-	}
-	return rv
 }
 
 func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,

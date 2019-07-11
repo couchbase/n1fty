@@ -18,8 +18,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/blevesearch/bleve"
 	"github.com/blevesearch/bleve/mapping"
-	pb "github.com/couchbase/cbft/protobuf"
 	"github.com/couchbase/cbgt"
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/datastore"
@@ -220,8 +220,13 @@ func (i *FTSIndex) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 		}
 	}()
 
-	util.ParseSearchInfoToSearchRequest(&sargRV.searchRequest, searchInfo,
+	searchReq, err := util.BuildProtoSearchRequest(sargRV.searchRequest,
+		searchInfo,
 		vector, cons, i.indexDef.Name)
+	if err != nil {
+		conn.Error(util.N1QLError(err, "search request parse err"))
+		return
+	}
 
 	ftsClient := i.indexer.getClient()
 	if ftsClient == nil {
@@ -235,13 +240,13 @@ func (i *FTSIndex) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 		return
 	}
 
-	stream, err := client.Search(ctx, sargRV.searchRequest)
+	stream, err := client.Search(ctx, searchReq)
 	if err != nil || stream == nil {
 		conn.Error(util.N1QLError(err, "search failed"))
 		return
 	}
 
-	rh = newResponseHandler(i, requestID, sargRV.searchRequest.Contents)
+	rh = newResponseHandler(i, requestID, sargRV.searchRequest)
 
 	rh.handleResponse(conn, &waitGroup, &backfillSync, stream)
 
@@ -255,7 +260,7 @@ type sargableRV struct {
 	count         int
 	indexedCount  int64
 	opaque        map[string]interface{}
-	searchRequest *pb.SearchRequest
+	searchRequest *bleve.SearchRequest
 	err           errors.Error
 }
 
@@ -319,7 +324,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 
 	var err error
 	var queryFields []util.SearchField
-	var sr *pb.SearchRequest
+	var sr *bleve.SearchRequest
 
 	if queryFieldsInterface, exists := rv.opaque["query"]; !exists {
 		// if opaque didn't carry a "query" entry, go ahead and
@@ -339,7 +344,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		// if an entry for "query" exists, we can assume that an entry for
 		// "search_request" also exists.
 		srInterface, _ := rv.opaque["search_request"]
-		sr, _ = srInterface.(*pb.SearchRequest)
+		sr, _ = srInterface.(*bleve.SearchRequest)
 	}
 
 	rv.searchRequest = sr
