@@ -274,6 +274,7 @@ type sargableRV struct {
 //                   the FTS index.
 // - exact:          True if the query would produce no false positives
 //                   using this FTS index.
+//                   (place holder for when partial sargability is supported)
 // - opaque:         The map of certain contextual data that can be re-used
 //                   as query iterates through several FTSIndexes.
 //                   (in-out parameter)
@@ -297,10 +298,12 @@ func (i *FTSIndex) Sargable(field string, query,
 		optionsVal = options.Value()
 	}
 
-	// for now, exact is determined just by checking if a query is provided or not;
-	// this is more of a place holder when n1fty can determine whether a certain
-	// index would generate false positives for a given query.
-	exact := queryVal != nil
+	// for now, exact will always be true (to prevent n1ql from doing
+	// unnecessary KV fetches);
+	// this is more of a place holder for until partial sargability is
+	// supported where n1fty can determine whether a particular index
+	// would generate false positives or not for a given query.
+	exact := true
 
 	rv := i.buildQueryAndCheckIfSargable(field, queryVal, optionsVal, opaque)
 
