@@ -13,6 +13,7 @@ package n1fty
 
 import (
 	"context"
+	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -304,6 +305,14 @@ func (i *FTSIndex) Sargable(field string, query,
 	// supported where n1fty can determine whether a particular index
 	// would generate false positives or not for a given query.
 	exact := true
+
+	if queryVal == nil {
+		// this index will be sargable for the unavailable query only if
+		// it has a default dynamic mapping with the _all field searchable.
+		if i.dynamic && i.allFieldSearchable {
+			return int(math.MaxInt64), math.MaxInt64, exact, nil, nil
+		}
+	}
 
 	rv := i.buildQueryAndCheckIfSargable(field, queryVal, optionsVal, opaque)
 
