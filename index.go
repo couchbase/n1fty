@@ -307,10 +307,54 @@ func (i *FTSIndex) Sargable(field string, query,
 	exact := true
 
 	if queryVal == nil {
-		// this index will be sargable for the unavailable query only if
+		// this index will be sargable for the unavailable query if
 		// it has a default dynamic mapping with the _all field searchable.
 		if i.dynamic && i.allFieldSearchable {
 			return int(math.MaxInt64), math.MaxInt64, exact, nil, nil
+		}
+
+		// if the index isn't default dynamic, check if the query expression
+		// provided is an object construct, so as to retrieve any available
+		// "field" information;
+		// use available field information to determine the sargability of
+		// this index for the field(s), ignoring the analyzer, type etc. for
+		// now; sargability is tested for again during search time when the
+		// query becomes available.
+		var queryFields []util.SearchField
+
+		var fetchFields func(expression.Expression)
+		fetchFields = func(arg expression.Expression) {
+			if oc, ok := arg.(*expression.ObjectConstruct); ok {
+				for name, val := range oc.Mapping() {
+					n := name.Value()
+					if n != nil &&
+						n.Type() == value.STRING && n.Actual().(string) == "field" {
+						if val.Value() != nil && val.Value().Type() == value.STRING {
+							queryFields = append(queryFields,
+								util.SearchField{
+									Name: val.Value().Actual().(string),
+								})
+						}
+					} else {
+						fetchFields(val)
+					}
+				}
+			} else if ac, ok := arg.(*expression.ArrayConstruct); ok {
+				for _, entry := range ac.Operands() {
+					fetchFields(entry)
+				}
+			}
+		}
+
+		fetchFields(query)
+
+		if len(queryFields) > 0 {
+			opq, ok := opaque.(map[string]interface{})
+			if !ok {
+				opq = make(map[string]interface{})
+			}
+			opq["query"] = queryFields
+			opaque = opq
 		}
 	}
 
@@ -444,17 +488,46 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		}
 	}
 
-	for _, f := range queryFields {
-		if f.Type == "text" && f.Analyzer == "" {
-			// set analyzer to defaultAnalyzer for those query fields of type:text,
-			// that don't have an explicit analyzer set already.
-			f.Analyzer = i.defaultAnalyzer
-			f.DateFormat = ""
-		} else if f.Type == "datetime" && f.DateFormat == "" {
-			f.Analyzer = ""
-			f.DateFormat = i.defaultDateTimeParser
+	isParentFieldSearchable := func(field util.SearchField) bool {
+		// check if a prefix of this field name is searchable.
+		// - (prefix being delimited by ".")
+		// e.g.: potential candidates for "reviews.review.content.author" are:
+		// - reviews
+		// - reviews.review
+		// - reviews.review.content
+		// .. only if any of the above mappings are dynamic.
+		fieldSplitAtDot := strings.Split(field.Name, ".")
+		if len(fieldSplitAtDot) <= 1 {
+			// not sargable
+			return false
 		}
 
+		var matched bool
+		entry := fieldSplitAtDot[0]
+		for k := 1; k < len(fieldSplitAtDot); k++ {
+			searchField := util.SearchField{
+				Name:     entry,
+				Analyzer: field.Analyzer,
+			}
+			if dynamic, exists := i.searchableFields[searchField]; exists {
+				if dynamic {
+					matched = true
+					break
+				}
+			}
+
+			entry += "." + fieldSplitAtDot[k]
+		}
+
+		if !matched {
+			// not sargable
+			return false
+		}
+
+		return true
+	}
+
+	for _, f := range queryFields {
 		if f.Name == "" {
 			// field name not provided/available
 			// check if index supports _all field, if not, this query is not sargable
@@ -466,47 +539,62 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			continue
 		}
 
-		dynamic, exists := i.searchableFields[f]
-		if exists && dynamic {
-			// if searched field contains nested fields, then this field is not
-			// searchable, and the query not sargable.
-			return rv
-		}
-
-		if !exists {
-			// check if a prefix of this field name is searchable.
-			// - (prefix being delimited by ".")
-			// e.g.: potential candidates for "reviews.review.content.author" are:
-			// - reviews
-			// - reviews.review
-			// - reviews.review.content
-			// .. only if any of the above mappings are dynamic.
-			fieldSplitAtDot := strings.Split(f.Name, ".")
-			if len(fieldSplitAtDot) <= 1 {
-				// not sargable
-				return rv
-			}
-
-			var matched bool
-			entry := fieldSplitAtDot[0]
-			for k := 1; k < len(fieldSplitAtDot); k++ {
-				searchField := util.SearchField{
-					Name:     entry,
-					Analyzer: f.Analyzer,
+		if f.Type == "" {
+			// type isn't available, likely because query value wasn't available;
+			// check field name against all possible types
+			for _, typ := range []string{
+				"boolean", "number", "text", "datetime", "geopoint"} {
+				f.Type = typ
+				if typ == "text" {
+					f.Analyzer = i.defaultAnalyzer
+				} else if typ == "datetime" {
+					f.DateFormat = i.defaultDateTimeParser
 				}
-				if dynamic1, exists1 := i.searchableFields[searchField]; exists1 {
-					if dynamic1 {
-						matched = true
+
+				dynamic, exists := i.searchableFields[f]
+				if exists && dynamic {
+					// not sargable
+				} else if exists {
+					break
+				} else if !exists {
+					if isParentFieldSearchable(f) {
 						break
 					}
+					// else not sargable
 				}
-
-				entry += "." + fieldSplitAtDot[k]
+				f.Type = ""
+				f.Analyzer = ""
+				f.DateFormat = ""
 			}
 
-			if !matched {
+			if f.Type == "" {
 				// not sargable
 				return rv
+			}
+
+		} else {
+			if f.Type == "text" && f.Analyzer == "" {
+				// set analyzer to defaultAnalyzer for those query fields of type:text,
+				// that don't have an explicit analyzer set already.
+				f.Analyzer = i.defaultAnalyzer
+				f.DateFormat = ""
+			} else if f.Type == "datetime" && f.DateFormat == "" {
+				f.Analyzer = ""
+				f.DateFormat = i.defaultDateTimeParser
+			}
+
+			dynamic, exists := i.searchableFields[f]
+			if exists && dynamic {
+				// if searched field contains nested fields, then this field is not
+				// searchable, and the query not sargable.
+				return rv
+			}
+
+			if !exists {
+				if !isParentFieldSearchable(f) {
+					// not sargable
+					return rv
+				}
 			}
 		}
 	}
