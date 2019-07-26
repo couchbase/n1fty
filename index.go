@@ -353,7 +353,7 @@ func (i *FTSIndex) Sargable(field string, query,
 			if !ok {
 				opq = make(map[string]interface{})
 			}
-			opq["query"] = queryFields
+			opq["query_fields"] = queryFields
 			opaque = opq
 		}
 	}
@@ -382,7 +382,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 	var queryFields []util.SearchField
 	var sr *bleve.SearchRequest
 
-	if queryFieldsInterface, exists := rv.opaque["query"]; !exists {
+	if queryFieldsInterface, exists := rv.opaque["query_fields"]; !exists {
 		// if opaque didn't carry a "query" entry, go ahead and
 		// process the field+query provided to retrieve queryFields.
 		queryFields, sr, err = util.ParseQueryToSearchRequest(field, query)
@@ -392,7 +392,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		}
 
 		// update opaqueMap with query, search_request
-		rv.opaque["query"] = queryFields
+		rv.opaque["query_fields"] = queryFields
 		rv.opaque["search_request"] = sr
 	} else {
 		queryFields, _ = queryFieldsInterface.([]util.SearchField)
@@ -412,7 +412,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			if indexVal.Type() == value.OBJECT {
 				var im *mapping.IndexMappingImpl
 				// check if opaque carries an "index" entry
-				if imInterface, exists := rv.opaque["index"]; !exists {
+				if imInterface, exists := rv.opaque["index_mapping"]; !exists {
 					// if in case this value were an object, it is expected to be
 					// a mapping, check if this mapping is compatible with the
 					// current index's mapping.
@@ -423,7 +423,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 					}
 
 					// update opaqueMap
-					rv.opaque["index"] = im
+					rv.opaque["index_mapping"] = im
 				} else {
 					im, _ = imInterface.(*mapping.IndexMappingImpl)
 				}
