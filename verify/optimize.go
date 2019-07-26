@@ -23,21 +23,17 @@ import (
 // on the given search fields, so that Verify.Evaluate() does not need
 // to wastefully index fields that aren't being searched.
 func OptimizeIndexMapping(idxMapping mapping.IndexMapping,
-	searchFields []util.SearchField) mapping.IndexMapping {
+	queryFields map[util.SearchField]struct{}) mapping.IndexMapping {
 	im, ok := idxMapping.(*mapping.IndexMappingImpl)
 	if !ok {
 		return idxMapping
 	}
 
-	searchFieldsMap := map[util.SearchField]struct{}{}
-
-	for _, sf := range searchFields {
+	for sf := range queryFields {
 		if sf.Name == "" {
 			// For now, early return if "_all" field is searched.
 			return idxMapping
 		}
-
-		searchFieldsMap[sf] = struct{}{}
 	}
 
 	rv := *im // Shallow copy.
@@ -50,7 +46,7 @@ func OptimizeIndexMapping(idxMapping mapping.IndexMapping,
 		if defaultAnalyzer == "" {
 			defaultAnalyzer = im.DefaultAnalyzer
 		}
-		return util.BuildIndexMappingOnFields(searchFields,
+		return util.BuildIndexMappingOnFields(queryFields,
 			defaultAnalyzer, im.DefaultDateTimeParser)
 	}
 
@@ -65,11 +61,11 @@ func OptimizeIndexMapping(idxMapping mapping.IndexMapping,
 			if defaultAnalyzer == "" {
 				defaultAnalyzer = im.DefaultAnalyzer
 			}
-			return util.BuildIndexMappingOnFields(searchFields,
+			return util.BuildIndexMappingOnFields(queryFields,
 				defaultAnalyzer, im.DefaultDateTimeParser)
 		}
 
-		dmOptimized := optimizeDocumentMapping(searchFieldsMap,
+		dmOptimized := optimizeDocumentMapping(queryFields,
 			nil, dm, im.DefaultAnalyzer, im.DefaultDateTimeParser)
 		if dmOptimized != nil &&
 			(dmOptimized.Dynamic ||
@@ -83,13 +79,13 @@ func OptimizeIndexMapping(idxMapping mapping.IndexMapping,
 		}
 	}
 
-	rv.DefaultMapping = optimizeDocumentMapping(searchFieldsMap,
+	rv.DefaultMapping = optimizeDocumentMapping(queryFields,
 		nil, im.DefaultMapping, im.DefaultAnalyzer, im.DefaultDateTimeParser)
 
 	return &rv
 }
 
-func optimizeDocumentMapping(searchFieldsMap map[util.SearchField]struct{},
+func optimizeDocumentMapping(queryFields map[util.SearchField]struct{},
 	path []string, dm *mapping.DocumentMapping, defaultAnalyzer string,
 	defaultDateTimeParser string) *mapping.DocumentMapping {
 	// TODO: One day optimize dynamic with more granularity.
@@ -127,14 +123,14 @@ func optimizeDocumentMapping(searchFieldsMap map[util.SearchField]struct{},
 
 				ftrack := strings.Join(fpath, ".")
 
-				_, exists := searchFieldsMap[util.SearchField{
+				_, exists := queryFields[util.SearchField{
 					Name:       ftrack,
 					Type:       f.Type,
 					Analyzer:   analyzer,
 					DateFormat: dateFormat,
 				}]
 				if !exists {
-					_, exists = searchFieldsMap[util.SearchField{
+					_, exists = queryFields[util.SearchField{
 						Name: ftrack,
 						Type: f.Type,
 					}]
@@ -147,7 +143,7 @@ func optimizeDocumentMapping(searchFieldsMap map[util.SearchField]struct{},
 	}
 
 	for propName, propDM := range dm.Properties {
-		propDMOptimized := optimizeDocumentMapping(searchFieldsMap,
+		propDMOptimized := optimizeDocumentMapping(queryFields,
 			append(path, propName), propDM, defaultAnalyzer, defaultDateTimeParser)
 		if propDMOptimized != nil &&
 			(propDMOptimized.Dynamic ||

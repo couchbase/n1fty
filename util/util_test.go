@@ -18,7 +18,8 @@ import (
 )
 
 func TestBuildIndexMappingOnFields(t *testing.T) {
-	fields := []SearchField{
+	fields := map[SearchField]struct{}{}
+	for _, i := range []SearchField{
 		{
 			Name: "reviews.review.author",
 			Type: "text",
@@ -40,6 +41,8 @@ func TestBuildIndexMappingOnFields(t *testing.T) {
 			Name: "details.title",
 			Type: "text",
 		},
+	} {
+		fields[i] = struct{}{}
 	}
 
 	expectBytes := []byte(`

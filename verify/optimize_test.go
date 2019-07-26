@@ -253,7 +253,7 @@ func TestOptimizeIndexMapping(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		var searchFields []util.SearchField
+		searchFields := map[util.SearchField]struct{}{}
 
 		for _, s := range strings.Split(test.searchFields, ";") {
 			nta := strings.Split(s, ",") // "name,type,analyzer".
@@ -266,7 +266,7 @@ func TestOptimizeIndexMapping(t *testing.T) {
 				sf.Analyzer = nta[2]
 			}
 
-			searchFields = append(searchFields, sf)
+			searchFields[sf] = struct{}{}
 		}
 
 		mOut := OptimizeIndexMapping(m, searchFields)

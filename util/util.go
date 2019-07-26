@@ -74,7 +74,7 @@ func FetchIndexMapping(name, uuid, keyspace string) (mapping.IndexMapping, *cbft
 	return nil, nil, fmt.Errorf("index mapping not found for: %v", name)
 }
 
-func BuildIndexMappingOnFields(fields []SearchField, defaultAnalyzer string,
+func BuildIndexMappingOnFields(queryFields map[SearchField]struct{}, defaultAnalyzer string,
 	defaultDateTimeParser string) mapping.IndexMapping {
 	var build func(field SearchField, m *mapping.DocumentMapping) *mapping.DocumentMapping
 	build = func(field SearchField, m *mapping.DocumentMapping) *mapping.DocumentMapping {
@@ -123,11 +123,11 @@ func BuildIndexMappingOnFields(fields []SearchField, defaultAnalyzer string,
 		Properties: make(map[string]*mapping.DocumentMapping),
 	}
 
-	if len(fields) == 0 {
+	if len(queryFields) == 0 {
 		// no fields available, deploy a dynamic default index.
 		docMapping.Dynamic = true
 	} else {
-		for _, field := range fields {
+		for field := range queryFields {
 			if len(field.Name) > 0 {
 				docMapping = build(field, docMapping)
 			} else {
@@ -167,11 +167,13 @@ func FetchKeySpace(nameAndKeyspace string) string {
 }
 
 func ParseQueryToSearchRequest(field string, input value.Value) (
-	[]SearchField, *bleve.SearchRequest, error) {
+	map[SearchField]struct{}, *bleve.SearchRequest, error) {
 	field = CleanseField(field)
 
+	queryFields := map[SearchField]struct{}{}
 	if input == nil {
-		return []SearchField{{Name: field}}, nil, nil
+		queryFields[SearchField{Name: field}] = struct{}{}
+		return queryFields, nil, nil
 	}
 
 	var err error
@@ -197,7 +199,7 @@ func ParseQueryToSearchRequest(field string, input value.Value) (
 		rv.Sort = nil
 	}
 
-	queryFields, err := FetchFieldsToSearchFromQuery(query)
+	queryFields, err = FetchFieldsToSearchFromQuery(query)
 	if err != nil {
 		return nil, nil, err
 	}

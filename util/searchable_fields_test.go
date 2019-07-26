@@ -107,7 +107,7 @@ func TestFieldsToSearch(t *testing.T) {
 		}
 
 		fields := []string{}
-		for _, entry := range fieldDescs {
+		for entry := range fieldDescs {
 			fields = append(fields, entry.Name)
 		}
 

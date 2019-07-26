@@ -320,7 +320,7 @@ func (i *FTSIndex) Sargable(field string, query,
 		// this index for the field(s), ignoring the analyzer, type etc. for
 		// now; sargability is tested for again during search time when the
 		// query becomes available.
-		var queryFields []util.SearchField
+		queryFields := map[util.SearchField]struct{}{}
 
 		var fetchFields func(expression.Expression)
 		fetchFields = func(arg expression.Expression) {
@@ -330,10 +330,9 @@ func (i *FTSIndex) Sargable(field string, query,
 					if n != nil &&
 						n.Type() == value.STRING && n.Actual().(string) == "field" {
 						if val.Value() != nil && val.Value().Type() == value.STRING {
-							queryFields = append(queryFields,
-								util.SearchField{
-									Name: val.Value().Actual().(string),
-								})
+							queryFields[util.SearchField{
+								Name: val.Value().Actual().(string),
+							}] = struct{}{}
 						}
 					} else {
 						fetchFields(val)
@@ -379,7 +378,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 	}
 
 	var err error
-	var queryFields []util.SearchField
+	var queryFields map[util.SearchField]struct{}
 	var sr *bleve.SearchRequest
 
 	if queryFieldsInterface, exists := rv.opaque["query_fields"]; !exists {
@@ -395,7 +394,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		rv.opaque["query_fields"] = queryFields
 		rv.opaque["search_request"] = sr
 	} else {
-		queryFields, _ = queryFieldsInterface.([]util.SearchField)
+		queryFields, _ = queryFieldsInterface.(map[util.SearchField]struct{})
 
 		// if an entry for "query" exists, we can assume that an entry for
 		// "search_request" also exists.
@@ -469,9 +468,9 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		// sargable, only if all query fields' analyzers are the same
 		// as default analyzer.
 		compatibleWithDynamicMapping := true
-		for k := range queryFields {
-			if queryFields[k].Analyzer != "" &&
-				queryFields[k].Analyzer != i.defaultAnalyzer {
+		for f := range queryFields {
+			if f.Analyzer != "" &&
+				f.Analyzer != i.defaultAnalyzer {
 				compatibleWithDynamicMapping = false
 				break
 			}
@@ -527,7 +526,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		return true
 	}
 
-	for _, f := range queryFields {
+	for f := range queryFields {
 		if f.Name == "" {
 			// field name not provided/available
 			// check if index supports _all field, if not, this query is not sargable

@@ -314,8 +314,8 @@ func ProcessDocumentMapping(im *mapping.IndexMappingImpl,
 
 // -----------------------------------------------------------------------------
 
-func FetchFieldsToSearchFromQuery(que query.Query) ([]SearchField, error) {
-	fields := []SearchField{}
+func FetchFieldsToSearchFromQuery(que query.Query) (map[SearchField]struct{}, error) {
+	queryFields := map[SearchField]struct{}{}
 
 	var walk func(que query.Query)
 
@@ -358,12 +358,12 @@ func FetchFieldsToSearchFromQuery(que query.Query) ([]SearchField, error) {
 					fieldDesc.Type = "text"
 				}
 
-				fields = append(fields, fieldDesc)
+				queryFields[fieldDesc] = struct{}{}
 			}
 		}
 	}
 
 	walk(que)
 
-	return fields, nil
+	return queryFields, nil
 }
