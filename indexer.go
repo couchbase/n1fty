@@ -524,6 +524,15 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 			// index.
 			continue
 		}
+
+		// If querying is disabled for the index, then skip it.
+		if indexDef.PlanParams.NodePlanParams != nil {
+			npp := indexDef.PlanParams.NodePlanParams[""][""]
+			if npp != nil && !npp.CanRead {
+				continue
+			}
+		}
+
 		pip, err := util.ProcessIndexDef(indexDef)
 		if err != nil {
 			return nil, err
