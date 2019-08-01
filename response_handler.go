@@ -38,8 +38,6 @@ import (
 
 var DefaultBatchSize = 100 // No. of hits per batch
 
-var numBytesPerMB = float64(1024 * 1024)
-
 type responseHandler struct {
 	i            *FTSIndex
 	requestID    string
@@ -111,11 +109,11 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 				continue
 			}
 
-			cummsize := float64(atomic.LoadInt64(
-				&r.i.indexer.stats.CurBackFillSize)) / numBytesPerMB
-			if cummsize > float64(backfillLimit) {
+			cummsizeInMB := float64(atomic.LoadInt64(
+				&r.i.indexer.stats.CurBackFillSize)) / 1048576
+			if cummsizeInMB > float64(backfillLimit) {
 				fmsg := "%q backfill size: %v exceeded limit: %v"
-				err := fmt.Errorf(fmsg, r.requestID, cummsize, backfillLimit)
+				err := fmt.Errorf(fmsg, r.requestID, cummsizeInMB, backfillLimit)
 				conn.Error(util.N1QLError(err, ""))
 				return
 			}
@@ -217,11 +215,11 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 		// slow reader found and hence start dumping the results to the backfill file
 		if tmpfile != nil {
 			// whether temp-file is exhausted the limit.
-			cummsize := float64(atomic.LoadInt64(
-				&r.i.indexer.stats.CurBackFillSize)) / numBytesPerMB
-			if cummsize > float64(backfillLimit) {
+			cummsizeInMB := float64(atomic.LoadInt64(
+				&r.i.indexer.stats.CurBackFillSize)) / 1048576
+			if cummsizeInMB > float64(backfillLimit) {
 				fmsg := "%q backfill exceeded limit %v, %v"
-				err := fmt.Errorf(fmsg, r.requestID, backfillLimit, cummsize)
+				err := fmt.Errorf(fmsg, r.requestID, backfillLimit, cummsizeInMB)
 				conn.Error(util.N1QLError(err, ""))
 				return
 			}
