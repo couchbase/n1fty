@@ -114,7 +114,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 			cummsize := float64(atomic.LoadInt64(
 				&r.i.indexer.stats.CurBackFillSize)) / numBytesPerMB
 			if cummsize > float64(backfillLimit) {
-				fmsg := "%q backfill size: %d exceeded limit: %d"
+				fmsg := "%q backfill size: %v exceeded limit: %v"
 				err := fmt.Errorf(fmsg, r.requestID, cummsize, backfillLimit)
 				conn.Error(util.N1QLError(err, ""))
 				return
