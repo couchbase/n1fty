@@ -292,18 +292,6 @@ func (r *responseHandler) sendEntry(h interface{},
 	if r.sr.Score == "none" {
 		delete(hit, "score")
 	}
-	if !r.sr.IncludeLocations && r.sr.Highlight == nil {
-		delete(hit, "locations")
-	}
-	if len(r.sr.Fields) == 0 {
-		delete(hit, "fields")
-	}
-	if !r.sr.Explain {
-		delete(hit, "explanation")
-	}
-	if r.sr.Highlight == nil {
-		delete(hit, "fragments")
-	}
 
 	if !sender.SendEntry(&datastore.IndexEntry{PrimaryKey: id,
 		MetaData: value.NewValue(hit)}) {
