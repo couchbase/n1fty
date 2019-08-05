@@ -12,7 +12,6 @@
 package n1fty
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -35,7 +34,8 @@ const searchTimeoutMS = "searchTimeoutMS"
 
 const metakvMetaDir = "/fts/cbgt/cfg/"
 
-var defaultBackfillLimit = int64(200)      // default tmp space limit
+// 5120 is the default tmp space limit shared between gsi/n1fty
+var defaultBackfillLimit = int64(5120 / 2)
 var defaultSearchTimeoutMS = int64(120000) // 2min
 const backfillPrefix = "search-results"
 
@@ -143,45 +143,13 @@ func setConfig(nf *n1ftyConfig, conf map[string]interface{}) errors.Error {
 	}
 
 	nf.processConfig(conf)
-
 	// make local copy so caller doesn't accidentally modify
 	newConf := nf.GetConfig()
 	if newConf == nil {
 		newConf = make(map[string]interface{})
 	}
-	var b []byte
-	var ok bool
 	for k, v := range conf {
-		if b, ok = v.([]byte); !ok {
-			continue
-		}
-
-		if strings.Contains(k, "nodeDefs-known") {
-			// may be a node deletion
-			if len(b) == 0 {
-				delete(newConf, k)
-				continue
-			}
-
-			var nodeDefs cbgt.NodeDefs
-			err := json.Unmarshal(b, &nodeDefs)
-			if err != nil {
-				continue
-			}
-			newConf[k] = &nodeDefs
-			continue
-		}
-
-		li := strings.LastIndex(k, "/")
-		leaf := k[li+1:]
-		if leaf == "indexDefs" {
-			var indexDefs cbgt.IndexDefs
-			err := json.Unmarshal(b, &indexDefs)
-			if err != nil {
-				continue
-			}
-			newConf[leaf] = &indexDefs
-		}
+		newConf[k] = v
 	}
 
 	nf.config.Store(newConf)
