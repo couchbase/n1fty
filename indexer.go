@@ -324,6 +324,9 @@ func (i *FTSIndexer) refresh(configMutexAcquired bool) errors.Error {
 
 	err = i.initClient(nodeDefs, true)
 	if err != nil {
+		if err == ErrFeatureUnavailable {
+			return nil
+		}
 		return util.N1QLError(err, "initClient failed")
 	}
 

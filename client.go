@@ -63,6 +63,9 @@ var DefaultGrpcMaxSendMsgSize = 1024 * 1024 * 50 // 50 MB
 // DefaultConnPoolSize decides the connection pool size per host
 var DefaultConnPoolSize = 5
 
+// ErrFeatureUnavailable indicates the feature unavailability in cluster
+var ErrFeatureUnavailable = fmt.Errorf("feature unavailable in cluster")
+
 var rsource rand.Source
 var r1 *rand.Rand
 
@@ -92,7 +95,7 @@ func (c *ftsClient) getGrpcClient() pb.SearchServiceClient {
 func (c *ftsClient) initConnections(hosts []string,
 	options []grpc.DialOption, secure bool) error {
 	if len(hosts) == 0 {
-		return fmt.Errorf("client: no gRPC enabled fts hosts found in cluster")
+		return ErrFeatureUnavailable
 	}
 
 	for i, hostPort := range hosts {
