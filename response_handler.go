@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/blevesearch/bleve"
-	"github.com/couchbase/cbft"
+	"github.com/buger/jsonparser"
 	pb "github.com/couchbase/cbft/protobuf"
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/datastore"
@@ -68,11 +68,10 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 
 	var tmpfile *os.File
 	var backfillFin, backfillEntries int64
-	hits := make([]interface{}, cbft.DefaultStreamBatchSize)
-	var result map[string]interface{}
+	var hits []byte
 
 	backfill := func() {
-		entries := make([]interface{}, cbft.DefaultStreamBatchSize)
+		var entries []byte
 		name := tmpfile.Name()
 
 		defer func() {
@@ -124,11 +123,9 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 			atomic.AddInt64(&r.i.indexer.stats.TotalThrottledFtsDuration,
 				int64(time.Since(ftsDur)))
 
-			for i := range entries {
-				connOk := r.sendEntry(entries[i], conn)
-				if !connOk {
-					return
-				}
+			connOk := r.sendEntries(entries, conn)
+			if !connOk {
+				return
 			}
 
 			// reset the time taken by fts
@@ -157,39 +154,40 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 
 		switch r := results.Contents.(type) {
 		case *pb.StreamSearchResults_Hits:
-			err = json.Unmarshal(r.Hits.Bytes, &hits)
-			if err != nil {
-				conn.Error(util.N1QLError(err, "response_handler: "+
-					"hits unmarshal, err"))
-				// return on any error, as no partial results are supported
+			hits = r.Hits.Bytes
+
+		case *pb.StreamSearchResults_SearchResult:
+			if r.SearchResult == nil {
+				break
+			}
+
+			searchStatus, _, _, err := jsonparser.Get(r.SearchResult, "status")
+			if err != nil || len(searchStatus) == 0 {
+				conn.Error(util.N1QLError(err, "error in retrieving status"))
 				return
 			}
 
-		case *pb.StreamSearchResults_SearchResult:
-			if r.SearchResult != nil {
-				err = json.Unmarshal(r.SearchResult, &result)
-				if err != nil {
-					conn.Error(util.N1QLError(err, "response_handler: "+
-						"searchResult unmarshal, err"))
-					// return on any error, as no partial results are supported
-					return
-				}
-				// pass the status errors back to n1ql
-				if searchStatus, ok := result["status"].(map[string]interface{}); ok {
-					errMap, ok := searchStatus["errors"].(map[string]interface{})
-					if ok && len(errMap) > 0 {
-						var errs []error
-						for pi, e := range errMap {
-							errs = append(errs, fmt.Errorf("partition: %s, err: %v, ", pi, e))
-						}
-						conn.Error(util.N1QLError(fmt.Errorf("search err summary: %v", errs),
-							"response_handler: err"))
+			errorsBytes, _, _, _ := jsonparser.Get(searchStatus, "errors")
+			if len(errorsBytes) > 0 {
+				var errs []error
+				jsonparser.ObjectEach(errorsBytes,
+					func(partition []byte, er []byte, datatype jsonparser.ValueType,
+						offset int) error {
+						errs = append(errs,
+							fmt.Errorf("partition: %s, err: %s, ", string(partition), string(er)))
+						return nil
+					})
+				conn.Error(util.N1QLError(fmt.Errorf("search err summary: %v", errs),
+					"response_handler: err"))
 
-						// return here, as no partial results are supported
-						return
-					}
-				}
-				hits, _ = result["hits"].([]interface{})
+				// return here, as partial results are NOT supported
+				return
+			}
+
+			hits, _, _, err = jsonparser.Get(r.SearchResult, "hits")
+			if err != nil {
+				conn.Error(util.N1QLError(err, "error in retrieving hits"))
+				return
 			}
 		}
 
@@ -236,11 +234,9 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 			atomic.AddInt64(&r.i.indexer.stats.TotalThrottledFtsDuration,
 				int64(time.Since(ftsDur)))
 
-			for i := range hits {
-				connOk := r.sendEntry(hits[i], conn)
-				if !connOk {
-					return
-				}
+			connOk := r.sendEntries(hits, conn)
+			if !connOk {
+				return
 			}
 
 			// reset the time taken by fts
@@ -262,41 +258,59 @@ func (r *responseHandler) cleanupBackfill() {
 	}
 }
 
-func (r *responseHandler) sendEntry(h interface{},
-	conn *datastore.IndexConnection) bool {
-	hit, ok := h.(map[string]interface{})
-	if !ok {
-		return true // so next hit can be processed
+func (r *responseHandler) sendEntries(hits []byte, conn *datastore.IndexConnection) bool {
+	if len(hits) == 0 {
+		return true // so next set of hits can be processed
 	}
 
 	var start time.Time
-	blockedtm, blocked := int64(0), false
-
 	sender := conn.Sender()
 
-	cp, ln := sender.Capacity(), sender.Length()
-	if ln == cp {
-		start, blocked = time.Now(), true
-	}
+	var sendEntriesFailed bool
+	_, err := jsonparser.ArrayEach(hits,
+		func(hit []byte, dataType jsonparser.ValueType, offset int, err error) {
+			if sendEntriesFailed {
+				// skip sending rest of hits
+				return
+			}
 
-	// remove unnecessary fields
-	delete(hit, "index")
-	delete(hit, "sort")
+			blockedtm, blocked := int64(0), false
+			cp, ln := sender.Capacity(), sender.Length()
+			if ln == cp {
+				start, blocked = time.Now(), true
+			}
 
-	id := hit["id"].(string)
+			var hitMap map[string]interface{}
+			err = json.Unmarshal(hit, &hitMap)
+			if err != nil {
+				sendEntriesFailed = true
+				return
+			}
 
-	if r.sr.Score == "none" {
-		delete(hit, "score")
-	}
+			delete(hitMap, "index")
+			delete(hitMap, "sort")
 
-	if !sender.SendEntry(&datastore.IndexEntry{PrimaryKey: id,
-		MetaData: value.NewValue(hit)}) {
+			if r.sr.Score == "none" {
+				delete(hitMap, "score")
+			}
+
+			id := hitMap["id"].(string)
+
+			if !sender.SendEntry(&datastore.IndexEntry{
+				PrimaryKey: id,
+				MetaData:   value.NewValue(hitMap),
+			}) {
+				sendEntriesFailed = true
+				return
+			}
+
+			if blocked {
+				blockedtm += int64(time.Since(start))
+				atomic.AddInt64(&r.i.indexer.stats.TotalThrottledN1QLDuration, blockedtm)
+			}
+		})
+	if err != nil || sendEntriesFailed {
 		return false
-	}
-
-	if blocked {
-		blockedtm += int64(time.Since(start))
-		atomic.AddInt64(&r.i.indexer.stats.TotalThrottledN1QLDuration, blockedtm)
 	}
 
 	return true
@@ -424,7 +438,7 @@ func getBackfillSpaceLimit() int64 {
 	return defaultBackfillLimit
 }
 
-func writeToBackfill(hits []interface{}, enc *gob.Encoder) error {
+func writeToBackfill(hits []byte, enc *gob.Encoder) error {
 	if hits != nil {
 		if err := enc.Encode(hits); err != nil {
 			return err
