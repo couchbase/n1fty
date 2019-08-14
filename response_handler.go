@@ -26,17 +26,13 @@ import (
 	"time"
 
 	"github.com/blevesearch/bleve"
-
+	"github.com/couchbase/cbft"
 	pb "github.com/couchbase/cbft/protobuf"
-
 	"github.com/couchbase/n1fty/util"
-
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/logging"
 	"github.com/couchbase/query/value"
 )
-
-var DefaultBatchSize = 100 // No. of hits per batch
 
 type responseHandler struct {
 	i            *FTSIndex
@@ -72,11 +68,11 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 
 	var tmpfile *os.File
 	var backfillFin, backfillEntries int64
-	hits := make([]interface{}, DefaultBatchSize)
+	hits := make([]interface{}, cbft.DefaultStreamBatchSize)
 	var result map[string]interface{}
 
 	backfill := func() {
-		entries := make([]interface{}, DefaultBatchSize)
+		entries := make([]interface{}, cbft.DefaultStreamBatchSize)
 		name := tmpfile.Name()
 
 		defer func() {
