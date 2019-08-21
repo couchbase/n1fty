@@ -87,6 +87,9 @@ func (c *ftsClient) getGrpcClient() pb.SearchServiceClient {
 	randomNodeIndex := r1.Intn(len(c.serverMap))
 	// pick its conn pool
 	connPool := c.gRPCConnMap[c.serverMap[randomNodeIndex]]
+	if len(connPool) == 0 {
+		return nil
+	}
 	// pick a random connection from pool
 	conn := connPool[r1.Intn(len(connPool))]
 	return pb.NewSearchServiceClient(conn)
@@ -99,7 +102,6 @@ func (c *ftsClient) initConnections(hosts []string,
 	}
 
 	for i, hostPort := range hosts {
-		c.serverMap[i] = hostPort
 		cbUser, cbPasswd, err := cbauth.GetHTTPServiceAuth(hostPort)
 		if err != nil {
 			return fmt.Errorf("client: cbauth err: %v", err)
@@ -121,6 +123,8 @@ func (c *ftsClient) initConnections(hosts []string,
 			logging.Infof("client: grpc client connection #%d created for host: %v", j, hostPort)
 			c.gRPCConnMap[hostPort] = append(c.gRPCConnMap[hostPort], conn)
 		}
+		// after making the connections ready, update the serverInfo in map
+		c.serverMap[i] = hostPort
 	}
 	return nil
 }
