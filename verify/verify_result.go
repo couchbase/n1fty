@@ -104,11 +104,6 @@ func (v *VerifyCtx) initVerifyCtx() errors.Error {
 		}
 	}
 
-	q, err := util.BuildQueryFromSearchRequest(v.field, searchRequest)
-	if err != nil {
-		return util.N1QLError(err, "")
-	}
-
 	// Set up an in-memory bleve index using moss for evaluating the hits.
 	idx, err := bleve.NewUsing("", idxMapping, upsidedown.Name, moss.Name,
 		KVConfigForMoss())
@@ -139,7 +134,9 @@ func (v *VerifyCtx) initVerifyCtx() errors.Error {
 
 	v.idx = idx
 	v.m = idxMapping
-	v.sr = bleve.NewSearchRequest(q)
+	searchRequest.Size = 1
+	searchRequest.From = 0
+	v.sr = searchRequest
 	v.udc = udc
 	v.coll = collh.Collection()
 	v.defaultType = defaultType
