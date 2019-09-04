@@ -13,6 +13,7 @@ package verify
 
 import (
 	"math"
+	"sync"
 
 	"github.com/blevesearch/bleve"
 	"github.com/blevesearch/bleve/document"
@@ -55,7 +56,21 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 	}, nil
 }
 
+func (v *VerifyCtx) isCtxInitialised() bool {
+	v.l.RLock()
+	rv := v.initialised
+	v.l.RUnlock()
+	return rv
+}
+
 func (v *VerifyCtx) initVerifyCtx() errors.Error {
+	v.l.Lock()
+	if v.initialised {
+		v.l.Unlock()
+		return nil
+	}
+	defer v.l.Unlock()
+
 	queryFields, searchRequest, err := util.ParseQueryToSearchRequest(
 		v.field, v.query)
 	if err != nil {
@@ -159,8 +174,9 @@ type VerifyCtx struct {
 	field           string
 	query           value.Value
 	options         value.Value
-	initialised     bool
 
+	l           sync.RWMutex
+	initialised bool
 	idx         bleve.Index
 	m           mapping.IndexMapping
 	sr          *bleve.SearchRequest
@@ -171,7 +187,7 @@ type VerifyCtx struct {
 }
 
 func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
-	if !v.initialised {
+	if !v.isCtxInitialised() {
 		err := v.initVerifyCtx()
 		if err != nil {
 			return false, err
