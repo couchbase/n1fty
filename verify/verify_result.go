@@ -48,11 +48,26 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 		return nil, util.N1QLError(nil, "query/options not provided")
 	}
 
+	var skip bool
+	if options != nil {
+		skipVal, skipValAvailable := options.Field("skipVerify")
+		if skipValAvailable {
+			if skipVal.Type() == value.BOOLEAN {
+				skip = skipVal.Actual().(bool)
+			} else if skipVal.Type() == value.STRING {
+				if skipVal.Actual().(string) == "true" {
+					skip = true
+				}
+			}
+		}
+	}
+
 	return &VerifyCtx{
 		nameAndKeyspace: nameAndKeyspace,
 		field:           field,
 		query:           query,
 		options:         options,
+		skip:            skip,
 	}, nil
 }
 
@@ -174,6 +189,7 @@ type VerifyCtx struct {
 	field           string
 	query           value.Value
 	options         value.Value
+	skip            bool
 
 	l           sync.RWMutex
 	initialised bool
@@ -187,6 +203,11 @@ type VerifyCtx struct {
 }
 
 func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
+	if v.skip {
+		// skip evaluation
+		return true, nil
+	}
+
 	if !v.isCtxInitialised() {
 		err := v.initVerifyCtx()
 		if err != nil {
