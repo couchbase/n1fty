@@ -306,7 +306,14 @@ func (i *FTSIndex) Sargable(field string, query,
 	// would generate false positives or not for a given query.
 	exact := true
 
-	if queryVal == nil {
+	var queryFields map[util.SearchField]struct{}
+	if opq, ok := opaque.(map[string]interface{}); ok {
+		if _, exists := opq["query_fields"]; exists {
+			queryFields, _ = opq["query_fields"].(map[util.SearchField]struct{})
+		}
+	}
+
+	if queryVal == nil && len(queryFields) == 0 {
 		// this index will be sargable for the unavailable query if
 		// it has a default dynamic mapping with the _all field searchable.
 		if i.dynamic && i.allFieldSearchable {
@@ -320,7 +327,7 @@ func (i *FTSIndex) Sargable(field string, query,
 		// this index for the field(s), ignoring the analyzer, type etc. for
 		// now; sargability is tested for again during search time when the
 		// query becomes available.
-		queryFields := map[util.SearchField]struct{}{}
+		queryFields = map[util.SearchField]struct{}{}
 
 		var fetchFields func(expression.Expression)
 		fetchFields = func(arg expression.Expression) {
