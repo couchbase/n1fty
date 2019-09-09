@@ -317,7 +317,7 @@ func (i *FTSIndex) Sargable(field string, query,
 		// this index will be sargable for the unavailable query if
 		// it has a default dynamic mapping with the _all field searchable.
 		if i.dynamic && i.allFieldSearchable {
-			return int(math.MaxInt64), math.MaxInt64, exact, nil, nil
+			return int(math.MaxInt64), math.MaxInt64, exact, opaque, nil
 		}
 
 		// if the index isn't default dynamic, check if the query expression
