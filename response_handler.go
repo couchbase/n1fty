@@ -69,6 +69,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 	var tmpfile *os.File
 	var backfillFin, backfillEntries int64
 	var hits []byte
+	var numHits uint64
 
 	backfill := func() {
 		var entries []byte
@@ -155,6 +156,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 		switch r := results.Contents.(type) {
 		case *pb.StreamSearchResults_Hits:
 			hits = r.Hits.Bytes
+			numHits = r.Hits.Total
 
 		case *pb.StreamSearchResults_SearchResult:
 			if r.SearchResult == nil {
@@ -189,13 +191,21 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 				conn.Error(util.N1QLError(err, "error in retrieving hits"))
 				return
 			}
+
+			n, err := jsonparser.GetInt(r.SearchResult, "total_hits")
+			if err != nil {
+				conn.Error(util.N1QLError(err, "error in retrieving number of hits"))
+				return
+			}
+
+			numHits = uint64(n)
 		}
 
 		ln := sender.Length()
 		cp := sender.Capacity()
 
 		if backfillLimit > 0 && tmpfile == nil &&
-			((cp - ln) < len(hits)) {
+			(uint64(cp-ln) < numHits) {
 			logging.Infof("response_handler: buffer outflow observed, cap %d len %d", cp, ln)
 			enc, dec, tmpfile, err = initBackFill(logPrefix, r.requestID, r)
 			if err != nil {
