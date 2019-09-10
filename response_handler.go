@@ -192,13 +192,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 				return
 			}
 
-			n, err := jsonparser.GetInt(r.SearchResult, "total_hits")
-			if err != nil {
-				conn.Error(util.N1QLError(err, "error in retrieving number of hits"))
-				return
-			}
-
-			numHits = uint64(n)
+			numHits = 0
 		}
 
 		ln := sender.Length()
