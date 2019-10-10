@@ -1,5 +1,5 @@
-# n1fty
+# N1FTy
 
-n1fty: N1QL+FTS Index client
+N1FTy: N1QL+FTS Index client
 
-
+Supports search operations from within the N1QL query interface.
