@@ -350,6 +350,7 @@ func (i *FTSIndexer) refresh(configMutexAcquired bool) errors.Error {
 	i.allIndexes = allIndexes
 	i.mapIndexesByID = mapIndexesByID
 	i.mapIndexesByName = mapIndexesByName
+	i.cfgVersion = cfgVersion
 	i.m.Unlock()
 
 	// even with a forced refresh, if both indexes and
@@ -385,10 +386,6 @@ func (i *FTSIndexer) refresh(configMutexAcquired bool) errors.Error {
 			util.SetBleveMaxResultWindow(int64(bmrw))
 		}
 	})
-
-	i.m.Lock()
-	i.cfgVersion = cfgVersion
-	i.m.Unlock()
 
 	return nil
 }
