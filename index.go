@@ -22,6 +22,7 @@ import (
 	"github.com/blevesearch/bleve"
 	"github.com/blevesearch/bleve/mapping"
 	"github.com/couchbase/cbgt"
+	"github.com/couchbase/n1fty/flex"
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
@@ -51,12 +52,16 @@ type FTSIndex struct {
 
 	defaultAnalyzer       string
 	defaultDateTimeParser string
+
+	// flex indexes supported
+	condFlexIndexes flex.CondFlexIndexes
 }
 
 // -----------------------------------------------------------------------------
 
 func newFTSIndex(indexer *FTSIndexer,
 	indexDef *cbgt.IndexDef,
+	im *mapping.IndexMappingImpl,
 	searchableFields map[util.SearchField]bool,
 	indexedCount int64,
 	condExprStr string,
@@ -82,6 +87,11 @@ func newFTSIndex(indexer *FTSIndexer,
 		allFieldSearchable:    allFieldSearchable,
 		defaultAnalyzer:       defaultAnalyzer,
 		defaultDateTimeParser: defaultDateTimeParser,
+	}
+
+	condFlexIndexes, err := flex.BleveToCondFlexIndexes(im)
+	if err == nil && len(condFlexIndexes) > 0 {
+		index.condFlexIndexes = condFlexIndexes
 	}
 
 	return index, nil
@@ -660,4 +670,63 @@ func (i *FTSIndex) pageable(order []string, offset, limit int64, query,
 	}
 
 	return offset+limit <= util.GetBleveMaxResultWindow()
+}
+
+// -----------------------------------------------------------------------------
+
+// SargableFlex transforms N1QL predicate to Search() function request
+func (i *FTSIndex) SargableFlex(requestId string,
+	req *datastore.FTSFlexRequest) (
+	*datastore.FTSFlexResponse, errors.Error) {
+	if len(i.condFlexIndexes) == 0 {
+		return nil, nil
+	}
+
+	identifiers := flex.Identifiers{flex.Identifier{Name: req.Keyspace}}
+
+	var ok bool
+	identifiers, ok = identifiers.Push(req.Bindings, -1)
+	if !ok {
+		return nil, util.N1QLError(nil, "SargableFlex bindings")
+	}
+
+	fieldTracks, needsFiltering, flexBuild, err0 := i.condFlexIndexes.Sargable(
+		identifiers, req.Pred, nil)
+	if err0 != nil {
+		return nil, util.N1QLError(err0, "SargableFlex Sargable")
+	}
+
+	if len(fieldTracks) == 0 {
+		return nil, nil
+	}
+
+	bleveQuery, err1 := flex.FlexBuildToBleveQuery(flexBuild, nil)
+	if err1 != nil {
+		return nil, util.N1QLError(err1, "SargableFlex Sargable")
+	}
+
+	res := &datastore.FTSFlexResponse{}
+	searchRequest := map[string]interface{}{
+		"query": bleveQuery,
+		"score": "none",
+	}
+	stringer := expression.NewStringer()
+	res.SearchQuery = stringer.Visit(expression.NewConstant(value.NewValue(searchRequest)))
+
+	searchOptions := map[string]interface{}{
+		"index": i.Name(),
+	}
+
+	res.SearchOptions = stringer.Visit(expression.NewConstant(value.NewValue(searchOptions)))
+	res.SearchOrders = nil
+	res.StaticSargKeys = make(map[string]expression.Expression, 8)
+	for s := range fieldTracks {
+		e, _ := parser.Parse(string(s))
+		res.StaticSargKeys[string(s)] = e
+	}
+	if !needsFiltering {
+		res.RespFlags |= datastore.FTS_FLEXINDEX_EXACT
+	}
+
+	return res, nil
 }
