@@ -20,6 +20,7 @@ import (
 	"github.com/couchbase/query/value"
 )
 
+// FIXME
 var TypeFieldPath = []string{"type"}
 
 // BleveToCondFlexIndexes translates a bleve index into CondFlexIndexes.
