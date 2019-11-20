@@ -358,6 +358,9 @@ func (i *FTSIndexer) refresh(configMutexAcquired bool) errors.Error {
 	// supporting routines or fetch the bleve max
 	// result window.
 	if mapIndexesByID == nil && nodeDefs == nil {
+		// initialise the cfg before returning so that
+		// the metakv changes will be subscribed
+		i.cfg.initConfig()
 		return nil
 	}
 
@@ -378,7 +381,6 @@ func (i *FTSIndexer) refresh(configMutexAcquired bool) errors.Error {
 		} else {
 			i.cfg.subscribe(i.namespace+"$"+i.keyspace, i)
 		}
-
 		// perform bleveMaxResultWindow initialisation only
 		// once per FTSIndexer instance.
 		bmrw, err := i.fetchBleveMaxResultWindow()
