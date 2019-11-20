@@ -374,6 +374,8 @@ func (i *FTSIndexer) refresh(configMutexAcquired bool) errors.Error {
 
 		go logStats(time.Duration(StatsLoggingIntervalMS)*time.Millisecond, i)
 
+		i.cfg.initConfig()
+
 		if configMutexAcquired {
 			i.cfg.subscribeLOCKED(i.namespace+"$"+i.keyspace, i)
 		} else {
