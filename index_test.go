@@ -9,7 +9,9 @@ import (
 
 	"github.com/couchbase/cbgt"
 	"github.com/couchbase/n1fty/util"
+	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/expression"
+	"github.com/couchbase/query/expression/parser"
 )
 
 func setupSampleIndex(idef []byte) (*FTSIndex, error) {
@@ -558,5 +560,35 @@ func TestCustomIndexNoAllFiedlSargability(t *testing.T) {
 
 	if count != 0 {
 		t.Fatal("Expect index to NOT be sargable")
+	}
+}
+
+func TestFlexIndexSargability(t *testing.T) {
+	index, err := setupSampleIndex(
+		util.SampleIndexDefWithKeywordAnalyzerOverDefaultMapping)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	queryStr := "t.type = 'hotel' AND t.country = 'United States'"
+
+	queryExp, err := parser.Parse(queryStr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	flexRequest := &datastore.FTSFlexRequest{
+		Keyspace: "t",
+		Pred:     queryExp,
+	}
+
+	resp, err := index.SargableFlex("0", flexRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if resp == nil || len(resp.StaticSargKeys) != 1 ||
+		resp.StaticSargKeys["type"] == nil {
+		t.Fatalf("Resp: %#v", resp)
 	}
 }
