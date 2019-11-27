@@ -363,3 +363,61 @@ var SampleIndexDefWithNoAllField = []byte(`
 	"uuid": ""
 }
 `)
+
+var SampleIndexDefWithKeywordAnalyzerOverDefaultMapping = []byte(`
+{
+	"name": "travel",
+	"type": "fulltext-index",
+	"params": {
+		"doc_config": {
+			"docid_prefix_delim": "",
+			"docid_regexp": "",
+			"mode": "type_field",
+			"type_field": "type"
+		},
+		"mapping": {
+			"default_analyzer": "keyword",
+			"default_datetime_parser": "dateTimeOptional",
+			"default_field": "_all",
+			"default_mapping": {
+				"dynamic": false,
+				"enabled": true,
+				"properties": {
+					"type": {
+						"enabled": true,
+						"dynamic": false,
+						"fields": [
+						{
+							"docvalues": true,
+							"include_in_all": true,
+							"include_term_vectors": true,
+							"index": true,
+							"name": "type",
+							"type": "text"
+						}
+						]
+					}
+				}
+			},
+			"default_type": "_default",
+			"docvalues_dynamic": false,
+			"index_dynamic": false,
+			"store_dynamic": false,
+			"type_field": "_type"
+		},
+		"store": {
+			"indexType": "scorch",
+			"kvStoreName": ""
+		}
+	},
+	"sourceType": "couchbase",
+	"sourceName": "travel-sample",
+	"sourceUUID": "",
+	"sourceParams": {},
+	"planParams": {
+		"maxPartitionsPerPIndex": 171,
+		"numReplicas": 0
+	},
+	"uuid": ""
+}
+`)
