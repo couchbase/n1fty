@@ -179,6 +179,9 @@ func (i *FTSIndexer) SetConnectionSecurityConfig(
 
 	updateSecurityConfig(newSecurityConfig)
 
+	// bump the cfg version as this needs a force refresh
+	i.cfg.bumpVersion()
+
 	i.Refresh()
 }
 
