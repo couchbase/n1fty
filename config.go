@@ -118,6 +118,10 @@ func (c *ftsConfig) getVersion() uint64 {
 	return atomic.LoadUint64(&c.version)
 }
 
+func (c *ftsConfig) bumpVersion() {
+	atomic.AddUint64(&c.version, 1)
+}
+
 type Cfg interface {
 	datastore.IndexConfig
 	GetConfig() map[string]interface{}
