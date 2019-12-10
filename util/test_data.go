@@ -396,6 +396,19 @@ var SampleIndexDefWithKeywordAnalyzerOverDefaultMapping = []byte(`
 							"type": "text"
 						}
 						]
+					},
+					"id": {
+						"enabled": true,
+						"dynamic": false,
+						"fields": [
+						{
+							"name": "id",
+							"type": "number",
+							"index": true,
+							"include_in_all": true,
+							"docvalues": true
+						}
+						]
 					}
 				}
 			},

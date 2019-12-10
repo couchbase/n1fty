@@ -33,7 +33,7 @@ func (f FieldTypes) Lookup(k FieldTrack) (string, bool) {
 // ---------------------------------------------------------------
 
 // LearnConjunctFieldTypes examines the conjunct exprs (e.g., children
-// of an "AND" expression) is discover field-type information.  Only
+// of an "AND" expression) to discover field-type information. Only
 // the expressions related to the given identifiers and indexedFields
 // are considered.  It returns a (potentially filtered/simplified)
 // copy of the exprs, where the filtering/simplification happens as
