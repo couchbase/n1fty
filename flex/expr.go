@@ -150,7 +150,8 @@ func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifier
 	if exprFieldTypesCheck {
 		fieldType, ok := exprFTs.Lookup(FieldTrack(fieldTrack))
 		if !ok || fieldType != s.ValueType {
-			return true, nil, false, nil, nil // Wrong field type, not-sargable.
+			// Wrong field type, not-sargable (check filtering, for conjuncts)
+			return true, nil, true, nil, nil
 		}
 	}
 

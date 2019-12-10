@@ -600,14 +600,112 @@ func TestCustomIndexNoAllFiedlSargability(t *testing.T) {
 	}
 }
 
-func TestFlexIndexSargability(t *testing.T) {
+func TestSargableFlexIndex(t *testing.T) {
 	index, err := setupSampleIndex(
 		util.SampleIndexDefWithKeywordAnalyzerOverDefaultMapping)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	queryStr := "t.type = 'hotel' AND t.country = 'United States'"
+	tests := []struct {
+		queryStr         string
+		expectedQuery    string
+		expectedSargKeys []string
+	}{
+		{
+			queryStr:         "t.type = 'hotel' AND t.country = 'United States'",
+			expectedQuery:    `{"query":{"field":"type","term":"hotel"},"score":"none"}`,
+			expectedSargKeys: []string{"type"},
+		},
+		{
+			queryStr: "t.type = 'hotel' AND t.id = 10",
+			expectedQuery: `{"query":{"conjuncts":[{"field":"type","term":"hotel"},` +
+				`{"field":"id","inclusive_max":true,"inclusive_min":true,"max":10,` +
+				`"min":10}]},"score":"none"}`,
+			expectedSargKeys: []string{"type", "id"},
+		},
+		{
+			queryStr: "t.type = 'hotel' AND (t.id = 10 OR t.id = 20)",
+			expectedQuery: `{"query":{"conjuncts":[{"field":"type","term":"hotel"},` +
+				`{"disjuncts":[{"field":"id","inclusive_max":true,"inclusive_min":true,` +
+				`"max":10,"min":10},{"field":"id","inclusive_max":true,` +
+				`"inclusive_min":true,"max":20,"min":20}]}]},"score":"none"}`,
+			expectedSargKeys: []string{"type", "id"},
+		},
+		{
+			queryStr:         "t.type = 'hotel' AND t.id < 10",
+			expectedQuery:    `{"query":{"field":"type","term":"hotel"},"score":"none"}`,
+			expectedSargKeys: []string{"type"},
+		},
+		{
+			queryStr:         "t.type = 'hotel' AND t.id <= 10",
+			expectedQuery:    `{"query":{"field":"type","term":"hotel"},"score":"none"}`,
+			expectedSargKeys: []string{"type"},
+		},
+		{
+			queryStr:         "t.type = 'hotel' AND t.id > 10",
+			expectedQuery:    `{"query":{"field":"type","term":"hotel"},"score":"none"}`,
+			expectedSargKeys: []string{"type"},
+		},
+		{
+			queryStr:         "t.type = 'hotel' AND t.id >= 10",
+			expectedQuery:    `{"query":{"field":"type","term":"hotel"},"score":"none"}`,
+			expectedSargKeys: []string{"type"},
+		},
+	}
+
+	for testi, test := range tests {
+		queryExp, err := parser.Parse(test.queryStr)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		flexRequest := &datastore.FTSFlexRequest{
+			Keyspace: "t",
+			Pred:     queryExp,
+		}
+
+		resp, err := index.SargableFlex("0", flexRequest)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if resp == nil || len(resp.StaticSargKeys) != len(test.expectedSargKeys) {
+			t.Fatalf("[test: %v] Query: %v, Resp: %#v", testi+1, test.queryStr, resp)
+		}
+
+		for _, key := range test.expectedSargKeys {
+			if resp.StaticSargKeys[key] == nil {
+				t.Fatalf("[test: %v] ExpectedSargKeys: %v, Got StaticSargKeys: %v",
+					testi+1, test.expectedSargKeys, resp.StaticSargKeys)
+			}
+		}
+
+		var gotQuery, expectedQuery map[string]interface{}
+		err = json.Unmarshal([]byte(resp.SearchQuery), &gotQuery)
+		if err != nil {
+			t.Fatalf("[test: %v] SearchQuery: %#v, err: %v", testi+1, resp.SearchQuery, err)
+		}
+		err = json.Unmarshal([]byte(test.expectedQuery), &expectedQuery)
+		if err != nil {
+			t.Fatalf("[test: %v] ExpectedQuery: %#v, err: %v", testi+1, test.expectedQuery, err)
+		}
+
+		if !reflect.DeepEqual(expectedQuery, gotQuery) {
+			t.Fatalf("[test: %v] ExpectedQuery: %#v, GotQuery: %#v",
+				testi+1, expectedQuery, gotQuery)
+		}
+	}
+}
+
+func TestNotSargableFlexIndex(t *testing.T) {
+	index, err := setupSampleIndex(
+		util.SampleIndexDefWithKeywordAnalyzerOverDefaultMapping)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	queryStr := "t.country = 'United States'"
 
 	queryExp, err := parser.Parse(queryStr)
 	if err != nil {
@@ -624,8 +722,7 @@ func TestFlexIndexSargability(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp == nil || len(resp.StaticSargKeys) != 1 ||
-		resp.StaticSargKeys["type"] == nil {
-		t.Fatalf("Resp: %#v", resp)
+	if resp != nil {
+		t.Fatalf("Expected query to be NOT-SARGABLE")
 	}
 }

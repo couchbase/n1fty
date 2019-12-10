@@ -1207,7 +1207,7 @@ func TestFlexSargable(t *testing.T) {
 					ValueType: "string",
 				},
 			},
-			expectExact: true,
+			expectExact: false,
 		},
 
 		{about: `prepared statement, named parameter`,
@@ -1243,7 +1243,7 @@ func TestFlexSargable(t *testing.T) {
 					ValueType: "string",
 				},
 			},
-			expectExact: true,
+			expectExact: false,
 		},
 
 		{about: `prepared statement, positional parameter`,
@@ -2005,7 +2005,7 @@ func TestFlexSargable(t *testing.T) {
 					FieldTypeCheck: true,
 				},
 			},
-			expectExact: true,
+			expectExact: false,
 		},
 
 		{about: "test number inequality lt",
@@ -2151,7 +2151,7 @@ func TestFlexSargable(t *testing.T) {
 					FieldTypeCheck: true,
 				},
 			},
-			expectExact: true,
+			expectExact: false,
 		},
 
 		{about: "test string inequality lt",
@@ -2422,7 +2422,7 @@ func TestFlexSargable(t *testing.T) {
 					FieldTypeCheck:   true,
 				},
 			},
-			expectExact: true,
+			expectExact: false,
 		},
 
 		// ------------------------------------------------------------------
