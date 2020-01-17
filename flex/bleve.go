@@ -149,7 +149,11 @@ func countFieldTrackTypes(path []string, dm *mapping.DocumentMapping,
 
 // ------------------------------------------------------------------------
 
-var BleveTypeConv = map[string]string{"text": "string", "number": "number"}
+var BleveTypeConv = map[string]string{
+	"text":    "string",
+	"number":  "number",
+	"boolean": "boolean",
+}
 
 // Recursively initializes a FlexIndex from a given bleve document
 // mapping.  Note: the backing array for path is mutated as the
@@ -212,10 +216,8 @@ func BleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 
 		// TODO: Currently supports only default mapping.
 		// TODO: Currently supports only keyword fields.
-		// TODO: Need to support numeric field types?
 		// TODO: Need to support datetime field types?
 		// TODO: Need to support geopoint field types?
-		// TODO: Need to support bool field types?
 		// TODO: Need to support non-keyword analyzers?
 		// TODO: f.Store IncludeTermVectors, IncludeInAll, DateFormat, DocValues
 	}
@@ -370,6 +372,19 @@ func FlexBuildToBleveQuery(fb *FlexBuild, prevSibling map[string]interface{}) (
 				case "ge":
 					return MinNumericRangeQuery(args[1], v, true, prevSibling)
 				}
+			}
+
+			if args[2] == "boolean" {
+				var v bool
+				if err := json.Unmarshal([]byte(args[3]), &v); err != nil {
+					return nil, err
+				}
+
+				if args[0] != "eq" {
+					return nil, fmt.Errorf("incorrect expression: %v", args)
+				}
+
+				return map[string]interface{}{"bool": v, "field": args[1]}, nil
 			}
 		}
 	}

@@ -652,6 +652,12 @@ func TestSargableFlexIndex(t *testing.T) {
 			expectedQuery:    `{"query":{"field":"type","term":"hotel"},"score":"none"}`,
 			expectedSargKeys: []string{"type"},
 		},
+		{
+			queryStr: "t.isOpen = true AND t.type = 'hotel'",
+			expectedQuery: `{"query":{"conjuncts":[{"field":"isOpen","bool":true},` +
+				`{"field":"type", "term": "hotel"}]}, "score": "none"}`,
+			expectedSargKeys: []string{"isOpen", "type"},
+		},
 	}
 
 	for testi, test := range tests {
