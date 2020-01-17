@@ -409,6 +409,19 @@ var SampleIndexDefWithKeywordAnalyzerOverDefaultMapping = []byte(`
 							"docvalues": true
 						}
 						]
+					},
+					"isOpen": {
+						"enabled": true,
+						"dynamic": false,
+						"fields": [
+						{
+							"name": "isOpen",
+							"type": "boolean",
+							"index": true,
+							"include_in_all": true,
+							"docvalues": true
+						}
+						]
 					}
 				}
 			},
