@@ -178,7 +178,7 @@ var SampleIndexDefDynamicDefault = []byte(`
 }
 `)
 
-var SampleIndexDefWithAnalyzerEN = []byte(`
+var SampleIndexDefDynamicWithAnalyzerKeywordDateTimeDisabled = []byte(`
 {
 	"name": "temp",
 	"type": "fulltext-index",
@@ -190,8 +190,8 @@ var SampleIndexDefWithAnalyzerEN = []byte(`
 			"type_field": "type"
 		},
 		"mapping": {
-			"default_analyzer": "en",
-			"default_datetime_parser": "dateTimeOptional",
+			"default_analyzer": "keyword",
+			"default_datetime_parser": "disabled",
 			"default_field": "_all",
 			"default_mapping": {
 				"dynamic": true,

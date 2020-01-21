@@ -107,8 +107,8 @@ func TestIndexSargabilityWithSearchRequest(t *testing.T) {
 	}
 }
 
-func TestDynamicIndexSargability(t *testing.T) {
-	index, err := setupSampleIndex(util.SampleIndexDefWithAnalyzerEN)
+func TestDynamicIndexSargabilityWithIncompatibleAnalyzer(t *testing.T) {
+	index, err := setupSampleIndex(util.SampleIndexDefDynamicDefault)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func TestDynamicIndexSargability(t *testing.T) {
 	query := expression.NewConstant(map[string]interface{}{
 		"match":    "United States",
 		"field":    "country",
-		"analyzer": "default",
+		"analyzer": "keyword",
 	})
 
 	count, _, _, _, n1qlErr := index.Sargable("", query,
@@ -653,11 +653,11 @@ func TestSargableFlexIndex(t *testing.T) {
 		var gotQuery, expectedQuery map[string]interface{}
 		err = json.Unmarshal([]byte(resp.SearchQuery), &gotQuery)
 		if err != nil {
-			t.Fatalf("[test: %v] SearchQuery: %#v, err: %v", testi+1, resp.SearchQuery, err)
+			t.Fatalf("[test: %v] SearchQuery: %s, err: %v", testi+1, resp.SearchQuery, err)
 		}
 		err = json.Unmarshal([]byte(test.expectedQuery), &expectedQuery)
 		if err != nil {
-			t.Fatalf("[test: %v] ExpectedQuery: %#v, err: %v", testi+1, test.expectedQuery, err)
+			t.Fatalf("[test: %v] ExpectedQuery: %s, err: %v", testi+1, test.expectedQuery, err)
 		}
 
 		if !reflect.DeepEqual(expectedQuery, gotQuery) {
@@ -693,5 +693,53 @@ func TestNotSargableFlexIndex(t *testing.T) {
 
 	if resp != nil {
 		t.Fatalf("Expected query to be NOT-SARGABLE")
+	}
+}
+
+func TestSargableDynamicFlexIndex(t *testing.T) {
+	// Only a default dynamic index with "default_analzyer" set to "keyword"
+	// and "default_datetime_parser" set to "disabled" is flex-sargable.
+	index, err := setupSampleIndex(
+		util.SampleIndexDefDynamicWithAnalyzerKeywordDateTimeDisabled)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	queryStr := "t.country = 'United States'"
+
+	queryExp, err := parser.Parse(queryStr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	flexRequest := &datastore.FTSFlexRequest{
+		Keyspace: "t",
+		Pred:     queryExp,
+	}
+
+	resp, err := index.SargableFlex("0", flexRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if resp == nil || len(resp.StaticSargKeys) != 1 ||
+		resp.StaticSargKeys["country"] == nil {
+		t.Fatalf("Resp: %#v", resp)
+	}
+
+	expectedQueryStr := `{"query":{"field":"country","term":"United States"},"score":"none"}`
+
+	var gotQuery, expectedQuery map[string]interface{}
+	err = json.Unmarshal([]byte(resp.SearchQuery), &gotQuery)
+	if err != nil {
+		t.Fatalf("SearchQuery: %s, err: %v", resp.SearchQuery, err)
+	}
+	err = json.Unmarshal([]byte(expectedQueryStr), &expectedQuery)
+	if err != nil {
+		t.Fatalf("ExpectedQuery: %s, err: %v", expectedQueryStr, err)
+	}
+
+	if !reflect.DeepEqual(expectedQuery, gotQuery) {
+		t.Fatalf("ExpectedQuery: %#v, GotQuery: %#v", expectedQuery, gotQuery)
 	}
 }
