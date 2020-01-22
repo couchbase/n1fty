@@ -259,6 +259,20 @@ func BleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 			})
 
 			fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
+				Cmp:              "eq",
+				FieldPath:        dynamicPath,
+				ValueType:        "number",
+				FieldPathPartial: true,
+			})
+
+			fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
+				Cmp:              "eq",
+				FieldPath:        dynamicPath,
+				ValueType:        "boolean",
+				FieldPathPartial: true,
+			})
+
+			fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
 				Cmp:              "lt gt le ge",
 				FieldPath:        dynamicPath,
 				ValueType:        "string",
@@ -266,10 +280,15 @@ func BleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 				FieldPathPartial: true,
 			})
 
-			// TODO: Support dynamic number (and other) types?  This
-			// is difficult since we should remember and check types
-			// as the examination proceeds and return not-sargable.
-			// Ex: WHERE dynamicField = "hi" AND dynamicField = 123.
+			fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
+				Cmp:              "lt gt le ge",
+				FieldPath:        dynamicPath,
+				ValueType:        "number",
+				FieldTypeCheck:   true,
+				FieldPathPartial: true,
+			})
+
+			fi.Dynamic = true
 		}
 	}
 

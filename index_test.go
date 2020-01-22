@@ -728,6 +728,17 @@ func TestSargableDynamicFlexIndex(t *testing.T) {
 			expectedSargKeys: []string{"country"},
 		},
 		{
+			queryStr: "t.id = 10",
+			expectedQueryStr: `{"query":{"field":"id","inclusive_max":true,"inclusive_min":true,` +
+				`"max":10,"min":10},"score":"none"}`,
+			expectedSargKeys: []string{"id"},
+		},
+		{
+			queryStr:         "t.isOpen = true",
+			expectedQueryStr: `{"query":{"field":"isOpen","bool":true},"score":"none"}`,
+			expectedSargKeys: []string{"isOpen"},
+		},
+		{
 			queryStr: "t.createdOn = '1985-04-12T23:20:50.52Z'",
 			expectedQueryStr: `{"query":{"field":"createdOn","start":"1985-04-12T23:20:50.52Z",` +
 				`"inclusive_start":true,"end":"1985-04-12T23:20:50.52Z",` +
