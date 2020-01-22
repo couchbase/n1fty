@@ -16,9 +16,14 @@ import (
 // FlexIndex represents the subset of a flexible index definition
 // that's needed for sargable processing.  It's immutable, so it's
 // safe for use with multiple, concurrent Sargable() calls.
+//
+// FlexIndex's Dynamic is set to true if the index definition is
+// default dynamic with default_analyzer: keyword, in which case
+// SupportedExprs for multiple types will be made available.
 type FlexIndex struct {
 	IndexedFields  FieldInfos // Ex: "hireDate", "city", "salary".
 	SupportedExprs []SupportedExpr
+	Dynamic        bool
 }
 
 // Sargable() checks if expression (e) is amenable to a FlexIndex scan.

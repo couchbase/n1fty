@@ -126,6 +126,11 @@ func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifier
 	switch x := exprY.(type) {
 	case *expression.Constant:
 		if x.Type().String() != s.ValueType {
+			if fi.Dynamic {
+				// If the flex index is dynamic, there'd exist field names
+				// with multiple types, so search for fields of other types
+				return false, nil, false, nil, nil
+			}
 			return true, nil, false, nil, nil // Wrong const type, so not-sargable.
 		}
 

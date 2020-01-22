@@ -510,6 +510,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				DefaultAnalyzer: "keyword",
 			},
 			expectFlexIndex: &FlexIndex{
+				Dynamic: true,
 				IndexedFields: FieldInfos{
 					fieldInfoType,
 					&FieldInfo{
@@ -525,9 +526,28 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 						FieldPathPartial: true,
 					},
 					&SupportedExprCmpFieldConstant{
+						Cmp:              "eq",
+						FieldPath:        nil,
+						ValueType:        "number",
+						FieldPathPartial: true,
+					},
+					&SupportedExprCmpFieldConstant{
+						Cmp:              "eq",
+						FieldPath:        nil,
+						ValueType:        "boolean",
+						FieldPathPartial: true,
+					},
+					&SupportedExprCmpFieldConstant{
 						Cmp:              "lt gt le ge",
 						FieldPath:        nil,
 						ValueType:        "string",
+						FieldTypeCheck:   true,
+						FieldPathPartial: true,
+					},
+					&SupportedExprCmpFieldConstant{
+						Cmp:              "lt gt le ge",
+						FieldPath:        nil,
+						ValueType:        "number",
 						FieldTypeCheck:   true,
 						FieldPathPartial: true,
 					},
@@ -543,6 +563,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				},
 			},
 			expectFlexIndex: &FlexIndex{
+				Dynamic: true,
 				IndexedFields: FieldInfos{
 					fieldInfoType,
 					&FieldInfo{
@@ -558,9 +579,28 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 						FieldPathPartial: true,
 					},
 					&SupportedExprCmpFieldConstant{
+						Cmp:              "eq",
+						FieldPath:        nil,
+						ValueType:        "number",
+						FieldPathPartial: true,
+					},
+					&SupportedExprCmpFieldConstant{
+						Cmp:              "eq",
+						FieldPath:        nil,
+						ValueType:        "boolean",
+						FieldPathPartial: true,
+					},
+					&SupportedExprCmpFieldConstant{
 						Cmp:              "lt gt le ge",
 						FieldPath:        nil,
 						ValueType:        "string",
+						FieldTypeCheck:   true,
+						FieldPathPartial: true,
+					},
+					&SupportedExprCmpFieldConstant{
+						Cmp:              "lt gt le ge",
+						FieldPath:        nil,
+						ValueType:        "number",
 						FieldTypeCheck:   true,
 						FieldPathPartial: true,
 					},
@@ -592,6 +632,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				DefaultAnalyzer: "keyword",
 			},
 			expectFlexIndex: &FlexIndex{
+				Dynamic: true,
 				IndexedFields: FieldInfos{
 					fieldInfoType,
 					&FieldInfo{
@@ -622,9 +663,28 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 						FieldPathPartial: true,
 					},
 					&SupportedExprCmpFieldConstant{
+						Cmp:              "eq",
+						FieldPath:        []string{"addr"},
+						ValueType:        "number",
+						FieldPathPartial: true,
+					},
+					&SupportedExprCmpFieldConstant{
+						Cmp:              "eq",
+						FieldPath:        []string{"addr"},
+						ValueType:        "boolean",
+						FieldPathPartial: true,
+					},
+					&SupportedExprCmpFieldConstant{
 						Cmp:              "lt gt le ge",
 						FieldPath:        []string{"addr"},
 						ValueType:        "string",
+						FieldTypeCheck:   true,
+						FieldPathPartial: true,
+					},
+					&SupportedExprCmpFieldConstant{
+						Cmp:              "lt gt le ge",
+						FieldPath:        []string{"addr"},
+						ValueType:        "number",
 						FieldTypeCheck:   true,
 						FieldPathPartial: true,
 					},
@@ -633,18 +693,18 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 		},
 	}
 
-	for _, test := range tests {
+	for testi, test := range tests {
 		jm, _ := json.Marshal(test.m)
 
 		cfis, err := BleveToCondFlexIndexes(test.m)
 		if (err != nil) != (test.expectErr != "") {
-			t.Fatalf("test: %+v,\n jm: %s,\n BleveToCondFlexIndexes err mismatch, got: %v",
-				test, jm, err)
+			t.Fatalf("test: %v,\n jm: %s,\n BleveToCondFlexIndexes err mismatch, got: %v",
+				testi, jm, err)
 		}
 
 		if len(cfis) > 1 {
-			t.Fatalf("test: %+v,\n jm: %s,\n BleveToCondFlexIndexes cfis mismatch, got: %+v",
-				test, jm, cfis)
+			t.Fatalf("test: %v,\n jm: %s,\n BleveToCondFlexIndexes cfis mismatch, got: %+v",
+				testi, jm, cfis)
 		}
 
 		var flexIndex *FlexIndex
@@ -656,8 +716,8 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 			jefi, _ := json.Marshal(test.expectFlexIndex)
 			jfi, _ := json.Marshal(flexIndex)
 
-			t.Errorf("test: %+v,\n jm: %s\n expectFlexIndex: %s\n flexIndex mismatch, got: %s",
-				test, jm, jefi, jfi)
+			t.Errorf("test: %v,\n jm: %s\n expectFlexIndex: %s\n flexIndex mismatch, got: %s",
+				testi, jm, jefi, jfi)
 		}
 	}
 }
