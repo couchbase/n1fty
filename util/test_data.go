@@ -178,7 +178,7 @@ var SampleIndexDefDynamicDefault = []byte(`
 }
 `)
 
-var SampleIndexDefDynamicWithAnalyzerKeywordDateTimeDisabled = []byte(`
+var SampleIndexDefDynamicWithAnalyzerKeyword = []byte(`
 {
 	"name": "temp",
 	"type": "fulltext-index",
@@ -191,7 +191,7 @@ var SampleIndexDefDynamicWithAnalyzerKeywordDateTimeDisabled = []byte(`
 		},
 		"mapping": {
 			"default_analyzer": "keyword",
-			"default_datetime_parser": "disabled",
+			"default_datetime_parser": "dateTimeOptional",
 			"default_field": "_all",
 			"default_mapping": {
 				"dynamic": true,
@@ -417,6 +417,19 @@ var SampleIndexDefWithKeywordAnalyzerOverDefaultMapping = []byte(`
 						{
 							"name": "isOpen",
 							"type": "boolean",
+							"index": true,
+							"include_in_all": true,
+							"docvalues": true
+						}
+						]
+					},
+					"createdOn": {
+						"enabled": true,
+						"dynamic": false,
+						"fields": [
+						{
+							"name": "createdOn",
+							"type": "datetime",
 							"index": true,
 							"include_in_all": true,
 							"docvalues": true
