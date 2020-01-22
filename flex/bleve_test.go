@@ -507,8 +507,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 					Enabled: true,
 					Dynamic: true,
 				},
-				DefaultAnalyzer:       "keyword",
-				DefaultDateTimeParser: "disabled",
+				DefaultAnalyzer: "keyword",
 			},
 			expectFlexIndex: &FlexIndex{
 				IndexedFields: FieldInfos{
@@ -542,7 +541,6 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 					Dynamic:         true,
 					DefaultAnalyzer: "keyword",
 				},
-				DefaultDateTimeParser: "disabled",
 			},
 			expectFlexIndex: &FlexIndex{
 				IndexedFields: FieldInfos{
@@ -591,8 +589,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 						},
 					},
 				},
-				DefaultAnalyzer:       "keyword",
-				DefaultDateTimeParser: "disabled",
+				DefaultAnalyzer: "keyword",
 			},
 			expectFlexIndex: &FlexIndex{
 				IndexedFields: FieldInfos{

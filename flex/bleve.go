@@ -14,9 +14,9 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/blevesearch/bleve/mapping"
-
 	"github.com/couchbase/query/value"
 )
 
@@ -150,9 +150,10 @@ func countFieldTrackTypes(path []string, dm *mapping.DocumentMapping,
 // ------------------------------------------------------------------------
 
 var BleveTypeConv = map[string]string{
-	"text":    "string",
-	"number":  "number",
-	"boolean": "boolean",
+	"text":     "string",
+	"number":   "number",
+	"boolean":  "boolean",
+	"datetime": "string",
 }
 
 // Recursively initializes a FlexIndex from a given bleve document
@@ -216,7 +217,6 @@ func BleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 
 		// TODO: Currently supports only default mapping.
 		// TODO: Currently supports only keyword fields.
-		// TODO: Need to support datetime field types?
 		// TODO: Need to support geopoint field types?
 		// TODO: Need to support non-keyword analyzers?
 		// TODO: f.Store IncludeTermVectors, IncludeInAll, DateFormat, DocValues
@@ -239,11 +239,8 @@ func BleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 		}
 	}
 
-	// Support dynamic indexing only when default datetime parser
-	// is disabled, otherwise the usual "dateTimeOptional" parser
-	// on a dynamic field will covert text strings that look like
-	// or parse as a date-time into datetime representation.
-	if dm.Dynamic && im.DefaultDateTimeParser == "disabled" {
+	// Support dynamic indexing only when defaultAnalyzer is set to "keyword"
+	if dm.Dynamic {
 		if defaultAnalyzer == "keyword" {
 			dynamicPath := append([]string(nil), path...) // Copy.
 
@@ -330,22 +327,49 @@ func FlexBuildToBleveQuery(fb *FlexBuild, prevSibling map[string]interface{}) (
 		if args, ok := fb.Data.([]string); ok && len(args) == 4 {
 			if args[2] == "string" {
 				var v string
-				if err := json.Unmarshal([]byte(args[3]), &v); err != nil {
+				if err = json.Unmarshal([]byte(args[3]), &v); err != nil {
 					return nil, err
 				}
 
-				switch args[0] {
-				case "eq":
-					return map[string]interface{}{"term": v, "field": args[1]}, nil
+				_, err = time.Parse(time.RFC3339, v)
+				if err != nil {
+					// field type NOT datetime
+					switch args[0] {
+					case "eq":
+						return map[string]interface{}{"term": v, "field": args[1]}, nil
 
-				case "lt":
-					return MaxTermRangeQuery(args[1], v, false, prevSibling)
-				case "le":
-					return MaxTermRangeQuery(args[1], v, true, prevSibling)
-				case "gt":
-					return MinTermRangeQuery(args[1], v, false, prevSibling)
-				case "ge":
-					return MinTermRangeQuery(args[1], v, true, prevSibling)
+					case "lt":
+						return MaxTermRangeQuery(args[1], v, false, prevSibling)
+					case "le":
+						return MaxTermRangeQuery(args[1], v, true, prevSibling)
+					case "gt":
+						return MinTermRangeQuery(args[1], v, false, prevSibling)
+					case "ge":
+						return MinTermRangeQuery(args[1], v, true, prevSibling)
+					default:
+						return nil, fmt.Errorf("incorrect expression: %v", args)
+					}
+				} else {
+					// field type is datetime (follows RFC3339)
+					switch args[0] {
+					case "eq":
+						return map[string]interface{}{
+							"start": v, "end": v,
+							"inclusive_start": true, "inclusive_end": true,
+							"field": args[1],
+						}, nil
+
+					case "lt":
+						return MaxDatetimeRangeQuery(args[1], v, false, prevSibling)
+					case "le":
+						return MaxDatetimeRangeQuery(args[1], v, true, prevSibling)
+					case "gt":
+						return MinDatetimeRangeQuery(args[1], v, false, prevSibling)
+					case "ge":
+						return MinDatetimeRangeQuery(args[1], v, true, prevSibling)
+					default:
+						return nil, fmt.Errorf("incorrect expression: %v", args)
+					}
 				}
 			}
 
@@ -371,6 +395,8 @@ func FlexBuildToBleveQuery(fb *FlexBuild, prevSibling map[string]interface{}) (
 					return MinNumericRangeQuery(args[1], v, false, prevSibling)
 				case "ge":
 					return MinNumericRangeQuery(args[1], v, true, prevSibling)
+				default:
+					return nil, fmt.Errorf("incorrect expression: %v", args)
 				}
 			}
 
@@ -423,6 +449,54 @@ func MaxTermRangeQuery(f string, v string, inclusive bool,
 
 	return map[string]interface{}{
 		"max": v, "inclusive_max": inclusive, "field": f,
+	}, nil
+}
+
+func MinDatetimeRangeQuery(f string, v string, inclusive bool,
+	prev map[string]interface{}) (map[string]interface{}, error) {
+	if prev != nil && prev["field"] == f {
+		vDT, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			return nil, err
+		}
+		_, prevStartOk := prev["start"].(string)
+		prevEnd, prevEndOk := prev["end"].(string)
+		if !prevStartOk && prevEndOk {
+			prevEndDT, err := time.Parse(time.RFC3339, prevEnd)
+			if err == nil && (vDT.Before(prevEndDT) || vDT.Equal(prevEndDT)) {
+				prev["start"] = v
+				prev["inclusive_start"] = inclusive
+				return nil, nil
+			}
+		}
+	}
+
+	return map[string]interface{}{
+		"start": v, "inclusive_start": inclusive, "field": f,
+	}, nil
+}
+
+func MaxDatetimeRangeQuery(f string, v string, inclusive bool,
+	prev map[string]interface{}) (map[string]interface{}, error) {
+	if prev != nil && prev["field"] == f {
+		vDT, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			return nil, err
+		}
+		_, prevEndOk := prev["end"].(string)
+		prevStart, prevStartOk := prev["start"].(string)
+		if !prevEndOk && prevStartOk {
+			prevStartDT, err := time.Parse(time.RFC3339, prevStart)
+			if err == nil && (vDT.After(prevStartDT) || vDT.Equal(prevStartDT)) {
+				prev["end"] = v
+				prev["inclusive_end"] = inclusive
+				return nil, nil
+			}
+		}
+	}
+
+	return map[string]interface{}{
+		"end": v, "inclusive_end": inclusive, "field": f,
 	}, nil
 }
 
