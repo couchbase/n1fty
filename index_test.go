@@ -570,25 +570,36 @@ func TestNotSargableFlexIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	queryStr := "t.country = 'United States'"
+	for _, queryStr := range []string{
+		`t.country = 'United States'`,
+		`t.type <= hotel`,
+		`t.type > hotel`,
+		`t.id >= 10`,
+		`t.id < 10`,
+		`t.id >= -5 AND t.id <= 5`,
+		`t.isOpen > true`,
+		`t.isOpen < false`,
+		`t.createdOn > '1985-04-12T23:20:50.52Z'`,
+		`t.createdOn <= '2020-01-30T12:00:00.00Z'`,
+	} {
+		queryExp, err := parser.Parse(queryStr)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	queryExp, err := parser.Parse(queryStr)
-	if err != nil {
-		t.Fatal(err)
-	}
+		flexRequest := &datastore.FTSFlexRequest{
+			Keyspace: "t",
+			Pred:     queryExp,
+		}
 
-	flexRequest := &datastore.FTSFlexRequest{
-		Keyspace: "t",
-		Pred:     queryExp,
-	}
+		resp, err := index.SargableFlex("0", flexRequest)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	resp, err := index.SargableFlex("0", flexRequest)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if resp != nil {
-		t.Fatalf("Expected query to be NOT-SARGABLE")
+		if resp != nil {
+			t.Fatalf("Expected query to be NOT-SARGABLE, got resp: %#v", resp)
+		}
 	}
 }
 
@@ -653,6 +664,12 @@ func TestSargableFlexIndex(t *testing.T) {
 			expectedSargKeys: []string{"type"},
 		},
 		{
+			queryStr: "t.type >= 'hot' AND t.type <= 'hotel'",
+			expectedQueryStr: `{"query": {"field":"type","min":"hot","inclusive_min":true,` +
+				`"max":"hotel","inclusive_max":true},"score":"none"}`,
+			expectedSargKeys: []string{"type"},
+		},
+		{
 			queryStr: "t.type = 'hotel' AND t.id = 10",
 			expectedQueryStr: `{"query":{"conjuncts":[{"field":"type","term":"hotel"},` +
 				`{"field":"id","inclusive_max":true,"inclusive_min":true,"max":10,` +
@@ -688,9 +705,15 @@ func TestSargableFlexIndex(t *testing.T) {
 			expectedSargKeys: []string{"type"},
 		},
 		{
+			queryStr: "t.id >= 0 and t.id < 20",
+			expectedQueryStr: `{"query":{"field":"id","min":0,"inclusive_min":true,` +
+				`"max":20,"inclusive_max":false},"score":"none"}`,
+			expectedSargKeys: []string{"id"},
+		},
+		{
 			queryStr: "t.isOpen = true AND t.type = 'hotel'",
 			expectedQueryStr: `{"query":{"conjuncts":[{"field":"isOpen","bool":true},` +
-				`{"field":"type", "term": "hotel"}]}, "score": "none"}`,
+				`{"field":"type","term":"hotel"}]},"score":"none"}`,
 			expectedSargKeys: []string{"isOpen", "type"},
 		},
 		{
@@ -698,8 +721,16 @@ func TestSargableFlexIndex(t *testing.T) {
 			expectedQueryStr: `{"query":{"conjuncts":[{"field":"type","term": "hotel"},` +
 				`{"field":"createdOn","start":"1985-04-12T23:20:50.52Z",` +
 				`"inclusive_start":true,"end":"1985-04-12T23:20:50.52Z",` +
-				`"inclusive_end":true}]}, "score": "none"}`,
+				`"inclusive_end":true}]},"score":"none"}`,
 			expectedSargKeys: []string{"type", "createdOn"},
+		},
+		{
+			queryStr: "t.createdOn > '1985-04-12T23:20:50.52Z'" +
+				"AND t.createdOn <= '2020-01-30T12:00:00.00Z'",
+			expectedQueryStr: `{"query":{"field":"createdOn",` +
+				`"start":"1985-04-12T23:20:50.52Z","inclusive_start":false,` +
+				`"end":"2020-01-30T12:00:00.00Z","inclusive_end":true},"score":"none"}`,
+			expectedSargKeys: []string{"createdOn"},
 		},
 	}
 
