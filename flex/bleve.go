@@ -50,14 +50,14 @@ func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl) (
 		fi, err := BleveToFlexIndex(&FlexIndex{
 			// To lead CheckFieldsUseds() to not-sargable.
 			IndexedFields: FieldInfos{
-				&FieldInfo{FieldPath: TypeFieldPath, FieldType: "string"},
+				&FieldInfo{FieldPath: TypeFieldPath, FieldType: "text"},
 			},
 			SupportedExprs: []SupportedExpr{
 				// Strips `type = "BEER"` from expressions.
 				&SupportedExprCmpFieldConstant{
 					Cmp:       "eq",
 					FieldPath: TypeFieldPath,
-					ValueType: "string",
+					ValueType: "text",
 					ValueMust: value.NewValue(t),
 					Effect:    typeEqEffect,
 				},
@@ -83,7 +83,7 @@ func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl) (
 	if im.DefaultMapping != nil {
 		fi, err := BleveToFlexIndex(&FlexIndex{
 			IndexedFields: FieldInfos{
-				&FieldInfo{FieldPath: TypeFieldPath, FieldType: "string"},
+				&FieldInfo{FieldPath: TypeFieldPath, FieldType: "text"},
 			},
 			// TODO: Double check that dynamic mappings are handled right?
 		}, im, nil, im.DefaultMapping, im.DefaultAnalyzer, fieldTrackTypes)
@@ -116,8 +116,7 @@ func countFieldTrackTypes(path []string, dm *mapping.DocumentMapping,
 	for _, f := range dm.Fields {
 		// For now, only consider fields whose propName == f.Name.
 		if f.Index && len(path) > 0 && path[len(path)-1] == f.Name {
-			_, ok := BleveTypeConv[f.Type]
-			if !ok {
+			if _, ok := BleveSupportedTypes[f.Type]; !ok {
 				continue
 			}
 
@@ -149,12 +148,22 @@ func countFieldTrackTypes(path []string, dm *mapping.DocumentMapping,
 
 // ------------------------------------------------------------------------
 
+var BleveSupportedTypes = map[string]bool{
+	"text":     true,
+	"number":   true,
+	"boolean":  true,
+	"datetime": true,
+}
+
 var BleveTypeConv = map[string]string{
 	"text":     "string",
 	"number":   "number",
 	"boolean":  "boolean",
 	"datetime": "string",
+	"string":   "string",
 }
+
+// ------------------------------------------------------------------------
 
 // Recursively initializes a FlexIndex from a given bleve document
 // mapping.  Note: the backing array for path is mutated as the
@@ -175,8 +184,7 @@ func BleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 			continue
 		}
 
-		fieldType, ok := BleveTypeConv[f.Type]
-		if !ok {
+		if _, ok := BleveSupportedTypes[f.Type]; !ok {
 			continue
 		}
 
@@ -199,19 +207,19 @@ func BleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 
 		fi.IndexedFields = append(fi.IndexedFields, &FieldInfo{
 			FieldPath: fieldPath,
-			FieldType: fieldType,
+			FieldType: f.Type,
 		})
 
 		fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
 			Cmp:       "eq",
 			FieldPath: fieldPath,
-			ValueType: fieldType,
+			ValueType: f.Type,
 		})
 
 		fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
 			Cmp:            "lt gt le ge",
 			FieldPath:      fieldPath,
-			ValueType:      fieldType,
+			ValueType:      f.Type,
 			FieldTypeCheck: true,
 		})
 
@@ -248,13 +256,13 @@ func BleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 			// fields so complex expressions will be not-sargable.
 			fi.IndexedFields = append(fi.IndexedFields, &FieldInfo{
 				FieldPath: dynamicPath,
-				FieldType: "string",
+				FieldType: "text",
 			})
 
 			fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
 				Cmp:              "eq",
 				FieldPath:        dynamicPath,
-				ValueType:        "string",
+				ValueType:        "text",
 				FieldPathPartial: true,
 			})
 
@@ -275,7 +283,7 @@ func BleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 			fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
 				Cmp:              "lt gt le ge",
 				FieldPath:        dynamicPath,
-				ValueType:        "string",
+				ValueType:        "text",
 				FieldTypeCheck:   true,
 				FieldPathPartial: true,
 			})
@@ -342,53 +350,28 @@ func FlexBuildToBleveQuery(fb *FlexBuild, prevSibling map[string]interface{}) (
 	}
 
 	if fb.Kind == "cmpFieldConstant" {
-		// Ex: fb.Data: {"eq", "city", "string", `"nyc"`}.
+		// Ex: fb.Data: {"eq", "city", "text", `"nyc"`}.
 		if args, ok := fb.Data.([]string); ok && len(args) == 4 {
-			if args[2] == "string" {
+			if args[2] == "text" {
 				var v string
 				if err = json.Unmarshal([]byte(args[3]), &v); err != nil {
 					return nil, err
 				}
 
-				_, err = time.Parse(time.RFC3339, v)
-				if err != nil {
-					// field type NOT datetime
-					switch args[0] {
-					case "eq":
-						return map[string]interface{}{"term": v, "field": args[1]}, nil
+				switch args[0] {
+				case "eq":
+					return map[string]interface{}{"term": v, "field": args[1]}, nil
 
-					case "lt":
-						return MaxTermRangeQuery(args[1], v, false, prevSibling)
-					case "le":
-						return MaxTermRangeQuery(args[1], v, true, prevSibling)
-					case "gt":
-						return MinTermRangeQuery(args[1], v, false, prevSibling)
-					case "ge":
-						return MinTermRangeQuery(args[1], v, true, prevSibling)
-					default:
-						return nil, fmt.Errorf("incorrect expression: %v", args)
-					}
-				} else {
-					// field type is datetime (follows RFC3339)
-					switch args[0] {
-					case "eq":
-						return map[string]interface{}{
-							"start": v, "end": v,
-							"inclusive_start": true, "inclusive_end": true,
-							"field": args[1],
-						}, nil
-
-					case "lt":
-						return MaxDatetimeRangeQuery(args[1], v, false, prevSibling)
-					case "le":
-						return MaxDatetimeRangeQuery(args[1], v, true, prevSibling)
-					case "gt":
-						return MinDatetimeRangeQuery(args[1], v, false, prevSibling)
-					case "ge":
-						return MinDatetimeRangeQuery(args[1], v, true, prevSibling)
-					default:
-						return nil, fmt.Errorf("incorrect expression: %v", args)
-					}
+				case "lt":
+					return MaxTermRangeQuery(args[1], v, false, prevSibling)
+				case "le":
+					return MaxTermRangeQuery(args[1], v, true, prevSibling)
+				case "gt":
+					return MinTermRangeQuery(args[1], v, false, prevSibling)
+				case "ge":
+					return MinTermRangeQuery(args[1], v, true, prevSibling)
+				default:
+					return nil, fmt.Errorf("incorrect expression: %v", args)
 				}
 			}
 
@@ -431,6 +414,38 @@ func FlexBuildToBleveQuery(fb *FlexBuild, prevSibling map[string]interface{}) (
 
 				return map[string]interface{}{"bool": v, "field": args[1]}, nil
 			}
+
+			if args[2] == "datetime" {
+				var v string
+				if err = json.Unmarshal([]byte(args[3]), &v); err != nil {
+					return nil, err
+				}
+
+				// datetime needs to follow RFC3339 format
+				if _, err = time.Parse(time.RFC3339, v); err != nil {
+					return nil, fmt.Errorf("unsupported datetime format (not RFC3339)")
+				}
+
+				switch args[0] {
+				case "eq":
+					return map[string]interface{}{
+						"start": v, "end": v,
+						"inclusive_start": true, "inclusive_end": true,
+						"field": args[1],
+					}, nil
+
+				case "lt":
+					return MaxDatetimeRangeQuery(args[1], v, false, prevSibling)
+				case "le":
+					return MaxDatetimeRangeQuery(args[1], v, true, prevSibling)
+				case "gt":
+					return MinDatetimeRangeQuery(args[1], v, false, prevSibling)
+				case "ge":
+					return MinDatetimeRangeQuery(args[1], v, true, prevSibling)
+				default:
+					return nil, fmt.Errorf("incorrect expression: %v", args)
+				}
+			}
 		}
 	}
 
@@ -459,6 +474,40 @@ func MaxTermRangeQuery(f string, v string, inclusive bool,
 	if prev != nil && prev["field"] == f {
 		_, prevMaxOk := prev["max"].(string)
 		prevMin, prevMinOk := prev["min"].(string)
+		if !prevMaxOk && prevMinOk && prevMin <= v {
+			prev["max"] = v
+			prev["inclusive_max"] = inclusive
+			return nil, nil
+		}
+	}
+
+	return map[string]interface{}{
+		"max": v, "inclusive_max": inclusive, "field": f,
+	}, nil
+}
+
+func MinNumericRangeQuery(f string, v float64, inclusive bool,
+	prev map[string]interface{}) (map[string]interface{}, error) {
+	if prev != nil && prev["field"] == f {
+		_, prevMinOk := prev["min"].(float64)
+		prevMax, prevMaxOk := prev["max"].(float64)
+		if !prevMinOk && prevMaxOk && v <= prevMax {
+			prev["min"] = v
+			prev["inclusive_min"] = inclusive
+			return nil, nil
+		}
+	}
+
+	return map[string]interface{}{
+		"min": v, "inclusive_min": inclusive, "field": f,
+	}, nil
+}
+
+func MaxNumericRangeQuery(f string, v float64, inclusive bool,
+	prev map[string]interface{}) (map[string]interface{}, error) {
+	if prev != nil && prev["field"] == f {
+		_, prevMaxOk := prev["max"].(float64)
+		prevMin, prevMinOk := prev["min"].(float64)
 		if !prevMaxOk && prevMinOk && prevMin <= v {
 			prev["max"] = v
 			prev["inclusive_max"] = inclusive
@@ -516,39 +565,5 @@ func MaxDatetimeRangeQuery(f string, v string, inclusive bool,
 
 	return map[string]interface{}{
 		"end": v, "inclusive_end": inclusive, "field": f,
-	}, nil
-}
-
-func MinNumericRangeQuery(f string, v float64, inclusive bool,
-	prev map[string]interface{}) (map[string]interface{}, error) {
-	if prev != nil && prev["field"] == f {
-		_, prevMinOk := prev["min"].(float64)
-		prevMax, prevMaxOk := prev["max"].(float64)
-		if !prevMinOk && prevMaxOk && v <= prevMax {
-			prev["min"] = v
-			prev["inclusive_min"] = inclusive
-			return nil, nil
-		}
-	}
-
-	return map[string]interface{}{
-		"min": v, "inclusive_min": inclusive, "field": f,
-	}, nil
-}
-
-func MaxNumericRangeQuery(f string, v float64, inclusive bool,
-	prev map[string]interface{}) (map[string]interface{}, error) {
-	if prev != nil && prev["field"] == f {
-		_, prevMaxOk := prev["max"].(float64)
-		prevMin, prevMinOk := prev["min"].(float64)
-		if !prevMaxOk && prevMinOk && prevMin <= v {
-			prev["max"] = v
-			prev["inclusive_max"] = inclusive
-			return nil, nil
-		}
-	}
-
-	return map[string]interface{}{
-		"max": v, "inclusive_max": inclusive, "field": f,
 	}, nil
 }

@@ -136,14 +136,14 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{FieldTrack("a"): 1},
 			expectExact:       true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"eq", "a", "string", `"hi"`},
+				Data: []string{"eq", "a", "text", `"hi"`},
 			},
 		},
 
@@ -153,14 +153,14 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{FieldTrack("a"): 1},
 			expectExact:       true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"eq", "a", "string", `"hi"`},
+				Data: []string{"eq", "a", "text", `"hi"`},
 			},
 		},
 
@@ -169,7 +169,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 		},
@@ -179,7 +179,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -188,7 +188,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"eq", "a", "string", `"hello"`},
+				Data: []string{"eq", "a", "text", `"hello"`},
 			},
 		},
 
@@ -197,7 +197,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{FieldTrack("a"): 1},
@@ -206,7 +206,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a", "string", `"hello"`},
+						Data: []string{"eq", "a", "text", `"hello"`},
 					},
 				},
 			},
@@ -217,7 +217,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"b"},
@@ -234,7 +234,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a", "string", `"hello"`},
+						Data: []string{"eq", "a", "text", `"hello"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
@@ -249,7 +249,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"b"},
@@ -266,7 +266,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a", "string", `"hello"`},
+						Data: []string{"eq", "a", "text", `"hello"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
@@ -294,11 +294,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"b"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectExact: true,
@@ -310,11 +310,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"b"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectExact: true,
@@ -326,11 +326,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"b"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectExact: true,
@@ -341,7 +341,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"b"},
@@ -358,7 +358,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a", "string", `"hello"`},
+						Data: []string{"eq", "a", "text", `"hello"`},
 					},
 					{
 						Kind: "disjunct",
@@ -383,11 +383,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"b"},
-					ValueType: "number",
+					ValueType: "text",
 				},
 			},
 			expectExact: true,
@@ -398,7 +398,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"b"},
@@ -415,7 +415,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a", "string", `"hello"`},
+						Data: []string{"eq", "a", "text", `"hello"`},
 					},
 					{
 						Kind: "disjunct",
@@ -440,7 +440,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"b"},
@@ -457,7 +457,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a", "string", `"hello"`},
+						Data: []string{"eq", "a", "text", `"hello"`},
 					},
 					{
 						Kind: "disjunct",
@@ -475,7 +475,7 @@ func TestFlexSargable(t *testing.T) {
 									},
 									{
 										Kind: "cmpFieldConstant",
-										Data: []string{"eq", "a", "string", `"y"`},
+										Data: []string{"eq", "a", "text", `"y"`},
 									},
 								},
 							},
@@ -491,7 +491,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -505,11 +505,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a", "string", `"hello"`},
+						Data: []string{"eq", "a", "text", `"hello"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "c", "string", `"yay"`},
+						Data: []string{"eq", "c", "text", `"yay"`},
 					},
 				},
 			},
@@ -521,7 +521,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -535,11 +535,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a", "string", `"hello"`},
+						Data: []string{"eq", "a", "text", `"hello"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "addr.city", "string", `"yay"`},
+						Data: []string{"eq", "addr.city", "text", `"yay"`},
 					},
 				},
 			},
@@ -551,7 +551,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{"addr"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -563,7 +563,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{"addr"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -577,11 +577,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "addr.state", "string", `"ny"`},
+						Data: []string{"eq", "addr.state", "text", `"ny"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "addr.city", "string", `"nyc"`},
+						Data: []string{"eq", "addr.city", "text", `"nyc"`},
 					},
 				},
 			},
@@ -593,7 +593,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{"addr"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -607,18 +607,18 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "addr.state", "string", `"ny"`},
+						Data: []string{"eq", "addr.state", "text", `"ny"`},
 					},
 					{
 						Kind: "disjunct",
 						Children: []*FlexBuild{
 							{
 								Kind: "cmpFieldConstant",
-								Data: []string{"eq", "addr.city", "string", `"nyc"`},
+								Data: []string{"eq", "addr.city", "text", `"nyc"`},
 							},
 							{
 								Kind: "cmpFieldConstant",
-								Data: []string{"eq", "addr.city", "string", `"buffalo"`},
+								Data: []string{"eq", "addr.city", "text", `"buffalo"`},
 							},
 						},
 					},
@@ -632,7 +632,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{"addr"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -645,7 +645,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "addr.city", "string", `"nyc"`},
+						Data: []string{"eq", "addr.city", "text", `"nyc"`},
 					},
 				},
 			},
@@ -657,7 +657,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{"addr"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -669,11 +669,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -687,11 +687,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a", "string", `"hello"`},
+						Data: []string{"eq", "a", "text", `"hello"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "addr.city", "string", `"nyc"`},
+						Data: []string{"eq", "addr.city", "text", `"nyc"`},
 					},
 				},
 			},
@@ -703,11 +703,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{"addr"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -721,11 +721,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a", "string", `"hello"`},
+						Data: []string{"eq", "a", "text", `"hello"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "addr.city", "string", `"nyc"`},
+						Data: []string{"eq", "addr.city", "text", `"nyc"`},
 					},
 				},
 			},
@@ -737,11 +737,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"addr", "city"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -754,11 +754,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a", "string", `"hello"`},
+						Data: []string{"eq", "a", "text", `"hello"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "addr.city", "string", `"nyc"`},
+						Data: []string{"eq", "addr.city", "text", `"nyc"`},
 					},
 				},
 			},
@@ -770,11 +770,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"addr"}, // Doesn't cover addr.city.
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -786,7 +786,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a", "string", `"hello"`},
+						Data: []string{"eq", "a", "text", `"hello"`},
 					},
 				},
 			},
@@ -798,11 +798,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{"addr"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -817,11 +817,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "city"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectExact: true,
@@ -833,11 +833,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "city"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectExact: true,
@@ -849,11 +849,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "b"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectExact: true,
@@ -865,11 +865,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"addr", "city"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -881,7 +881,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a", "string", `"hello"`},
+						Data: []string{"eq", "a", "text", `"hello"`},
 					},
 				},
 			},
@@ -893,7 +893,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectExact: true,
@@ -905,7 +905,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "cityfieldName"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectExact: true,
@@ -917,7 +917,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectExact: false,
@@ -929,7 +929,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "cityfieldName"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectExact: false,
@@ -941,7 +941,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{"a"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -954,7 +954,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{"a", "cityFieldName"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -967,7 +967,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{"a", "cityFieldName"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -980,7 +980,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{"a", "cityFieldName"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -992,7 +992,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{"addr"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -1004,7 +1004,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{"a"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -1017,7 +1017,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{"a"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -1030,7 +1030,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{"addr"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -1043,7 +1043,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -1056,11 +1056,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{"addr"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -1073,7 +1073,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a", "string", `"hello"`},
+						Data: []string{"eq", "a", "text", `"hello"`},
 					},
 				},
 			},
@@ -1085,11 +1085,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{"b"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -1102,11 +1102,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{"b"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -1119,11 +1119,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{"b"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -1136,11 +1136,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{"b"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -1153,11 +1153,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{"b"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -1170,11 +1170,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"b"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectExact: true,
@@ -1186,11 +1186,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"b"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectExact: true,
@@ -1204,7 +1204,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectExact: false,
@@ -1216,7 +1216,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -1228,7 +1228,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a", "string", `$paramX`},
+						Data: []string{"eq", "a", "text", `$paramX`},
 					},
 				},
 			},
@@ -1240,7 +1240,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectExact: false,
@@ -1252,7 +1252,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -1264,7 +1264,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a", "string", `$1`},
+						Data: []string{"eq", "a", "text", `$1`},
 					},
 				},
 			},
@@ -1278,7 +1278,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "b", "city"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -1287,7 +1287,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"eq", "a.b.city", "string", `"nyc"`},
+				Data: []string{"eq", "a.b.city", "text", `"nyc"`},
 			},
 		},
 
@@ -1297,7 +1297,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "b", "city"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -1306,7 +1306,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: false, // Due to the AND EVERY.
 			expectFlexBuild: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"eq", "a.b.city", "string", `"nyc"`},
+				Data: []string{"eq", "a.b.city", "text", `"nyc"`},
 			},
 		},
 
@@ -1316,7 +1316,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "b", "city"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectExact: false,
@@ -1328,7 +1328,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectExact: false,
@@ -1340,7 +1340,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "b"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectExact: false,
@@ -1352,7 +1352,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "b", "city"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -1364,7 +1364,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a.b.city", "string", `"nyc"`},
+						Data: []string{"eq", "a.b.city", "text", `"nyc"`},
 					},
 				},
 			},
@@ -1376,7 +1376,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectExact: true,
@@ -1388,7 +1388,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -1398,7 +1398,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"eq", "a.b.city", "string", `"nyc"`},
+				Data: []string{"eq", "a.b.city", "text", `"nyc"`},
 			},
 		},
 
@@ -1408,7 +1408,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -1418,7 +1418,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: false,
 			expectFlexBuild: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"eq", "a.b.city", "string", `"nyc"`},
+				Data: []string{"eq", "a.b.city", "text", `"nyc"`},
 			},
 		},
 
@@ -1428,7 +1428,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{"a"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -1438,7 +1438,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"eq", "a.b.city", "string", `"nyc"`},
+				Data: []string{"eq", "a.b.city", "text", `"nyc"`},
 			},
 		},
 
@@ -1448,7 +1448,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "b", "city"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -1460,11 +1460,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a.b.city", "string", `"nyc"`},
+						Data: []string{"eq", "a.b.city", "text", `"nyc"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a.b.city", "string", `"sf"`},
+						Data: []string{"eq", "a.b.city", "text", `"sf"`},
 					},
 				},
 			},
@@ -1476,11 +1476,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "b", "city"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"b"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -1493,11 +1493,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a.b.city", "string", `"nyc"`},
+						Data: []string{"eq", "a.b.city", "text", `"nyc"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "b", "string", `"sf"`},
+						Data: []string{"eq", "b", "text", `"sf"`},
 					},
 				},
 			},
@@ -1509,11 +1509,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "b", "city"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"b"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -1526,11 +1526,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a.b.city", "string", `"nyc"`},
+						Data: []string{"eq", "a.b.city", "text", `"nyc"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "b", "string", `"sf"`},
+						Data: []string{"eq", "b", "text", `"sf"`},
 					},
 				},
 			},
@@ -1542,11 +1542,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "b", "city"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"b"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -1559,11 +1559,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a.b.city", "string", `"nyc"`},
+						Data: []string{"eq", "a.b.city", "text", `"nyc"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "b", "string", `"sf"`},
+						Data: []string{"eq", "b", "text", `"sf"`},
 					},
 				},
 			},
@@ -1575,11 +1575,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "b", "city"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"b"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -1592,11 +1592,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a.b.city", "string", `"nyc"`},
+						Data: []string{"eq", "a.b.city", "text", `"nyc"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "b", "string", `"sf"`},
+						Data: []string{"eq", "b", "text", `"sf"`},
 					},
 				},
 			},
@@ -1608,7 +1608,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "b", "city"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectExact: true,
@@ -1620,7 +1620,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "b", "city"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectExact: true,
@@ -1632,7 +1632,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "b", "city"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectExact: true,
@@ -1644,7 +1644,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "b", "c", "d", "city"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -1653,7 +1653,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"eq", "a.b.c.d.city", "string", `"nyc"`},
+				Data: []string{"eq", "a.b.c.d.city", "text", `"nyc"`},
 			},
 		},
 
@@ -1663,7 +1663,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "b", "c", "d", "city"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -1672,7 +1672,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: false,
 			expectFlexBuild: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"eq", "a.b.c.d.city", "string", `"nyc"`},
+				Data: []string{"eq", "a.b.c.d.city", "text", `"nyc"`},
 			},
 		},
 
@@ -1685,7 +1685,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -1694,7 +1694,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"eq", "a", "string", `"hello"`},
+				Data: []string{"eq", "a", "text", `"hello"`},
 			},
 		},
 
@@ -1705,11 +1705,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"addr", "city"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -1722,11 +1722,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a", "string", `"hello"`},
+						Data: []string{"eq", "a", "text", `"hello"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "addr.city", "string", `"yay"`},
+						Data: []string{"eq", "addr.city", "text", `"yay"`},
 					},
 				},
 			},
@@ -1739,7 +1739,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"addr", "city"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -1751,11 +1751,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "addr.city", "string", `"hello"`},
+						Data: []string{"eq", "addr.city", "text", `"hello"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "addr.city", "string", `"yay"`},
+						Data: []string{"eq", "addr.city", "text", `"yay"`},
 					},
 				},
 			},
@@ -1768,7 +1768,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectExact: false,
@@ -1781,7 +1781,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -1790,7 +1790,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"eq", "a", "string", `"hello"`},
+				Data: []string{"eq", "a", "text", `"hello"`},
 			},
 		},
 
@@ -1801,7 +1801,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "b"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -1810,7 +1810,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"eq", "a.b", "string", `"hello"`},
+				Data: []string{"eq", "a.b", "text", `"hello"`},
 			},
 		},
 
@@ -1821,7 +1821,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "b"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -1830,7 +1830,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"eq", "a.b", "string", `"hello"`},
+				Data: []string{"eq", "a.b", "text", `"hello"`},
 			},
 		},
 
@@ -1841,7 +1841,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "b"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -1850,7 +1850,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"eq", "a.b", "string", `"hello"`},
+				Data: []string{"eq", "a.b", "text", `"hello"`},
 			},
 		},
 
@@ -1861,7 +1861,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"a", "x", "y", "z"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -1870,7 +1870,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"eq", "a.x.y.z", "string", `"hello"`},
+				Data: []string{"eq", "a.x.y.z", "text", `"hello"`},
 			},
 		},
 
@@ -1883,7 +1883,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"addr", "city"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -1892,7 +1892,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"eq", "addr.city", "string", `"nyc"`},
+				Data: []string{"eq", "addr.city", "text", `"nyc"`},
 			},
 		},
 
@@ -1903,7 +1903,7 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath:        []string{},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 				},
 			},
@@ -1913,7 +1913,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"eq", "addr.city", "string", `"nyc"`},
+				Data: []string{"eq", "addr.city", "text", `"nyc"`},
 			},
 		},
 
@@ -1965,11 +1965,11 @@ func TestFlexSargable(t *testing.T) {
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"address", "city"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					FieldPath: []string{"phones", "provider"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 			},
 			expectFieldTracks: FieldTracks{
@@ -1982,11 +1982,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "address.city", "string", `"sf"`},
+						Data: []string{"eq", "address.city", "text", `"sf"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "phones.provider", "string", `"verizon"`},
+						Data: []string{"eq", "phones.provider", "text", `"verizon"`},
 					},
 				},
 			},
@@ -2147,7 +2147,7 @@ func TestFlexSargable(t *testing.T) {
 				&SupportedExprCmpFieldConstant{
 					Cmp:            "eq lt le gt ge",
 					FieldPath:      []string{"b"},
-					ValueType:      "string",
+					ValueType:      "text",
 					FieldTypeCheck: true,
 				},
 			},
@@ -2161,7 +2161,7 @@ func TestFlexSargable(t *testing.T) {
 				&SupportedExprCmpFieldConstant{
 					Cmp:            "eq lt le gt ge",
 					FieldPath:      []string{"b"},
-					ValueType:      "string",
+					ValueType:      "text",
 					FieldTypeCheck: true,
 				},
 			},
@@ -2174,7 +2174,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"lt", "b", "string", `"hello"`},
+						Data: []string{"lt", "b", "text", `"hello"`},
 					},
 				},
 			},
@@ -2187,7 +2187,7 @@ func TestFlexSargable(t *testing.T) {
 				&SupportedExprCmpFieldConstant{
 					Cmp:            "eq lt le gt ge",
 					FieldPath:      []string{"b"},
-					ValueType:      "string",
+					ValueType:      "text",
 					FieldTypeCheck: true,
 				},
 			},
@@ -2200,7 +2200,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"le", "b", "string", `"hello"`},
+						Data: []string{"le", "b", "text", `"hello"`},
 					},
 				},
 			},
@@ -2213,7 +2213,7 @@ func TestFlexSargable(t *testing.T) {
 				&SupportedExprCmpFieldConstant{
 					Cmp:            "eq lt le gt ge",
 					FieldPath:      []string{"b"},
-					ValueType:      "string",
+					ValueType:      "text",
 					FieldTypeCheck: true,
 				},
 			},
@@ -2226,7 +2226,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"gt", "b", "string", `"hello"`},
+						Data: []string{"gt", "b", "text", `"hello"`},
 					},
 				},
 			},
@@ -2239,7 +2239,7 @@ func TestFlexSargable(t *testing.T) {
 				&SupportedExprCmpFieldConstant{
 					Cmp:            "eq lt le gt ge",
 					FieldPath:      []string{"b"},
-					ValueType:      "string",
+					ValueType:      "text",
 					FieldTypeCheck: true,
 				},
 			},
@@ -2252,7 +2252,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"ge", "b", "string", `"hello"`},
+						Data: []string{"ge", "b", "text", `"hello"`},
 					},
 				},
 			},
@@ -2265,7 +2265,7 @@ func TestFlexSargable(t *testing.T) {
 				&SupportedExprCmpFieldConstant{
 					Cmp:            "eq lt le gt ge",
 					FieldPath:      []string{"b"},
-					ValueType:      "string",
+					ValueType:      "text",
 					FieldTypeCheck: true,
 				},
 			},
@@ -2278,7 +2278,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "b", "string", `"hello"`},
+						Data: []string{"eq", "b", "text", `"hello"`},
 					},
 				},
 			},
@@ -2296,7 +2296,7 @@ func TestFlexSargable(t *testing.T) {
 				&SupportedExprCmpFieldConstant{
 					Cmp:            "eq lt le gt ge",
 					FieldPath:      []string{"a"},
-					ValueType:      "string",
+					ValueType:      "text",
 					FieldTypeCheck: true,
 				},
 			},
@@ -2309,11 +2309,11 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"ge", "a", "string", `"hello"`},
+						Data: []string{"ge", "a", "text", `"hello"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"lt", "a", "string", `"hellp"`},
+						Data: []string{"lt", "a", "text", `"hellp"`},
 					},
 				},
 			},
@@ -2328,12 +2328,12 @@ func TestFlexSargable(t *testing.T) {
 				&SupportedExprCmpFieldConstant{
 					Cmp:       "eq",
 					FieldPath: []string{"a"},
-					ValueType: "string",
+					ValueType: "text",
 				},
 				&SupportedExprCmpFieldConstant{
 					Cmp:            "eq lt le gt ge",
 					FieldPath:      []string{"a"},
-					ValueType:      "string",
+					ValueType:      "text",
 					FieldTypeCheck: true,
 				},
 			},
@@ -2343,7 +2343,7 @@ func TestFlexSargable(t *testing.T) {
 			expectExact: true,
 			expectFlexBuild: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"eq", "a", "string", `"hello"`},
+				Data: []string{"eq", "a", "text", `"hello"`},
 			},
 		},
 
@@ -2390,7 +2390,7 @@ func TestFlexSargable(t *testing.T) {
 				&SupportedExprCmpFieldConstant{
 					Cmp:              "lt le gt ge",
 					FieldPath:        []string{"a"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 					FieldTypeCheck:   true,
 				},
@@ -2404,7 +2404,7 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"lt", "a.b", "string", `"hello"`},
+						Data: []string{"lt", "a.b", "text", `"hello"`},
 					},
 				},
 			},
@@ -2417,7 +2417,7 @@ func TestFlexSargable(t *testing.T) {
 				&SupportedExprCmpFieldConstant{
 					Cmp:              "lt le gt ge",
 					FieldPath:        []string{"a"},
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldPathPartial: true,
 					FieldTypeCheck:   true,
 				},
@@ -2433,13 +2433,13 @@ func TestFlexSargable(t *testing.T) {
 			indexedFields: FieldInfos{&FieldInfo{FieldPath: nil, FieldType: "string"}},
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
-					Cmp: "eq", FieldPath: nil, ValueType: "string",
+					Cmp: "eq", FieldPath: nil, ValueType: "text",
 					FieldPathPartial: true, FieldTypeCheck: false,
 				},
 				&SupportedExprCmpFieldConstant{
 					Cmp:              "lt gt le ge",
 					FieldPath:        nil,
-					ValueType:        "string",
+					ValueType:        "text",
 					FieldTypeCheck:   true,
 					FieldPathPartial: true,
 				},
@@ -2454,18 +2454,18 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "orderlines.productId", "string", `"sugar22"`},
+						Data: []string{"eq", "orderlines.productId", "text", `"sugar22"`},
 					},
 					{
 						Kind: "disjunct",
 						Children: []*FlexBuild{
 							{
 								Kind: "cmpFieldConstant",
-								Data: []string{"eq", "custId", "string", `"ccc"`},
+								Data: []string{"eq", "custId", "text", `"ccc"`},
 							},
 							{
 								Kind: "cmpFieldConstant",
-								Data: []string{"eq", "custId", "string", `"abc"`},
+								Data: []string{"eq", "custId", "text", `"abc"`},
 							},
 						},
 					},
@@ -2485,7 +2485,7 @@ func TestFlexSargable(t *testing.T) {
 			},
 			supportedExprs: []SupportedExpr{
 				&SupportedExprCmpFieldConstant{
-					Cmp: "eq", FieldPath: nil, ValueType: "string",
+					Cmp: "eq", FieldPath: nil, ValueType: "text",
 					FieldPathPartial: true, FieldTypeCheck: false,
 				},
 			},
@@ -2499,18 +2499,18 @@ func TestFlexSargable(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "orderlines.productId", "string", `"sugar22"`},
+						Data: []string{"eq", "orderlines.productId", "text", `"sugar22"`},
 					},
 					{
 						Kind: "disjunct",
 						Children: []*FlexBuild{
 							{
 								Kind: "cmpFieldConstant",
-								Data: []string{"eq", "custId", "string", `"ccc"`},
+								Data: []string{"eq", "custId", "text", `"ccc"`},
 							},
 							{
 								Kind: "cmpFieldConstant",
-								Data: []string{"eq", "custId", "string", `"abc"`},
+								Data: []string{"eq", "custId", "text", `"abc"`},
 							},
 						},
 					},
