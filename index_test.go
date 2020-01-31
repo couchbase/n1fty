@@ -732,6 +732,12 @@ func TestSargableFlexIndex(t *testing.T) {
 				`"end":"2020-01-30T12:00:00.00Z","inclusive_end":true},"score":"none"}`,
 			expectedSargKeys: []string{"createdOn"},
 		},
+		{
+			// this is a "datetime" search term over a "text" indexed field
+			queryStr:         "t.type = '1985-04-12T23:20:50.52Z'",
+			expectedQueryStr: `{"query":{"field":"type","term":"1985-04-12T23:20:50.52Z"},"score":"none"}`,
+			expectedSargKeys: []string{"type"},
+		},
 	}
 
 	for i := range tests {
@@ -770,10 +776,10 @@ func TestSargableDynamicFlexIndex(t *testing.T) {
 			expectedSargKeys: []string{"isOpen"},
 		},
 		{
-			queryStr: "t.createdOn = '1985-04-12T23:20:50.52Z'",
-			expectedQueryStr: `{"query":{"field":"createdOn","start":"1985-04-12T23:20:50.52Z",` +
-				`"inclusive_start":true,"end":"1985-04-12T23:20:50.52Z",` +
-				`"inclusive_end":true}, "score": "none"}`,
+			// this is a "datetime" search term over a "datetime" indexed field,
+			// but a dynamic index => a term search ensues.
+			queryStr:         "t.createdOn = '1985-04-12T23:20:50.52Z'",
+			expectedQueryStr: `{"query":{"field":"createdOn","term":"1985-04-12T23:20:50.52Z"},"score":"none"}`,
 			expectedSargKeys: []string{"createdOn"},
 		},
 	}

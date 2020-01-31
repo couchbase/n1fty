@@ -191,7 +191,7 @@ func (p *ConjunctFieldTypes) CheckFieldTypeLoHi(
 		return "not-match"
 	}
 
-	if fiLo.FieldType != "" && fiLo.FieldType != fType {
+	if fiLo.FieldType != "" && BleveTypeConv[fiLo.FieldType] != fType {
 		return "not-match" // Other CFT's might match the fType.
 	}
 

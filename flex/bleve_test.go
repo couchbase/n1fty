@@ -19,7 +19,7 @@ import (
 
 func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 	fieldInfoType := &FieldInfo{
-		FieldPath: []string{"type"}, FieldType: "string",
+		FieldPath: []string{"type"}, FieldType: "text",
 	}
 
 	tests := []struct {
@@ -215,19 +215,19 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 					fieldInfoType,
 					&FieldInfo{
 						FieldPath: []string{"f1"},
-						FieldType: "string",
+						FieldType: "text",
 					},
 				},
 				SupportedExprs: []SupportedExpr{
 					&SupportedExprCmpFieldConstant{
 						Cmp:       "eq",
 						FieldPath: []string{"f1"},
-						ValueType: "string",
+						ValueType: "text",
 					},
 					&SupportedExprCmpFieldConstant{
 						Cmp:            "lt gt le ge",
 						FieldPath:      []string{"f1"},
-						ValueType:      "string",
+						ValueType:      "text",
 						FieldTypeCheck: true,
 					},
 				},
@@ -278,19 +278,19 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 					fieldInfoType,
 					&FieldInfo{
 						FieldPath: []string{"f1"},
-						FieldType: "string",
+						FieldType: "text",
 					},
 				},
 				SupportedExprs: []SupportedExpr{
 					&SupportedExprCmpFieldConstant{
 						Cmp:       "eq",
 						FieldPath: []string{"f1"},
-						ValueType: "string",
+						ValueType: "text",
 					},
 					&SupportedExprCmpFieldConstant{
 						Cmp:            "lt gt le ge",
 						FieldPath:      []string{"f1"},
-						ValueType:      "string",
+						ValueType:      "text",
 						FieldTypeCheck: true,
 					},
 				},
@@ -327,19 +327,19 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 					fieldInfoType,
 					&FieldInfo{
 						FieldPath: []string{"f1"},
-						FieldType: "string",
+						FieldType: "text",
 					},
 				},
 				SupportedExprs: []SupportedExpr{
 					&SupportedExprCmpFieldConstant{
 						Cmp:       "eq",
 						FieldPath: []string{"f1"},
-						ValueType: "string",
+						ValueType: "text",
 					},
 					&SupportedExprCmpFieldConstant{
 						Cmp:            "lt gt le ge",
 						FieldPath:      []string{"f1"},
-						ValueType:      "string",
+						ValueType:      "text",
 						FieldTypeCheck: true,
 					},
 				},
@@ -372,19 +372,19 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 					fieldInfoType,
 					&FieldInfo{
 						FieldPath: []string{"addr", "f1"},
-						FieldType: "string",
+						FieldType: "text",
 					},
 				},
 				SupportedExprs: []SupportedExpr{
 					&SupportedExprCmpFieldConstant{
 						Cmp:       "eq",
 						FieldPath: []string{"addr", "f1"},
-						ValueType: "string",
+						ValueType: "text",
 					},
 					&SupportedExprCmpFieldConstant{
 						Cmp:            "lt gt le ge",
 						FieldPath:      []string{"addr", "f1"},
-						ValueType:      "string",
+						ValueType:      "text",
 						FieldTypeCheck: true,
 					},
 				},
@@ -457,34 +457,34 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 					fieldInfoType,
 					&FieldInfo{
 						FieldPath: []string{"addr", "f1"},
-						FieldType: "string",
+						FieldType: "text",
 					},
 					&FieldInfo{
 						FieldPath: []string{"pets", "f1"},
-						FieldType: "string",
+						FieldType: "text",
 					},
 				},
 				SupportedExprs: []SupportedExpr{
 					&SupportedExprCmpFieldConstant{
 						Cmp:       "eq",
 						FieldPath: []string{"addr", "f1"},
-						ValueType: "string",
+						ValueType: "text",
 					},
 					&SupportedExprCmpFieldConstant{
 						Cmp:            "lt gt le ge",
 						FieldPath:      []string{"addr", "f1"},
-						ValueType:      "string",
+						ValueType:      "text",
 						FieldTypeCheck: true,
 					},
 					&SupportedExprCmpFieldConstant{
 						Cmp:       "eq",
 						FieldPath: []string{"pets", "f1"},
-						ValueType: "string",
+						ValueType: "text",
 					},
 					&SupportedExprCmpFieldConstant{
 						Cmp:            "lt gt le ge",
 						FieldPath:      []string{"pets", "f1"},
-						ValueType:      "string",
+						ValueType:      "text",
 						FieldTypeCheck: true,
 					},
 				},
@@ -515,14 +515,14 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 					fieldInfoType,
 					&FieldInfo{
 						FieldPath: nil,
-						FieldType: "string",
+						FieldType: "text",
 					},
 				},
 				SupportedExprs: []SupportedExpr{
 					&SupportedExprCmpFieldConstant{
 						Cmp:              "eq",
 						FieldPath:        nil,
-						ValueType:        "string",
+						ValueType:        "text",
 						FieldPathPartial: true,
 					},
 					&SupportedExprCmpFieldConstant{
@@ -540,7 +540,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 					&SupportedExprCmpFieldConstant{
 						Cmp:              "lt gt le ge",
 						FieldPath:        nil,
-						ValueType:        "string",
+						ValueType:        "text",
 						FieldTypeCheck:   true,
 						FieldPathPartial: true,
 					},
@@ -568,14 +568,14 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 					fieldInfoType,
 					&FieldInfo{
 						FieldPath: nil,
-						FieldType: "string",
+						FieldType: "text",
 					},
 				},
 				SupportedExprs: []SupportedExpr{
 					&SupportedExprCmpFieldConstant{
 						Cmp:              "eq",
 						FieldPath:        nil,
-						ValueType:        "string",
+						ValueType:        "text",
 						FieldPathPartial: true,
 					},
 					&SupportedExprCmpFieldConstant{
@@ -593,7 +593,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 					&SupportedExprCmpFieldConstant{
 						Cmp:              "lt gt le ge",
 						FieldPath:        nil,
-						ValueType:        "string",
+						ValueType:        "text",
 						FieldTypeCheck:   true,
 						FieldPathPartial: true,
 					},
@@ -637,29 +637,29 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 					fieldInfoType,
 					&FieldInfo{
 						FieldPath: []string{"addr", "f1"},
-						FieldType: "string",
+						FieldType: "text",
 					},
 					&FieldInfo{
 						FieldPath: []string{"addr"},
-						FieldType: "string",
+						FieldType: "text",
 					},
 				},
 				SupportedExprs: []SupportedExpr{
 					&SupportedExprCmpFieldConstant{
 						Cmp:       "eq",
 						FieldPath: []string{"addr", "f1"},
-						ValueType: "string",
+						ValueType: "text",
 					},
 					&SupportedExprCmpFieldConstant{
 						Cmp:            "lt gt le ge",
 						FieldPath:      []string{"addr", "f1"},
-						ValueType:      "string",
+						ValueType:      "text",
 						FieldTypeCheck: true,
 					},
 					&SupportedExprCmpFieldConstant{
 						Cmp:              "eq",
 						FieldPath:        []string{"addr"},
-						ValueType:        "string",
+						ValueType:        "text",
 						FieldPathPartial: true,
 					},
 					&SupportedExprCmpFieldConstant{
@@ -677,7 +677,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 					&SupportedExprCmpFieldConstant{
 						Cmp:              "lt gt le ge",
 						FieldPath:        []string{"addr"},
-						ValueType:        "string",
+						ValueType:        "text",
 						FieldTypeCheck:   true,
 						FieldPathPartial: true,
 					},
@@ -716,7 +716,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 			jefi, _ := json.Marshal(test.expectFlexIndex)
 			jfi, _ := json.Marshal(flexIndex)
 
-			t.Errorf("test: %v,\n jm: %s\n expectFlexIndex: %s\n flexIndex mismatch, got: %s",
+			t.Fatalf("test: %v,\n jm: %s\n expectFlexIndex: %s\n flexIndex mismatch, got: %s",
 				testi, jm, jefi, jfi)
 		}
 	}
@@ -771,7 +771,7 @@ func SKIP_TestBleveToCondFlexIndexes(t *testing.T) {
 			jefi, _ := json.Marshal(test.expectFlexIndex)
 			jfi, _ := json.Marshal(flexIndex)
 
-			t.Errorf("test: %+v,\n jm: %s\n expectFlexIndex: %s\n flexIndex mismatch, got: %s",
+			t.Fatalf("test: %+v,\n jm: %s\n expectFlexIndex: %s\n flexIndex mismatch, got: %s",
 				test, jm, jefi, jfi)
 		}
 	}
@@ -800,7 +800,7 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 		{
 			fb: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"eq", "a", "string", `"hello"`},
+				Data: []string{"eq", "a", "text", `"hello"`},
 			},
 			expectQuery: map[string]interface{}{
 				"term": "hello", "field": "a",
@@ -809,7 +809,7 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 		{
 			fb: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"eq", "a", "string", `""`},
+				Data: []string{"eq", "a", "text", `""`},
 			},
 			expectQuery: map[string]interface{}{
 				"term": "", "field": "a",
@@ -818,7 +818,7 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 		{
 			fb: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"lt", "a", "string", `"hello"`},
+				Data: []string{"lt", "a", "text", `"hello"`},
 			},
 			expectQuery: map[string]interface{}{
 				"field": "a", "max": "hello", "inclusive_max": false,
@@ -827,7 +827,7 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 		{
 			fb: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"le", "a", "string", `"hello"`},
+				Data: []string{"le", "a", "text", `"hello"`},
 			},
 			expectQuery: map[string]interface{}{
 				"inclusive_max": true, "field": "a", "max": "hello",
@@ -836,7 +836,7 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 		{
 			fb: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"gt", "a", "string", `"hello"`},
+				Data: []string{"gt", "a", "text", `"hello"`},
 			},
 			expectQuery: map[string]interface{}{
 				"min": "hello", "inclusive_min": false, "field": "a",
@@ -845,7 +845,7 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 		{
 			fb: &FlexBuild{
 				Kind: "cmpFieldConstant",
-				Data: []string{"ge", "a", "string", `"hello"`},
+				Data: []string{"ge", "a", "text", `"hello"`},
 			},
 			expectQuery: map[string]interface{}{
 				"inclusive_min": true, "field": "a", "min": "hello",
@@ -901,7 +901,7 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a", "string", `"hello"`},
+						Data: []string{"eq", "a", "text", `"hello"`},
 					},
 				},
 			},
@@ -913,11 +913,11 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a", "string", `"hello"`},
+						Data: []string{"eq", "a", "text", `"hello"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "b", "string", `"hello"`},
+						Data: []string{"eq", "b", "text", `"hello"`},
 					},
 				},
 			},
@@ -934,7 +934,7 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"eq", "a", "string", `"hello"`},
+						Data: []string{"eq", "a", "text", `"hello"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
@@ -963,7 +963,7 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"gt", "a", "string", `"A"`},
+						Data: []string{"gt", "a", "text", `"A"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
@@ -986,11 +986,11 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"gt", "a", "string", `"A"`},
+						Data: []string{"gt", "a", "text", `"A"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"lt", "b", "string", `"H"`},
+						Data: []string{"lt", "b", "text", `"H"`},
 					},
 				},
 			},
@@ -1007,11 +1007,11 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"gt", "a", "string", `"A"`},
+						Data: []string{"gt", "a", "text", `"A"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"lt", "a", "string", `"H"`},
+						Data: []string{"lt", "a", "text", `"H"`},
 					},
 				},
 			},
@@ -1029,11 +1029,11 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"lt", "a", "string", `"H"`},
+						Data: []string{"lt", "a", "text", `"H"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"gt", "a", "string", `"A"`},
+						Data: []string{"gt", "a", "text", `"A"`},
 					},
 				},
 			},
@@ -1049,11 +1049,11 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"ge", "a", "string", `"A"`},
+						Data: []string{"ge", "a", "text", `"A"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"lt", "a", "string", `"H"`},
+						Data: []string{"lt", "a", "text", `"H"`},
 					},
 				},
 			},
@@ -1069,11 +1069,11 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"ge", "a", "string", `"A"`},
+						Data: []string{"ge", "a", "text", `"A"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"le", "a", "string", `"H"`},
+						Data: []string{"le", "a", "text", `"H"`},
 					},
 				},
 			},
@@ -1089,11 +1089,11 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"gt", "a", "string", `"A"`},
+						Data: []string{"gt", "a", "text", `"A"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"le", "a", "string", `"H"`},
+						Data: []string{"le", "a", "text", `"H"`},
 					},
 				},
 			},
@@ -1112,11 +1112,11 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"gt", "a", "string", `"A"`},
+						Data: []string{"gt", "a", "text", `"A"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"lt", "a", "string", `"H"`},
+						Data: []string{"lt", "a", "text", `"H"`},
 					},
 				},
 			},
@@ -1262,11 +1262,11 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 				Children: []*FlexBuild{
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"lt", "a", "string", `"C"`},
+						Data: []string{"lt", "a", "text", `"C"`},
 					},
 					{
 						Kind: "cmpFieldConstant",
-						Data: []string{"gt", "a", "string", `"H"`},
+						Data: []string{"gt", "a", "text", `"H"`},
 					},
 				},
 			},
@@ -1305,11 +1305,11 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 		},
 	}
 
-	for _, test := range tests {
+	for testi, test := range tests {
 		q, err := FlexBuildToBleveQuery(test.fb, nil)
 		if (err != nil) != (test.expectErr != "") {
-			t.Fatalf("test: %+v,\n err mismatch, got: %v",
-				test, err)
+			t.Fatalf("test [%d]: %+v,\n err mismatch, got: %v",
+				testi, test, err)
 		}
 
 		if !reflect.DeepEqual(q, test.expectQuery) {
@@ -1317,8 +1317,8 @@ func TestFlexBuildToBleveQuery(t *testing.T) {
 			jeq, _ := json.Marshal(test.expectQuery)
 			jq, _ := json.Marshal(q)
 
-			t.Errorf("test: %+v,\n jfb: %s\n expectQuery: %s\n mismatch, got: %s",
-				test, jfb, jeq, jq)
+			t.Fatalf("test [%d]: %+v,\n jfb: %s\n expectQuery: %s\n mismatch, got: %s",
+				testi, test, jfb, jeq, jq)
 		}
 	}
 }

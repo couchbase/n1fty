@@ -85,7 +85,7 @@ type FieldTracks map[FieldTrack]int
 
 type FieldInfo struct {
 	FieldPath []string // Ex: ["name"], ["addr", "city"], [].
-	FieldType string   // Ex: "string", "number".
+	FieldType string   // Ex: "text", "number", "boolean", "datetime".
 }
 
 type FieldInfos []*FieldInfo

@@ -62,7 +62,7 @@ type SupportedExprCmpFieldConstant struct {
 	// Dynamic examples: [], ["address"].
 	FieldPath []string
 
-	ValueType string // Ex: "string", "number", etc.
+	ValueType string // Ex: "text", "number", etc.
 
 	// When non-nil, constant must equal this value, else not-sargable.
 	ValueMust value.Value
@@ -125,7 +125,7 @@ func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifier
 
 	switch x := exprY.(type) {
 	case *expression.Constant:
-		if x.Type().String() != s.ValueType {
+		if x.Type().String() != BleveTypeConv[s.ValueType] {
 			if fi.Dynamic {
 				// If the flex index is dynamic, there'd exist field names
 				// with multiple types, so search for fields of other types
@@ -154,7 +154,7 @@ func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifier
 
 	if exprFieldTypesCheck {
 		fieldType, ok := exprFTs.Lookup(FieldTrack(fieldTrack))
-		if !ok || fieldType != s.ValueType {
+		if !ok || fieldType != BleveTypeConv[s.ValueType] {
 			// Wrong field type, not-sargable (check filtering, for conjuncts)
 			return true, nil, true, nil, nil
 		}
