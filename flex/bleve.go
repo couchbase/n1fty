@@ -85,7 +85,6 @@ func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl) (
 			IndexedFields: FieldInfos{
 				&FieldInfo{FieldPath: TypeFieldPath, FieldType: "text"},
 			},
-			// TODO: Double check that dynamic mappings are handled right?
 		}, im, nil, im.DefaultMapping, im.DefaultAnalyzer, fieldTrackTypes)
 		if err != nil {
 			return nil, err
@@ -260,6 +259,18 @@ func BleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 			fi.IndexedFields = append(fi.IndexedFields, &FieldInfo{
 				FieldPath: dynamicPath,
 				FieldType: "text",
+			})
+			fi.IndexedFields = append(fi.IndexedFields, &FieldInfo{
+				FieldPath: dynamicPath,
+				FieldType: "number",
+			})
+			fi.IndexedFields = append(fi.IndexedFields, &FieldInfo{
+				FieldPath: dynamicPath,
+				FieldType: "boolean",
+			})
+			fi.IndexedFields = append(fi.IndexedFields, &FieldInfo{
+				FieldPath: dynamicPath,
+				FieldType: "datetime",
 			})
 
 			fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{

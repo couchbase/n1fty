@@ -517,6 +517,18 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 						FieldPath: nil,
 						FieldType: "text",
 					},
+					&FieldInfo{
+						FieldPath: nil,
+						FieldType: "number",
+					},
+					&FieldInfo{
+						FieldPath: nil,
+						FieldType: "boolean",
+					},
+					&FieldInfo{
+						FieldPath: nil,
+						FieldType: "datetime",
+					},
 				},
 				SupportedExprs: []SupportedExpr{
 					&SupportedExprCmpFieldConstant{
@@ -582,6 +594,18 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 					&FieldInfo{
 						FieldPath: nil,
 						FieldType: "text",
+					},
+					&FieldInfo{
+						FieldPath: nil,
+						FieldType: "number",
+					},
+					&FieldInfo{
+						FieldPath: nil,
+						FieldType: "boolean",
+					},
+					&FieldInfo{
+						FieldPath: nil,
+						FieldType: "datetime",
 					},
 				},
 				SupportedExprs: []SupportedExpr{
@@ -668,6 +692,18 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 					&FieldInfo{
 						FieldPath: []string{"addr"},
 						FieldType: "text",
+					},
+					&FieldInfo{
+						FieldPath: []string{"addr"},
+						FieldType: "number",
+					},
+					&FieldInfo{
+						FieldPath: []string{"addr"},
+						FieldType: "boolean",
+					},
+					&FieldInfo{
+						FieldPath: []string{"addr"},
+						FieldType: "datetime",
 					},
 				},
 				SupportedExprs: []SupportedExpr{
