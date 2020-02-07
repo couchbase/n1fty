@@ -776,10 +776,10 @@ func TestSargableDynamicFlexIndex(t *testing.T) {
 			expectedSargKeys: []string{"isOpen"},
 		},
 		{
-			// this is a "datetime" search term over a "datetime" indexed field,
-			// but a dynamic index => a term search ensues.
-			queryStr:         "t.createdOn = '1985-04-12T23:20:50.52Z'",
-			expectedQueryStr: `{"query":{"field":"createdOn","term":"1985-04-12T23:20:50.52Z"},"score":"none"}`,
+			queryStr: "t.createdOn = '1985-04-12T23:20:50.52Z'",
+			expectedQueryStr: `{"query":{"field":"createdOn","start":"1985-04-12T23:20:50.52Z",` +
+				`"inclusive_start":true,"end":"1985-04-12T23:20:50.52Z","inclusive_end":true},` +
+				`"score":"none"}`,
 			expectedSargKeys: []string{"createdOn"},
 		},
 	}

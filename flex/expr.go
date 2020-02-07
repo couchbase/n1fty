@@ -10,8 +10,10 @@
 package flex
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/couchbase/query/algebra"
 	"github.com/couchbase/query/expression"
@@ -125,12 +127,25 @@ func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifier
 
 	switch x := exprY.(type) {
 	case *expression.Constant:
-		if x.Type().String() != BleveTypeConv[s.ValueType] {
-			if fi.Dynamic {
+		if fi.Dynamic {
+			xType := x.Type().String()
+			if xType == "string" {
+				xType = "text"
+				// Check if the search term could be datetime.
+				var v string
+				if err := json.Unmarshal([]byte(exprY.String()), &v); err == nil {
+					if _, err = time.Parse(time.RFC3339, v); err == nil {
+						xType = "datetime"
+					}
+				}
+			}
+
+			if xType != s.ValueType {
 				// If the flex index is dynamic, there'd exist field names
-				// with multiple types, so search for fields of other types
+				// with multiple types, so search for fields of other types.
 				return false, nil, false, nil, nil
 			}
+		} else if x.Type().String() != BleveTypeConv[s.ValueType] {
 			return true, nil, false, nil, nil // Wrong const type, so not-sargable.
 		}
 

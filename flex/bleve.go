@@ -148,6 +148,7 @@ func countFieldTrackTypes(path []string, dm *mapping.DocumentMapping,
 
 // ------------------------------------------------------------------------
 
+// This map contains types that Bleve supports for N1QL queries.
 var BleveSupportedTypes = map[string]bool{
 	"text":     true,
 	"number":   true,
@@ -155,6 +156,8 @@ var BleveSupportedTypes = map[string]bool{
 	"datetime": true,
 }
 
+// This map translates Bleve's supported types to types as identified
+// by N1QL.
 var BleveTypeConv = map[string]string{
 	"text":     "string",
 	"number":   "number",
@@ -281,6 +284,13 @@ func BleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 			})
 
 			fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
+				Cmp:              "eq",
+				FieldPath:        dynamicPath,
+				ValueType:        "datetime",
+				FieldPathPartial: true,
+			})
+
+			fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
 				Cmp:              "lt gt le ge",
 				FieldPath:        dynamicPath,
 				ValueType:        "text",
@@ -292,6 +302,14 @@ func BleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 				Cmp:              "lt gt le ge",
 				FieldPath:        dynamicPath,
 				ValueType:        "number",
+				FieldTypeCheck:   true,
+				FieldPathPartial: true,
+			})
+
+			fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
+				Cmp:              "lt gt le ge",
+				FieldPath:        dynamicPath,
+				ValueType:        "datetime",
 				FieldTypeCheck:   true,
 				FieldPathPartial: true,
 			})
