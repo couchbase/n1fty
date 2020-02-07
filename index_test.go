@@ -635,7 +635,8 @@ func TestNotSargableFlexIndex(t *testing.T) {
 		}
 
 		if resp != nil {
-			t.Fatalf("Expected query to be NOT-SARGABLE, got resp: %#v", resp)
+			t.Fatalf("Expected query: `%s` to be NOT-SARGABLE, got resp: %#v",
+				queryStr, resp)
 		}
 	}
 }
@@ -771,8 +772,9 @@ func TestSargableFlexIndex(t *testing.T) {
 		},
 		{
 			// this is a "datetime" search term over a "text" indexed field
-			queryStr:         "t.type = '1985-04-12T23:20:50.52Z'",
-			expectedQueryStr: `{"query":{"field":"type","term":"1985-04-12T23:20:50.52Z"},"score":"none"}`,
+			queryStr: "t.type = '1985-04-12T23:20:50.52Z'",
+			expectedQueryStr: `{"query":{"field":"type",` +
+				`"term":"1985-04-12T23:20:50.52Z"},"score":"none"}`,
 			expectedSargKeys: []string{"type"},
 		},
 	}
@@ -802,9 +804,21 @@ func TestSargableDynamicFlexIndex(t *testing.T) {
 			expectedSargKeys: []string{"country"},
 		},
 		{
+			queryStr: "t.type >= 'hot' AND t.type <= 'hotel'",
+			expectedQueryStr: `{"query": {"field":"type","min":"hot","inclusive_min":true,` +
+				`"max":"hotel","inclusive_max":true},"score":"none"}`,
+			expectedSargKeys: []string{"type"},
+		},
+		{
 			queryStr: "t.id = 10",
 			expectedQueryStr: `{"query":{"field":"id","inclusive_max":true,"inclusive_min":true,` +
 				`"max":10,"min":10},"score":"none"}`,
+			expectedSargKeys: []string{"id"},
+		},
+		{
+			queryStr: "t.id >= 0 AND t.id < 20",
+			expectedQueryStr: `{"query":{"field":"id","min":0,"inclusive_min":true,` +
+				`"max":20,"inclusive_max":false},"score":"none"}`,
 			expectedSargKeys: []string{"id"},
 		},
 		{
@@ -817,6 +831,14 @@ func TestSargableDynamicFlexIndex(t *testing.T) {
 			expectedQueryStr: `{"query":{"field":"createdOn","start":"1985-04-12T23:20:50.52Z",` +
 				`"inclusive_start":true,"end":"1985-04-12T23:20:50.52Z","inclusive_end":true},` +
 				`"score":"none"}`,
+			expectedSargKeys: []string{"createdOn"},
+		},
+		{
+			queryStr: "t.createdOn > '1985-04-12T23:20:50.52Z'" +
+				"AND t.createdOn <= '2020-01-30T12:00:00.00Z'",
+			expectedQueryStr: `{"query":{"field":"createdOn",` +
+				`"start":"1985-04-12T23:20:50.52Z","inclusive_start":false,` +
+				`"end":"2020-01-30T12:00:00.00Z","inclusive_end":true},"score":"none"}`,
 			expectedSargKeys: []string{"createdOn"},
 		},
 	}

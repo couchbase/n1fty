@@ -191,10 +191,6 @@ func (p *ConjunctFieldTypes) CheckFieldTypeLoHi(
 		return "not-match"
 	}
 
-	if fiLo.FieldType != "" && BleveTypeConv[fiLo.FieldType] != fType {
-		return "not-match" // Other CFT's might match the fType.
-	}
-
 	// Check (`t`.`a` < hiValue).
 	bfHi, ok := exprHi.(expression.BinaryFunction)
 	if !ok || !strings.Contains(hiComp, bfHi.Name()) {
