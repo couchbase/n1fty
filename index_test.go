@@ -845,3 +845,101 @@ func TestSargableDynamicFlexIndex(t *testing.T) {
 			tests[i].expectedSargKeys)
 	}
 }
+
+func TestComplexQuerySargabilityOverFlexIndexes(t *testing.T) {
+	indexes := [][]byte{
+		util.SampleIndexDefWithSeveralNestedFieldsUnderDefaultMapping,
+		util.SampleIndexDefDynamicWithAnalyzerKeyword,
+		util.SampleIndexDefWithSeveralNestedFieldsUnderHotelMapping,
+	}
+
+	for i := range indexes {
+		index, err := setupSampleIndex(indexes[i])
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		tests := []struct {
+			queryStr                       string
+			expectedQueryStrDefaultMapping string
+			expectedQueryStrCustomMapping  string
+			expectedSargKeys               []string
+		}{
+			{
+				queryStr: `t.type = "hotel"` +
+					` AND ANY r in t.reviews SATISFIES r.author = "Shaniya Wisoky" END`,
+				expectedQueryStrDefaultMapping: `{"query":{"conjuncts":[{"field":"type","term":"hotel"},` +
+					`{"field":"reviews.author","term":"Shaniya Wisoky"}]},"score":"none"}`,
+				expectedQueryStrCustomMapping: `{"query":{"field":"reviews.author",` +
+					`"term":"Shaniya Wisoky"},"score":"none"}`,
+				expectedSargKeys: []string{"type", "reviews.author"},
+			},
+			{
+				queryStr: `t.type = "hotel"` +
+					` AND ANY r IN t.reviews SATISFIES r.ratings.Cleanliness = 5 OR r.ratings.Overall = 4 END` +
+					` AND ANY p IN t.public_likes SATISFIES p LIKE "Raymundo Quigley" END`,
+				expectedQueryStrDefaultMapping: `{"query":{"conjuncts":[{"field":"type","term":"hotel"},` +
+					`{"disjuncts":[{"field":"reviews.ratings.Cleanliness","inclusive_max":true,` +
+					`"inclusive_min":true,"max":5,"min":5},{"field":"reviews.ratings.Overall",` +
+					`"inclusive_max":true,"inclusive_min":true,"max":4,"min":4}]}]},"score":"none"}`,
+				expectedQueryStrCustomMapping: `{"query":{"disjuncts":[{"field":"reviews.ratings.Cleanliness",` +
+					`"inclusive_max":true,"inclusive_min":true,"max":5,"min":5},` +
+					`{"field":"reviews.ratings.Overall","inclusive_max":true,"inclusive_min":true,` +
+					`"max":4,"min":4}]},"score":"none"}`,
+				expectedSargKeys: []string{
+					"type", "reviews.ratings.Cleanliness", "reviews.ratings.Overall"},
+			},
+		}
+
+		for j := range tests {
+			queryExpression, err := parser.Parse(tests[j].queryStr)
+			if err != nil {
+				t.Fatal(tests[j].queryStr, err)
+			}
+
+			flexRequest := &datastore.FTSFlexRequest{
+				Keyspace: "t",
+				Pred:     queryExpression,
+			}
+
+			resp, err := index.SargableFlex("0", flexRequest)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			expectedQueryStr := ""
+
+			if index.condExpr == nil {
+				// default mapping in use
+				expectedQueryStr = tests[j].expectedQueryStrDefaultMapping
+			} else {
+				expectedQueryStr = tests[j].expectedQueryStrCustomMapping
+			}
+
+			if resp == nil || len(resp.StaticSargKeys) != len(tests[j].expectedSargKeys) {
+				t.Fatalf("Query: %v, Resp: %#v", tests[j].queryStr, resp)
+			}
+
+			for _, key := range tests[j].expectedSargKeys {
+				if resp.StaticSargKeys[key] == nil {
+					t.Fatalf("ExpectedSargKeys: %v, Got StaticSargKeys: %v",
+						tests[j].expectedSargKeys, resp.StaticSargKeys)
+				}
+			}
+
+			var gotQuery, expectedQuery map[string]interface{}
+			err = json.Unmarshal([]byte(resp.SearchQuery), &gotQuery)
+			if err != nil {
+				t.Fatalf("SearchQuery: %s, err: %v", resp.SearchQuery, err)
+			}
+			err = json.Unmarshal([]byte(expectedQueryStr), &expectedQuery)
+			if err != nil {
+				t.Fatalf("ExpectedQuery: %s, err: %v", expectedQueryStr, err)
+			}
+
+			if !reflect.DeepEqual(expectedQuery, gotQuery) {
+				t.Fatalf("ExpectedQuery: %#v, GotQuery: %#v", expectedQuery, gotQuery)
+			}
+		}
+	}
+}

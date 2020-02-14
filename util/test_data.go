@@ -460,3 +460,247 @@ var SampleIndexDefWithKeywordAnalyzerOverDefaultMapping = []byte(`
 	"uuid": ""
 }
 `)
+
+var SampleIndexDefWithSeveralNestedFieldsUnderDefaultMapping = []byte(`
+{
+	"name": "travel",
+	"type": "fulltext-index",
+	"params": {
+		"doc_config": {
+			"docid_prefix_delim": "",
+			"docid_regexp": "",
+			"mode": "type_field",
+			"type_field": "type"
+		},
+		"mapping": {
+			"default_analyzer": "keyword",
+			"default_datetime_parser": "dateTimeOptional",
+			"default_field": "_all",
+			"default_mapping": {
+				"dynamic": false,
+				"enabled": true,
+				"properties": {
+					"reviews": {
+						"dynamic": false,
+						"enabled": true,
+						"properties": {
+							"ratings": {
+								"dynamic": false,
+								"enabled": true,
+								"properties": {
+									"Cleanliness": {
+										"enabled": true,
+										"dynamic": false,
+										"fields": [
+										{
+											"docvalues": true,
+											"include_in_all": true,
+											"include_term_vectors": true,
+											"index": true,
+											"name": "Cleanliness",
+											"type": "number"
+										}
+										]
+									},
+									"Overall": {
+										"enabled": true,
+										"dynamic": false,
+										"fields": [
+										{
+											"docvalues": true,
+											"include_in_all": true,
+											"include_term_vectors": true,
+											"index": true,
+											"name": "Overall",
+											"type": "number"
+										}
+										]
+									}
+								}
+							},
+							"author": {
+								"enabled": true,
+								"dynamic": false,
+								"fields": [
+								{
+									"docvalues": true,
+									"include_in_all": true,
+									"include_term_vectors": true,
+									"index": true,
+									"name": "author",
+									"type": "text"
+								}
+								]
+							}
+						}
+					},
+					"public_likes": {
+						"enabled": true,
+						"dynamic": false,
+						"fields": [
+						{
+							"docvalues": true,
+							"include_in_all": true,
+							"include_term_vectors": true,
+							"index": true,
+							"name": "public_likes",
+							"type": "text"
+						}
+						]
+					},
+					"type": {
+						"enabled": true,
+						"dynamic": false,
+						"fields": [
+						{
+							"docvalues": true,
+							"include_in_all": true,
+							"include_term_vectors": true,
+							"index": true,
+							"name": "type",
+							"type": "text"
+						}
+						]
+					}
+				}
+			},
+			"default_type": "_default",
+			"docvalues_dynamic": true,
+			"index_dynamic": true,
+			"store_dynamic": false,
+			"type_field": "_type"
+		},
+		"store": {
+			"indexType": "scorch"
+		}
+	},
+	"sourceType": "gocbcore",
+	"sourceName": "travel-sample",
+	"sourceUUID": "",
+	"sourceParams": {},
+	"planParams": {
+		"maxPartitionsPerPIndex": 171,
+		"indexPartitions": 6,
+		"numReplicas": 0
+	},
+	"uuid": ""
+}
+`)
+
+var SampleIndexDefWithSeveralNestedFieldsUnderHotelMapping = []byte(`
+{
+	"name": "travel",
+	"type": "fulltext-index",
+	"params": {
+		"doc_config": {
+			"docid_prefix_delim": "",
+			"docid_regexp": "",
+			"mode": "type_field",
+			"type_field": "type"
+		},
+		"mapping": {
+			"default_analyzer": "keyword",
+			"default_datetime_parser": "dateTimeOptional",
+			"default_field": "_all",
+			"default_mapping": {
+				"dynamic": false,
+				"enabled": false
+			},
+			"default_type": "_default",
+			"docvalues_dynamic": true,
+			"index_dynamic": true,
+			"store_dynamic": false,
+			"type_field": "_type",
+			"types": {
+				"hotel": {
+					"dynamic": false,
+					"enabled": true,
+					"properties": {
+						"reviews": {
+							"dynamic": false,
+							"enabled": true,
+							"properties": {
+								"ratings": {
+									"dynamic": false,
+									"enabled": true,
+									"properties": {
+										"Cleanliness": {
+											"enabled": true,
+											"dynamic": false,
+											"fields": [
+											{
+												"docvalues": true,
+												"include_in_all": true,
+												"include_term_vectors": true,
+												"index": true,
+												"name": "Cleanliness",
+												"type": "number"
+											}
+											]
+										},
+										"Overall": {
+											"enabled": true,
+											"dynamic": false,
+											"fields": [
+											{
+												"docvalues": true,
+												"include_in_all": true,
+												"include_term_vectors": true,
+												"index": true,
+												"name": "Overall",
+												"type": "number"
+											}
+											]
+										}
+									}
+								},
+								"author": {
+									"enabled": true,
+									"dynamic": false,
+									"fields": [
+									{
+										"docvalues": true,
+										"include_in_all": true,
+										"include_term_vectors": true,
+										"index": true,
+										"name": "author",
+										"type": "text"
+									}
+									]
+								}
+							}
+						},
+						"public_likes": {
+							"enabled": true,
+							"dynamic": false,
+							"fields": [
+							{
+								"docvalues": true,
+								"include_in_all": true,
+								"include_term_vectors": true,
+								"index": true,
+								"name": "public_likes",
+								"type": "text"
+							}
+							]
+						}
+					}
+				}
+			}
+		},
+		"store": {
+			"indexType": "scorch"
+		}
+	},
+	"sourceType": "gocbcore",
+	"sourceName": "travel-sample",
+	"sourceUUID": "",
+	"sourceParams": {},
+	"planParams": {
+		"maxPartitionsPerPIndex": 171,
+		"indexPartitions": 6,
+		"numReplicas": 0
+	},
+	"uuid": ""
+}
+`)
