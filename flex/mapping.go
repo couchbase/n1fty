@@ -291,13 +291,22 @@ func (s CondFlexIndexes) Sargable(
 // Find the first FlexIndex whose Cond matches the given AND expression.
 func (s CondFlexIndexes) FindFlexIndex(ids Identifiers, e expression.Expression) (
 	rv *FlexIndex, err error) {
-	a, ok := e.(*expression.And)
-	if !ok {
-		a = expression.NewAnd(e)
+	var children []expression.Expression
+	var collectExpressions func(ex expression.Expression)
+	collectExpressions = func(ex expression.Expression) {
+		if exAnd, ok := ex.(*expression.And); ok {
+			for _, child := range exAnd.Children() {
+				collectExpressions(child)
+			}
+		} else {
+			children = append(children, ex)
+		}
 	}
 
+	collectExpressions(e)
+
 	for _, cfi := range s {
-		matches, err := cfi.Cond(ids, a.Children())
+		matches, err := cfi.Cond(ids, children)
 		if err != nil {
 			return nil, err
 		}
