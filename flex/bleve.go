@@ -20,13 +20,12 @@ import (
 	"github.com/couchbase/query/value"
 )
 
-// FIXME
-var TypeFieldPath = []string{"type"}
+var DefaultTypeFieldPath = []string{"type"}
 
 // BleveToCondFlexIndexes translates a bleve index into CondFlexIndexes.
 // NOTE: checking for DocConfig.Mode should be done beforehand.
-func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl) (
-	rv CondFlexIndexes, err error) {
+func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl,
+	typeFieldPath []string) (rv CondFlexIndexes, err error) {
 	// Map of FieldTrack => fieldType => count.
 	fieldTrackTypes := map[FieldTrack]map[string]int{}
 	for _, dm := range im.TypeMapping {
@@ -41,6 +40,10 @@ func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl) (
 
 	sort.Strings(types) // For output stability.
 
+	if len(typeFieldPath) == 0 {
+		typeFieldPath = DefaultTypeFieldPath
+	}
+
 	for _, t := range types {
 		typeEqEffect := "FlexBuild:n" // Strips `type = "BEER"` from expressions.
 		if !im.TypeMapping[t].Enabled {
@@ -50,13 +53,13 @@ func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl) (
 		fi, err := BleveToFlexIndex(&FlexIndex{
 			// To lead CheckFieldsUseds() to not-sargable.
 			IndexedFields: FieldInfos{
-				&FieldInfo{FieldPath: TypeFieldPath, FieldType: "text"},
+				&FieldInfo{FieldPath: typeFieldPath, FieldType: "text"},
 			},
 			SupportedExprs: []SupportedExpr{
 				// Strips `type = "BEER"` from expressions.
 				&SupportedExprCmpFieldConstant{
 					Cmp:       "eq",
-					FieldPath: TypeFieldPath,
+					FieldPath: typeFieldPath,
 					ValueType: "text",
 					ValueMust: value.NewValue(t),
 					Effect:    typeEqEffect,
@@ -64,7 +67,7 @@ func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl) (
 				// To treat `type > "BEER"` as not-sargable.
 				&SupportedExprCmpFieldConstant{
 					Cmp:       "lt gt le ge",
-					FieldPath: TypeFieldPath,
+					FieldPath: typeFieldPath,
 					ValueType: "", // Treated as not-sargable.
 					Effect:    "not-sargable",
 				},
@@ -75,7 +78,7 @@ func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl) (
 		}
 
 		rv = append(rv, &CondFlexIndex{
-			Cond:      MakeCondFuncEqVal(TypeFieldPath, value.NewValue(t)),
+			Cond:      MakeCondFuncEqVal(typeFieldPath, value.NewValue(t)),
 			FlexIndex: fi,
 		})
 	}
@@ -83,7 +86,7 @@ func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl) (
 	if im.DefaultMapping != nil {
 		fi, err := BleveToFlexIndex(&FlexIndex{
 			IndexedFields: FieldInfos{
-				&FieldInfo{FieldPath: TypeFieldPath, FieldType: "text"},
+				&FieldInfo{FieldPath: typeFieldPath, FieldType: "text"},
 			},
 		}, im, nil, im.DefaultMapping, im.DefaultAnalyzer, fieldTrackTypes)
 		if err != nil {
@@ -91,7 +94,7 @@ func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl) (
 		}
 
 		rv = append(rv, &CondFlexIndex{
-			Cond:      MakeCondFuncNeqVals(TypeFieldPath, types),
+			Cond:      MakeCondFuncNeqVals(typeFieldPath, types),
 			FlexIndex: fi,
 		})
 	}
