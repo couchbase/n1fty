@@ -27,10 +27,7 @@ func setupSampleIndex(idef []byte) (*FTSIndex, error) {
 	}
 
 	if pip.SearchFields != nil || pip.Dynamic {
-		return newFTSIndex(nil, indexDef, pip.IndexMapping,
-			pip.SearchFields, pip.IndexedCount, pip.CondExpr,
-			pip.Dynamic, pip.AllFieldSearchable,
-			pip.DefaultAnalyzer, pip.DefaultDateTimeParser)
+		return newFTSIndex(nil, indexDef, pip)
 	}
 
 	return nil, fmt.Errorf("failed to setup index")

@@ -59,19 +59,11 @@ type FTSIndex struct {
 
 // -----------------------------------------------------------------------------
 
-func newFTSIndex(indexer *FTSIndexer,
-	indexDef *cbgt.IndexDef,
-	im *mapping.IndexMappingImpl,
-	searchableFields map[util.SearchField]bool,
-	indexedCount int64,
-	condExprStr string,
-	dynamic bool,
-	allFieldSearchable bool,
-	defaultAnalyzer string,
-	defaultDateTimeParser string) (rv *FTSIndex, err error) {
+func newFTSIndex(indexer *FTSIndexer, indexDef *cbgt.IndexDef,
+	pip util.ProcessedIndexParams) (rv *FTSIndex, err error) {
 	var condExpr expression.Expression
-	if len(condExprStr) > 0 {
-		condExpr, err = parser.Parse(condExprStr)
+	if len(pip.CondExpr) > 0 {
+		condExpr, err = parser.Parse(pip.CondExpr)
 		if err != nil {
 			return nil, err
 		}
@@ -80,16 +72,23 @@ func newFTSIndex(indexer *FTSIndexer,
 	index := &FTSIndex{
 		indexer:               indexer,
 		indexDef:              indexDef,
-		searchableFields:      searchableFields,
-		indexedCount:          indexedCount,
+		searchableFields:      pip.SearchFields,
+		indexedCount:          pip.IndexedCount,
 		condExpr:              condExpr,
-		dynamic:               dynamic,
-		allFieldSearchable:    allFieldSearchable,
-		defaultAnalyzer:       defaultAnalyzer,
-		defaultDateTimeParser: defaultDateTimeParser,
+		dynamic:               pip.Dynamic,
+		allFieldSearchable:    pip.AllFieldSearchable,
+		defaultAnalyzer:       pip.DefaultAnalyzer,
+		defaultDateTimeParser: pip.DefaultDateTimeParser,
 	}
 
-	condFlexIndexes, err := flex.BleveToCondFlexIndexes(im)
+	var typeFieldPath []string
+	// TODO: Support the other modes: "docid_prefix", docid_regexp
+	if pip.DocConfig != nil && strings.Contains(pip.DocConfig.Mode, "type_field") {
+		typeFieldPath = []string{pip.DocConfig.TypeField}
+	}
+
+	condFlexIndexes, err := flex.BleveToCondFlexIndexes(
+		pip.IndexMapping, typeFieldPath)
 	if err == nil && len(condFlexIndexes) > 0 {
 		index.condFlexIndexes = condFlexIndexes
 	}

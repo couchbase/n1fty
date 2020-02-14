@@ -78,9 +78,7 @@ func initIndexesById(t *testing.T, m map[string]*Index) map[string]*Index {
 		}
 
 		if idx.CondFlexIndexes == nil {
-			// TODO: Check that DocConfig.Mode == "type_field"
-			// and other modes.
-			cfis, err := flex.BleveToCondFlexIndexes(idx.IndexMapping)
+			cfis, err := flex.BleveToCondFlexIndexes(idx.IndexMapping, nil)
 			if err != nil {
 				t.Fatalf("initIndexesById, id: %v, BleveToCondFlexIndexes err: %v",
 					id, err)

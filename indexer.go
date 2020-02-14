@@ -546,9 +546,7 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 		}
 
 		if len(pip.SearchFields) > 0 || pip.Dynamic {
-			rv[indexDef.UUID], err = newFTSIndex(i, indexDef, pip.IndexMapping,
-				pip.SearchFields, pip.IndexedCount, pip.CondExpr, pip.Dynamic,
-				pip.AllFieldSearchable, pip.DefaultAnalyzer, pip.DefaultDateTimeParser)
+			rv[indexDef.UUID], err = newFTSIndex(i, indexDef, pip)
 			if err != nil {
 				logging.Warnf("n1fty: couldn't set up FTS index: %v for querying, err: %v",
 					indexDef.Name, err)
