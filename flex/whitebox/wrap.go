@@ -155,7 +155,7 @@ func (p *WrapNamespace) KeyspaceByName(name string) (b datastore.Keyspace, e err
 }
 
 func (p *WrapNamespace) MetadataVersion() uint64 {
-	return p.W.MetadataVersion()
+	return 0
 }
 
 func (p *WrapNamespace) BucketIds() ([]string, errors.Error) {
