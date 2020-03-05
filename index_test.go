@@ -36,6 +36,43 @@ func setupSampleIndex(idef []byte) (*FTSIndex, error) {
 	return nil, fmt.Errorf("failed to setup index")
 }
 
+func TestTypeFieldWithSpecialCharacterIndexSargability(t *testing.T) {
+	// For this test we're going to consider an index definition with
+	// type_field over a field name with a special character - whitespace.
+	if _, err := setupSampleIndex([]byte(`{
+		"name": "default",
+		"type": "fulltext-index",
+		"sourceName": "default",
+		"planParams": {
+			"indexPartitions": 6
+		},
+		"params": {
+			"doc_config": {
+				"mode": "type_field",
+				"type_field": "Primary Type"
+			},
+			"mapping": {
+				"default_mapping": {
+					"dynamic": true,
+					"enabled": false
+				},
+				"type_field": "_type",
+				"types": {
+					"crap": {
+						"dynamic": true,
+						"enabled": true
+					}
+				}
+			},
+			"store": {
+				"indexType": "scorch"
+			}
+		}
+	}`)); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestIndexSargability(t *testing.T) {
 	index, err := setupSampleIndex(util.SampleLandmarkIndexDef)
 	if err != nil {
