@@ -540,7 +540,9 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 
 		pip, err := util.ProcessIndexDef(indexDef)
 		if err != nil {
-			return nil, err
+			logging.Warnf("n1fty: error processing index definition for: %v, err: %v",
+				indexDef.Name, err)
+			continue
 		}
 
 		if len(pip.SearchFields) > 0 || pip.Dynamic {
@@ -548,7 +550,9 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 				pip.IndexedCount, pip.CondExpr, pip.Dynamic, pip.AllFieldSearchable,
 				pip.DefaultAnalyzer, pip.DefaultDateTimeParser)
 			if err != nil {
-				return nil, err
+				logging.Warnf("n1fty: couldn't set up FTS index: %v for querying, err: %v",
+					indexDef.Name, err)
+				continue
 			}
 
 			// set this index mapping into the indexMappings cache

@@ -90,8 +90,8 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef) (pip ProcessedIndexParams, err err
 				return
 			}
 
-			// Ex: condExpr == 'type="beer"'.
-			condExpr = typeField + `="` + typeStr.S + `"`
+			// Ex: condExpr == '`type`="beer"'.
+			condExpr = "`" + typeField + "`" + "=\"" + typeStr.S + "\""
 		}
 
 		return ProcessedIndexParams{
