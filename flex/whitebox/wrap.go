@@ -256,3 +256,7 @@ func (b *WrapKeyspace) Size(ctx datastore.QueryContext) (int64, errors.Error) {
 	// TODO fix the place holder impl
 	return b.W.Size(ctx)
 }
+
+func (b *WrapKeyspace) Flush() errors.Error {
+	return nil
+}
