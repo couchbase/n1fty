@@ -174,6 +174,10 @@ func (p *WrapNamespace) BucketByName(name string) (datastore.Bucket, errors.Erro
 	return p.W.BucketByName(name)
 }
 
+func (p *WrapNamespace) Objects() ([]datastore.Object, errors.Error) {
+	return nil, nil
+}
+
 // ------------------------------------------------------------------------
 
 type WrapKeyspace struct {
