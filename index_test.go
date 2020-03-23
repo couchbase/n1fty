@@ -599,6 +599,68 @@ func TestIndexSargabilityNoAllField(t *testing.T) {
 	}
 }
 
+func TestIndexMultipleTypeMappings(t *testing.T) {
+	index, err := setupSampleIndex([]byte(`{
+		"name": "default",
+		"type": "fulltext-index",
+		"sourceName": "default",
+		"planParams": {
+			"indexPartitions": 6
+		},
+		"params": {
+			"doc_config": {
+				"mode": "type_field",
+				"type_field": "type"
+			},
+			"mapping": {
+				"default_mapping": {
+					"dynamic": true,
+					"enabled": false
+				},
+				"type_field": "_type",
+				"types": {
+					"type1": {
+						"dynamic": true,
+						"enabled": true
+					},
+					"type2": {
+						"dynamic": true,
+						"enabled": true
+					}
+				}
+			},
+			"store": {
+				"indexType": "scorch"
+			}
+		}
+	}`))
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectCondExprStr := "`type` IN [\"type1\", \"type2\"]"
+	expectCondExpr, err := parser.Parse(expectCondExprStr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectExprs := expectCondExpr.Children()
+	gotExprs := index.condExpr.Children()
+
+	if len(expectExprs) != len(gotExprs) {
+		t.Fatalf("Expected condExpr: %s, got: %s",
+			expectCondExpr.String(), index.condExpr.String())
+	}
+
+	for i := range expectExprs {
+		if len(expectExprs[i].Children()) != len(gotExprs[i].Children()) {
+			t.Fatalf("Expect expression: %s, got expression: %s",
+				expectExprs[i].String(), gotExprs[i].String())
+		}
+	}
+}
+
 // =============================================================================
 
 func TestNotSargableFlexIndex(t *testing.T) {
