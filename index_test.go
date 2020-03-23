@@ -33,7 +33,9 @@ func setupSampleIndex(idef []byte) (*FTSIndex, error) {
 	return nil, fmt.Errorf("failed to setup index")
 }
 
-func TestTypeFieldWithSpecialCharacterIndexSargability(t *testing.T) {
+// =============================================================================
+
+func TestIndexSargabilityTypeFieldWithSpecialCharacter(t *testing.T) {
 	// For this test we're going to consider an index definition with
 	// type_field over a field name with a special character - whitespace.
 	if _, err := setupSampleIndex([]byte(`{
@@ -165,7 +167,7 @@ func TestDynamicIndexSargabilityWithIncompatibleAnalyzer(t *testing.T) {
 	}
 }
 
-func TestDynamicDefaultIndexNoFieldsQuerySargability(t *testing.T) {
+func TestDynamicDefaultIndexSargabilityNoFieldsQuery(t *testing.T) {
 	index, err := setupSampleIndex(util.SampleIndexDefDynamicDefault)
 	if err != nil {
 		t.Fatal(err)
@@ -186,7 +188,7 @@ func TestDynamicDefaultIndexNoFieldsQuerySargability(t *testing.T) {
 	}
 }
 
-func TestCustomIndexNoFieldsQuerySargability(t *testing.T) {
+func TestCustomIndexSargabilityNoFieldsQuery(t *testing.T) {
 	index, err := setupSampleIndex(util.SampleIndexDefWithCustomDefaultMapping)
 	if err != nil {
 		t.Fatal(err)
@@ -330,7 +332,7 @@ func TestCompatibleIndexSargability(t *testing.T) {
 	}
 }
 
-func TestCompatibleCustomDefaultMappedIndexSargability(t *testing.T) {
+func TestIndexSargabilityCompatibleCustomDefaultMapping(t *testing.T) {
 	index, err := setupSampleIndex(util.SampleIndexDefWithCustomDefaultMapping)
 	if err != nil {
 		t.Fatal(err)
@@ -497,7 +499,7 @@ func TestIndexPageable(t *testing.T) {
 
 }
 
-func TestDateTimeSargability(t *testing.T) {
+func TestIndexSargabilityOverDateTimeFields(t *testing.T) {
 	index, err := setupSampleIndex(util.SampleIndexDefWithCustomDefaultMapping)
 	if err != nil {
 		t.Fatal(err)
@@ -522,7 +524,7 @@ func TestDateTimeSargability(t *testing.T) {
 	}
 }
 
-func TestInvalidIndexNameSargability(t *testing.T) {
+func TestIndexSargabilityInvalidIndexName(t *testing.T) {
 	index, err := setupSampleIndex(util.SampleIndexDefDynamicDefault)
 	if err != nil {
 		t.Fatal(err)
@@ -576,7 +578,7 @@ func TestIndexSargabilityForQueryWithMissingAnalyzer(t *testing.T) {
 	}
 }
 
-func TestCustomIndexNoAllFiedlSargability(t *testing.T) {
+func TestIndexSargabilityNoAllField(t *testing.T) {
 	index, err := setupSampleIndex(util.SampleIndexDefWithNoAllField)
 	if err != nil {
 		t.Fatal(err)
@@ -596,6 +598,8 @@ func TestCustomIndexNoAllFiedlSargability(t *testing.T) {
 		t.Fatal("Expect index to NOT be sargable")
 	}
 }
+
+// =============================================================================
 
 func TestNotSargableFlexIndex(t *testing.T) {
 	index, err := setupSampleIndex(
