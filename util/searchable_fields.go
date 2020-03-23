@@ -29,10 +29,10 @@ type SearchField struct {
 	DateFormat string
 }
 
-// String is a wrapper that allows for a nil (pointer) value that's
-// distinct from the "" empty string value.
-type String struct {
-	S string
+// Strings is a wrapper that allows for a nil (pointer) value that's
+// distinct from an empty []string.
+type Strings struct {
+	S []string
 }
 
 // DisallowedChars represents disallowed characters such as within
@@ -49,6 +49,7 @@ type ProcessedIndexParams struct {
 	AllFieldSearchable    bool
 	DefaultAnalyzer       string
 	DefaultDateTimeParser string
+	MultipleTypeStrs      bool
 }
 
 // ProcessIndexDef determines if an indexDef is supportable as an
@@ -82,16 +83,25 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef) (pip ProcessedIndexParams, err err
 			return
 		}
 
-		m, indexedCount, typeStr, dynamic, allFieldSearchable,
+		m, indexedCount, typeStrs, dynamic, allFieldSearchable,
 			defaultAnalyzer, defaultDateTimeParser := ProcessIndexMapping(im)
-		if typeStr != nil {
-			if len(typeStr.S) <= 0 ||
-				strings.ContainsAny(typeStr.S, "\"\\") {
-				return
+		if typeStrs != nil {
+			for i := range typeStrs.S {
+				if strings.ContainsAny(typeStrs.S[i], "\"\\") {
+					return
+				}
+
+				// Ex: condExpr: '`type` IN ["beer", "brewery"]'.
+				if len(condExpr) == 0 {
+					condExpr = "`" + typeField + "` IN [\"" + typeStrs.S[i] + "\""
+				} else {
+					condExpr += ", \"" + typeStrs.S[i] + "\""
+				}
 			}
 
-			// Ex: condExpr == '`type`="beer"'.
-			condExpr = "`" + typeField + "`" + "=\"" + typeStr.S + "\""
+			if len(condExpr) > 0 {
+				condExpr += "]"
+			}
 		}
 
 		return ProcessedIndexParams{
@@ -104,6 +114,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef) (pip ProcessedIndexParams, err err
 			AllFieldSearchable:    allFieldSearchable,
 			DefaultAnalyzer:       defaultAnalyzer,
 			DefaultDateTimeParser: defaultDateTimeParser,
+			MultipleTypeStrs:      typeStrs != nil && len(typeStrs.S) > 1,
 		}, nil
 
 	case "docid_prefix":
@@ -114,17 +125,22 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef) (pip ProcessedIndexParams, err err
 			return
 		}
 
-		m, indexedCount, typeStr, dynamic, allFieldSearchable,
+		m, indexedCount, typeStrs, dynamic, allFieldSearchable,
 			defaultAnalyzer, defaultDateTimeParser := ProcessIndexMapping(im)
-		if typeStr != nil {
-			if len(typeStr.S) <= 0 ||
-				strings.ContainsAny(typeStr.S, DisallowedChars) ||
-				strings.ContainsAny(typeStr.S, dc.DocIDPrefixDelim) {
-				return
-			}
+		if typeStrs != nil {
+			for i := range typeStrs.S {
+				if strings.ContainsAny(typeStrs.S[i], DisallowedChars) ||
+					strings.ContainsAny(typeStrs.S[i], dc.DocIDPrefixDelim) {
+					return
+				}
 
-			// Ex: condExpr == 'META().id LIKE "beer-%"'.
-			condExpr = `META().id LIKE "` + typeStr.S + dc.DocIDPrefixDelim + `%"`
+				// Ex: condExpr == 'META().id LIKE "beer-%" OR META().id LIKE "brewery-%"'.
+				if len(condExpr) == 0 {
+					condExpr = `META().id LIKE "` + typeStrs.S[i] + dc.DocIDPrefixDelim + `%"`
+				} else {
+					condExpr += ` OR META().id LIKE "` + typeStrs.S[i] + dc.DocIDPrefixDelim + `%"`
+				}
+			}
 		}
 
 		return ProcessedIndexParams{
@@ -137,6 +153,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef) (pip ProcessedIndexParams, err err
 			AllFieldSearchable:    allFieldSearchable,
 			DefaultAnalyzer:       defaultAnalyzer,
 			DefaultDateTimeParser: defaultDateTimeParser,
+			MultipleTypeStrs:      len(condExpr) > 0, // condExpr with LIKE clause
 		}, nil
 
 	case "docid_regexp":
@@ -155,33 +172,30 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef) (pip ProcessedIndexParams, err err
 // A) there's only an enabled default mapping (with no other type
 //    mappings), where the returned typeStr will be nil.
 //
-// B) there's just 1 enabled type mapping (with no default mapping),
-//    where returned typeStr will be, for example, &String{"beer"}.
-//
-// TODO: support multiple enabled type mappings some future day,
-// which would likely change the func signature here.
+// B) more than one type mapping is OK for as long as the default
+//    mapping is NOT enabled, where typeStrs will be for example ..
+//    &Strings{["beer", "brewery", ..]}
 func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
-	indexedCount int64, typeStr *String, dynamic bool, allFieldSearchable bool,
+	indexedCount int64, typeStrs *Strings, dynamic bool, allFieldSearchable bool,
 	defaultAnalyzer string, defaultDateTimeParser string) {
 	var ok bool
 
+	m = map[SearchField]bool{}
+
 	for t, tm := range im.TypeMapping {
 		if tm.Enabled {
-			if m != nil { // Saw 2nd enabled type mapping, so not-FTSIndex'able.
-				return nil, 0, nil, false, false, "", ""
-			}
-
 			m, indexedCount, allFieldSearchable, ok = ProcessDocumentMapping(
 				im, im.DefaultAnalyzer, im.DefaultDateTimeParser,
-				nil, tm, nil, 0)
+				nil, tm, m, 0)
 			if !ok {
 				return nil, 0, nil, false, false, "", ""
 			}
 
-			typeStr = nil
-			dynamic = false
-			if m != nil {
-				typeStr = &String{t}
+			if typeStrs == nil {
+				typeStrs = &Strings{}
+			}
+			typeStrs.S = append(typeStrs.S, t)
+			if !dynamic {
 				dynamic = tm.Dynamic
 			}
 		}
@@ -195,13 +209,15 @@ func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 
 		m, indexedCount, allFieldSearchable, ok = ProcessDocumentMapping(
 			im, im.DefaultAnalyzer, im.DefaultDateTimeParser,
-			nil, im.DefaultMapping, nil, 0)
+			nil, im.DefaultMapping, m, 0)
 		if !ok {
 			return nil, 0, nil, false, false, "", ""
 		}
 
-		typeStr = nil
-		dynamic = im.DefaultMapping.Dynamic
+		typeStrs = nil
+		if !dynamic {
+			dynamic = im.DefaultMapping.Dynamic
+		}
 	}
 
 	if dynamic {
@@ -214,7 +230,7 @@ func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 		return nil, 0, nil, false, false, "", ""
 	}
 
-	return m, indexedCount, typeStr, dynamic, allFieldSearchable,
+	return m, indexedCount, typeStrs, dynamic, allFieldSearchable,
 		im.DefaultAnalyzer, im.DefaultDateTimeParser
 }
 

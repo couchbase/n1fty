@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/couchbase/cbgt"
+	"github.com/couchbase/query/expression/parser"
 	"github.com/couchbase/query/value"
 )
 
@@ -204,7 +205,7 @@ func TestProcessIndexDef(t *testing.T) {
 				{Name: "country", Type: "text", Analyzer: "da"}:       false,
 				{Name: "country", Type: "text", Analyzer: "standard"}: false,
 			},
-			expectCondExpr:              "`type`=\"hotel\"",
+			expectCondExpr:              "`type` IN [\"hotel\"]",
 			expectDynamic:               false,
 			expectDefaultAnalyzer:       "standard",
 			expectDefaultDateTimeParser: "dateTimeOptional",
@@ -381,7 +382,7 @@ func TestProcessIndexDef(t *testing.T) {
 				{Name: "country", Type: "text", Analyzer: "cjk"}:      false,
 				{Name: "country", Type: "text", Analyzer: "standard"}: false,
 			},
-			expectCondExpr:              "`type`=\"hotel\"",
+			expectCondExpr:              "`type` IN [\"hotel\"]",
 			expectDynamic:               false,
 			expectDefaultAnalyzer:       "standard",
 			expectDefaultDateTimeParser: "crap",
@@ -427,7 +428,7 @@ func TestProcessIndexDef(t *testing.T) {
 			expectSearchFields: map[SearchField]bool{
 				{Name: "country", Type: "text", Analyzer: "super"}: false,
 			},
-			expectCondExpr:              "`type`=\"hotel\"",
+			expectCondExpr:              "`type` IN [\"hotel\"]",
 			expectDynamic:               false,
 			expectDefaultAnalyzer:       "super",
 			expectDefaultDateTimeParser: "dateTimeOptional",
@@ -466,7 +467,7 @@ func TestProcessIndexDef(t *testing.T) {
 			expectSearchFields: map[SearchField]bool{
 				{Name: "country", Type: "text", Analyzer: "standard"}: false,
 			},
-			expectCondExpr:              "`type`=\"hotel\"",
+			expectCondExpr:              "`type` IN [\"hotel\"]",
 			expectDynamic:               false,
 			expectDefaultAnalyzer:       "standard",
 			expectDefaultDateTimeParser: "dateTimeOptional",
@@ -517,11 +518,13 @@ func TestProcessIndexDef(t *testing.T) {
 					}
 				}
 			}`,
-			expectSearchFields:          nil,
-			expectCondExpr:              "",
+			expectSearchFields: map[SearchField]bool{
+				{Name: "country", Type: "text", Analyzer: "standard"}: false,
+			},
+			expectCondExpr:              "`type` IN [\"hotel\", \"locations\"]",
 			expectDynamic:               false,
-			expectDefaultAnalyzer:       "",
-			expectDefaultDateTimeParser: "",
+			expectDefaultAnalyzer:       "standard",
+			expectDefaultDateTimeParser: "dateTimeOptional",
 			expectErr:                   "",
 		},
 		{
@@ -638,7 +641,7 @@ func TestProcessIndexDef(t *testing.T) {
 			expectSearchFields: map[SearchField]bool{
 				{Name: "", Type: "", Analyzer: "standard"}: true,
 			},
-			expectCondExpr:              "`type`=\"hotel\"",
+			expectCondExpr:              "`type` IN [\"hotel\"]",
 			expectDynamic:               true,
 			expectDefaultAnalyzer:       "standard",
 			expectDefaultDateTimeParser: "dateTimeOptional",
@@ -669,7 +672,7 @@ func TestProcessIndexDef(t *testing.T) {
 			expectSearchFields: map[SearchField]bool{
 				{Name: "", Type: "", Analyzer: "standard"}: true,
 			},
-			expectCondExpr:              "`type`=\"hotel\"",
+			expectCondExpr:              "`type` IN [\"hotel\"]",
 			expectDynamic:               true,
 			expectDefaultAnalyzer:       "standard",
 			expectDefaultDateTimeParser: "dateTimeOptional",
@@ -745,7 +748,7 @@ func TestProcessIndexDef(t *testing.T) {
 			expectSearchFields: map[SearchField]bool{
 				{Name: "country", Type: "text", Analyzer: "super"}: false,
 			},
-			expectCondExpr:              "`type`=\"hotel\"",
+			expectCondExpr:              "`type` IN [\"hotel\"]",
 			expectDynamic:               false,
 			expectDefaultAnalyzer:       "super",
 			expectDefaultDateTimeParser: "dateTimeOptional",
@@ -771,9 +774,30 @@ func TestProcessIndexDef(t *testing.T) {
 				testi, test, pip.SearchFields)
 		}
 
-		if test.expectCondExpr != pip.CondExpr {
-			t.Fatalf("testi: %d, test: %+v,\n mismatch condExpr, got: %+v",
-				testi, test, pip.CondExpr)
+		if len(test.expectCondExpr) > 0 {
+			expectCondExpr, err := parser.Parse(test.expectCondExpr)
+			if err != nil {
+				t.Fatalf("testi: %d, err: %v", testi, err)
+			}
+			gotCondExpr, err := parser.Parse(pip.CondExpr)
+			if err != nil {
+				t.Fatalf("testi: %d, err: %v", testi, err)
+			}
+
+			expectExprs := expectCondExpr.Children()
+			gotExprs := gotCondExpr.Children()
+
+			if len(expectExprs) != len(gotExprs) {
+				t.Fatalf("testi: %d, expected condExpr: %s, got: %s",
+					testi, expectCondExpr.String(), gotCondExpr.String())
+			}
+
+			for i := range expectExprs {
+				if len(expectExprs[i].Children()) != len(gotExprs[i].Children()) {
+					t.Fatalf("Expect expression: %s, got expression: %s",
+						expectExprs[i].String(), gotExprs[i].String())
+				}
+			}
 		}
 
 		if test.expectDynamic != pip.Dynamic {

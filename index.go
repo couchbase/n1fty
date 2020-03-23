@@ -52,6 +52,7 @@ type FTSIndex struct {
 
 	defaultAnalyzer       string
 	defaultDateTimeParser string
+	multipleTypeStrs      bool
 
 	// flex indexes supported
 	condFlexIndexes flex.CondFlexIndexes
@@ -79,6 +80,7 @@ func newFTSIndex(indexer *FTSIndexer, indexDef *cbgt.IndexDef,
 		allFieldSearchable:    pip.AllFieldSearchable,
 		defaultAnalyzer:       pip.DefaultAnalyzer,
 		defaultDateTimeParser: pip.DefaultDateTimeParser,
+		multipleTypeStrs:      pip.MultipleTypeStrs,
 	}
 
 	var typeFieldPath []string
@@ -138,7 +140,7 @@ func (i *FTSIndex) RangeKey() expression.Expressions {
 }
 
 func (i *FTSIndex) Condition() expression.Expression {
-	return i.condExpr // Non-nil, for example, when 'type="beer"'.
+	return i.condExpr // Non-nil, for example, when 'type IN ["beer"]'.
 }
 
 func (i *FTSIndex) IsPrimary() bool {
@@ -317,12 +319,15 @@ func (i *FTSIndex) Sargable(field string, query,
 		optionsVal = options.Value()
 	}
 
-	// for now, exact will always be true (to prevent n1ql from doing
-	// unnecessary KV fetches);
-	// this is more of a place holder for until partial sargability is
+	// Exact will be true for as long as multiple type strings AREN'T
+	// specified in the FTS index definition.
+	// Multiple type strings constitute multiple types in the "type_field"
+	// mode and any operation in "docid_prefix" mode
+	//
+	// (this is more of a place holder for until partial sargability is
 	// supported where n1fty can determine whether a particular index
-	// would generate false positives or not for a given query.
-	exact := true
+	// would generate false positives or not for a given query.)
+	exact := !i.multipleTypeStrs
 
 	var queryFields map[util.SearchField]struct{}
 	if opq, ok := opaque.(map[string]interface{}); ok {
@@ -732,7 +737,7 @@ func (i *FTSIndex) SargableFlex(requestId string,
 		e, _ := parser.Parse(string(s))
 		res.StaticSargKeys[string(s)] = e
 	}
-	if !needsFiltering {
+	if !needsFiltering && !i.multipleTypeStrs {
 		res.RespFlags |= datastore.FTS_FLEXINDEX_EXACT
 	}
 
