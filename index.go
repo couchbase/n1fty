@@ -82,7 +82,6 @@ func newFTSIndex(indexer *FTSIndexer, indexDef *cbgt.IndexDef,
 	}
 
 	var typeFieldPath []string
-	// TODO: Support the other modes: "docid_prefix", docid_regexp
 	if pip.DocConfig != nil && strings.Contains(pip.DocConfig.Mode, "type_field") {
 		typeFieldPath = []string{pip.DocConfig.TypeField}
 	}
