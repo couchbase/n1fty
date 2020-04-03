@@ -18,10 +18,6 @@ import (
 )
 
 func TestBleveToCondFlexIndexesSimple(t *testing.T) {
-	fieldInfoType := &FieldInfo{
-		FieldPath: []string{"type"}, FieldType: "text",
-	}
-
 	tests := []struct {
 		m               *mapping.IndexMappingImpl
 		expectFlexIndex *FlexIndex
@@ -35,7 +31,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				DefaultMapping: &mapping.DocumentMapping{},
 			},
 			expectFlexIndex: &FlexIndex{
-				IndexedFields: FieldInfos{fieldInfoType},
+				IndexedFields: FieldInfos{},
 			},
 		},
 		{
@@ -45,7 +41,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				},
 			},
 			expectFlexIndex: &FlexIndex{
-				IndexedFields: FieldInfos{fieldInfoType},
+				IndexedFields: FieldInfos{},
 			},
 		},
 		{
@@ -61,7 +57,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				},
 			},
 			expectFlexIndex: &FlexIndex{
-				IndexedFields: FieldInfos{fieldInfoType},
+				IndexedFields: FieldInfos{},
 			},
 		},
 		{
@@ -77,7 +73,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				},
 			},
 			expectFlexIndex: &FlexIndex{
-				IndexedFields: FieldInfos{fieldInfoType},
+				IndexedFields: FieldInfos{},
 			},
 		},
 		{
@@ -93,7 +89,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				},
 			},
 			expectFlexIndex: &FlexIndex{
-				IndexedFields: FieldInfos{fieldInfoType},
+				IndexedFields: FieldInfos{},
 			},
 		},
 
@@ -109,7 +105,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				},
 			},
 			expectFlexIndex: &FlexIndex{
-				IndexedFields: FieldInfos{fieldInfoType},
+				IndexedFields: FieldInfos{},
 			},
 		},
 		{
@@ -124,7 +120,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				},
 			},
 			expectFlexIndex: &FlexIndex{
-				IndexedFields: FieldInfos{fieldInfoType},
+				IndexedFields: FieldInfos{},
 			},
 		},
 		{
@@ -145,7 +141,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				},
 			},
 			expectFlexIndex: &FlexIndex{
-				IndexedFields: FieldInfos{fieldInfoType},
+				IndexedFields: FieldInfos{},
 			},
 		},
 		{
@@ -166,7 +162,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				},
 			},
 			expectFlexIndex: &FlexIndex{
-				IndexedFields: FieldInfos{fieldInfoType},
+				IndexedFields: FieldInfos{},
 			},
 		},
 		{
@@ -187,7 +183,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				},
 			},
 			expectFlexIndex: &FlexIndex{
-				IndexedFields: FieldInfos{fieldInfoType},
+				IndexedFields: FieldInfos{},
 			},
 		},
 
@@ -212,7 +208,6 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 			},
 			expectFlexIndex: &FlexIndex{
 				IndexedFields: FieldInfos{
-					fieldInfoType,
 					&FieldInfo{
 						FieldPath: []string{"f1"},
 						FieldType: "text",
@@ -252,7 +247,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				DefaultAnalyzer: "NOT-keyword",
 			},
 			expectFlexIndex: &FlexIndex{
-				IndexedFields: FieldInfos{fieldInfoType},
+				IndexedFields: FieldInfos{},
 			},
 		},
 		{
@@ -275,7 +270,6 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 			},
 			expectFlexIndex: &FlexIndex{
 				IndexedFields: FieldInfos{
-					fieldInfoType,
 					&FieldInfo{
 						FieldPath: []string{"f1"},
 						FieldType: "text",
@@ -324,7 +318,6 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 			},
 			expectFlexIndex: &FlexIndex{
 				IndexedFields: FieldInfos{
-					fieldInfoType,
 					&FieldInfo{
 						FieldPath: []string{"f1"},
 						FieldType: "text",
@@ -369,7 +362,6 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 			},
 			expectFlexIndex: &FlexIndex{
 				IndexedFields: FieldInfos{
-					fieldInfoType,
 					&FieldInfo{
 						FieldPath: []string{"addr", "f1"},
 						FieldType: "text",
@@ -413,7 +405,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				},
 			},
 			expectFlexIndex: &FlexIndex{
-				IndexedFields: FieldInfos{fieldInfoType},
+				IndexedFields: FieldInfos{},
 			},
 		},
 		{
@@ -454,7 +446,6 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 			},
 			expectFlexIndex: &FlexIndex{
 				IndexedFields: FieldInfos{
-					fieldInfoType,
 					&FieldInfo{
 						FieldPath: []string{"addr", "f1"},
 						FieldType: "text",
@@ -498,7 +489,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				},
 			},
 			expectFlexIndex: &FlexIndex{
-				IndexedFields: FieldInfos{fieldInfoType},
+				IndexedFields: FieldInfos{},
 			},
 		},
 		{
@@ -512,7 +503,6 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 			expectFlexIndex: &FlexIndex{
 				Dynamic: true,
 				IndexedFields: FieldInfos{
-					fieldInfoType,
 					&FieldInfo{
 						FieldPath: nil,
 						FieldType: "text",
@@ -590,7 +580,6 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 			expectFlexIndex: &FlexIndex{
 				Dynamic: true,
 				IndexedFields: FieldInfos{
-					fieldInfoType,
 					&FieldInfo{
 						FieldPath: nil,
 						FieldType: "text",
@@ -684,7 +673,6 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 			expectFlexIndex: &FlexIndex{
 				Dynamic: true,
 				IndexedFields: FieldInfos{
-					fieldInfoType,
 					&FieldInfo{
 						FieldPath: []string{"addr", "f1"},
 						FieldType: "text",
