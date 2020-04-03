@@ -85,9 +85,7 @@ func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl,
 
 	if im.DefaultMapping != nil {
 		fi, err := BleveToFlexIndex(&FlexIndex{
-			IndexedFields: FieldInfos{
-				&FieldInfo{FieldPath: typeFieldPath, FieldType: "text"},
-			},
+			IndexedFields: FieldInfos{},
 		}, im, nil, im.DefaultMapping, im.DefaultAnalyzer, fieldTrackTypes)
 		if err != nil {
 			return nil, err
