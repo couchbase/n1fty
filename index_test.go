@@ -614,7 +614,6 @@ func TestNotSargableFlexIndex(t *testing.T) {
 		`t.type > hotel`,
 		`t.id >= 10`,
 		`t.id < 10`,
-		`t.id >= -5 AND t.id <= 5`,
 		`t.isOpen > true`,
 		`t.isOpen < false`,
 		`t.createdOn > '1985-04-12T23:20:50.52Z'`,
@@ -750,6 +749,12 @@ func TestSargableFlexIndex(t *testing.T) {
 			expectedSargKeys: []string{"id"},
 		},
 		{
+			queryStr: "t.id >= -20 and t.id <= -5",
+			expectedQueryStr: `{"query":{"field":"id","min":-20,"inclusive_min":true,` +
+				`"max":-5,"inclusive_max":true},"score":"none"}`,
+			expectedSargKeys: []string{"id"},
+		},
+		{
 			queryStr: "t.isOpen = true AND t.type = 'hotel'",
 			expectedQueryStr: `{"query":{"conjuncts":[{"field":"isOpen","bool":true},` +
 				`{"field":"type","term":"hotel"}]},"score":"none"}`,
@@ -820,6 +825,12 @@ func TestSargableDynamicFlexIndex(t *testing.T) {
 			queryStr: "t.id >= 0 AND t.id < 20",
 			expectedQueryStr: `{"query":{"field":"id","min":0,"inclusive_min":true,` +
 				`"max":20,"inclusive_max":false},"score":"none"}`,
+			expectedSargKeys: []string{"id"},
+		},
+		{
+			queryStr: "t.id > -25 AND t.id <= 10",
+			expectedQueryStr: `{"query":{"field":"id","min":-25,"inclusive_min":false,` +
+				`"max":10,"inclusive_max":true},"score":"none"}`,
 			expectedSargKeys: []string{"id"},
 		},
 		{
