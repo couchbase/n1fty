@@ -408,8 +408,12 @@ func FlexBuildToBleveQuery(fb *FlexBuild, prevSibling map[string]interface{}) (
 			}
 
 			if args[2] == "number" {
+				// Negative numbers will be enclosed within parantheses, so
+				// drop any parantheses from the string.
+				// For eg. (-10) -> 10
+				numStr := strings.Replace(strings.Replace(args[3], "(", "", 1), ")", "", 1)
 				var v float64
-				if err := json.Unmarshal([]byte(args[3]), &v); err != nil {
+				if err := json.Unmarshal([]byte(numStr), &v); err != nil {
 					return nil, err
 				}
 

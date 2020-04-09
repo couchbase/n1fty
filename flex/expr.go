@@ -149,6 +149,18 @@ func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifier
 			return true, nil, false, nil, nil // Wrong const type, so not-sargable.
 		}
 
+	case *expression.Neg:
+		// type : "number"
+		if fi.Dynamic {
+			if x.Type().String() != s.ValueType {
+				// If the flex index is dynamic, there'd exist field names
+				// with multiple types, so search for fields of other types.
+				return false, nil, false, nil, nil
+			}
+		} else if x.Type().String() != BleveTypeConv[s.ValueType] {
+			return true, nil, false, nil, nil // Wrong const type, so not-sargable
+		}
+
 	case *algebra.NamedParameter:
 		exprFieldTypesCheck = true
 
