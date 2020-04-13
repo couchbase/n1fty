@@ -618,6 +618,8 @@ func TestNotSargableFlexIndex(t *testing.T) {
 		`t.isOpen < false`,
 		`t.createdOn > '1985-04-12T23:20:50.52Z'`,
 		`t.createdOn <= '2020-01-30T12:00:00.00Z'`,
+		`t.id < 10 AND t.id > 0`,              // min expression to be specified first
+		`t.type < "hotel" AND t.type > "hot"`, // min expression to specified first
 	} {
 		queryExp, err := parser.Parse(queryStr)
 		if err != nil {
