@@ -15,7 +15,7 @@ package util
 // only supports a single enabled type mapping.
 var SampleLandmarkIndexDef = []byte(`
 {
-	"name": "temp",
+	"name": "SampleLandmarkIndexDef",
 	"type": "fulltext-index",
 	"params": {
 		"doc_config": {
@@ -138,7 +138,7 @@ var SampleLandmarkIndexDef = []byte(`
 
 var SampleIndexDefDynamicDefault = []byte(`
 {
-	"name": "temp",
+	"name": "SampleIndexDefDynamicDefault",
 	"type": "fulltext-index",
 	"params": {
 		"doc_config": {
@@ -180,7 +180,7 @@ var SampleIndexDefDynamicDefault = []byte(`
 
 var SampleIndexDefDynamicWithAnalyzerKeyword = []byte(`
 {
-	"name": "temp",
+	"name": "SampleIndexDefDynamicWithAnalyzerKeyword",
 	"type": "fulltext-index",
 	"params": {
 		"doc_config": {
@@ -222,7 +222,7 @@ var SampleIndexDefDynamicWithAnalyzerKeyword = []byte(`
 
 var SampleIndexDefWithCustomDefaultMapping = []byte(`
 {
-	"name": "travel",
+	"name": "SampleIndexDefWithCustomDefaultMapping",
 	"type": "fulltext-index",
 	"params": {
 		"doc_config": {
@@ -309,7 +309,7 @@ var SampleIndexDefWithCustomDefaultMapping = []byte(`
 
 var SampleIndexDefWithNoAllField = []byte(`
 {
-	"name": "travel",
+	"name": "SampleIndexDefWithNoAllField",
 	"type": "fulltext-index",
 	"params": {
 		"doc_config": {
@@ -366,7 +366,7 @@ var SampleIndexDefWithNoAllField = []byte(`
 
 var SampleIndexDefWithKeywordAnalyzerOverDefaultMapping = []byte(`
 {
-	"name": "travel",
+	"name": "SampleIndexDefWithKeywordAnalyzerOverDefaultMapping",
 	"type": "fulltext-index",
 	"params": {
 		"doc_config": {
@@ -463,7 +463,7 @@ var SampleIndexDefWithKeywordAnalyzerOverDefaultMapping = []byte(`
 
 var SampleIndexDefWithSeveralNestedFieldsUnderDefaultMapping = []byte(`
 {
-	"name": "travel",
+	"name": "SampleIndexDefWithSeveralNestedFieldsUnderDefaultMapping",
 	"type": "fulltext-index",
 	"params": {
 		"doc_config": {
@@ -589,7 +589,7 @@ var SampleIndexDefWithSeveralNestedFieldsUnderDefaultMapping = []byte(`
 
 var SampleIndexDefWithSeveralNestedFieldsUnderHotelMapping = []byte(`
 {
-	"name": "travel",
+	"name": "SampleIndexDefWithSeveralNestedFieldsUnderHotelMapping",
 	"type": "fulltext-index",
 	"params": {
 		"doc_config": {
