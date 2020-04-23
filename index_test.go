@@ -682,7 +682,7 @@ func testQueryOverFlexIndex(t *testing.T, index *FTSIndex,
 	}
 
 	if !reflect.DeepEqual(expectedQuery, gotQuery) {
-		t.Fatalf("ExpectedQuery: %#v, GotQuery: %#v", expectedQuery, gotQuery)
+		t.Fatalf("ExpectedQuery: %s, GotQuery: %s", expectedQueryStr, resp.SearchQuery)
 	}
 }
 
@@ -755,6 +755,13 @@ func TestSargableFlexIndex(t *testing.T) {
 			expectedQueryStr: `{"query":{"field":"id","min":-20,"inclusive_min":true,` +
 				`"max":-5,"inclusive_max":true},"score":"none"}`,
 			expectedSargKeys: []string{"id"},
+		},
+		{
+			queryStr: "t.type = 'hotel' AND t.id > 5 AND t.id < 10",
+			expectedQueryStr: `{"query":{"conjuncts":[{"field":"type","term":"hotel"},` +
+				`{"field":"id","min":5,"inclusive_min":false,"max":10,` +
+				`"inclusive_max":false}]},"score":"none"}`,
+			expectedSargKeys: []string{"type", "id"},
 		},
 		{
 			queryStr: "t.isOpen = true AND t.type = 'hotel'",
@@ -903,8 +910,7 @@ func TestComplexQuerySargabilityOverFlexIndexes(t *testing.T) {
 					`"inclusive_max":true,"inclusive_min":true,"max":5,"min":5},` +
 					`{"field":"reviews.ratings.Overall","inclusive_max":true,"inclusive_min":true,` +
 					`"max":4,"min":4}]},"score":"none"}`,
-				expectedSargKeys: []string{
-					"type", "reviews.ratings.Cleanliness", "reviews.ratings.Overall"},
+				expectedSargKeys: []string{"type", "reviews.ratings.Cleanliness", "reviews.ratings.Overall"},
 			},
 		}
 
@@ -934,28 +940,29 @@ func TestComplexQuerySargabilityOverFlexIndexes(t *testing.T) {
 			}
 
 			if resp == nil || len(resp.StaticSargKeys) != len(tests[j].expectedSargKeys) {
-				t.Fatalf("Query: %v, Resp: %#v", tests[j].queryStr, resp)
+				t.Fatalf("[%s] Query: %v, Resp: %#v", index.Name(), tests[j].queryStr, resp)
 			}
 
 			for _, key := range tests[j].expectedSargKeys {
 				if resp.StaticSargKeys[key] == nil {
-					t.Fatalf("ExpectedSargKeys: %v, Got StaticSargKeys: %v",
-						tests[j].expectedSargKeys, resp.StaticSargKeys)
+					t.Fatalf("[%s] ExpectedSargKeys: %v, Got StaticSargKeys: %v",
+						index.Name(), tests[j].expectedSargKeys, resp.StaticSargKeys)
 				}
 			}
 
 			var gotQuery, expectedQuery map[string]interface{}
 			err = json.Unmarshal([]byte(resp.SearchQuery), &gotQuery)
 			if err != nil {
-				t.Fatalf("SearchQuery: %s, err: %v", resp.SearchQuery, err)
+				t.Fatalf("[%s] SearchQuery: %s, err: %v", index.Name(), resp.SearchQuery, err)
 			}
 			err = json.Unmarshal([]byte(expectedQueryStr), &expectedQuery)
 			if err != nil {
-				t.Fatalf("ExpectedQuery: %s, err: %v", expectedQueryStr, err)
+				t.Fatalf("[%s] ExpectedQuery: %s, err: %v", index.Name(), expectedQueryStr, err)
 			}
 
 			if !reflect.DeepEqual(expectedQuery, gotQuery) {
-				t.Fatalf("ExpectedQuery: %#v, GotQuery: %#v", expectedQuery, gotQuery)
+				t.Fatalf("[%s] ExpectedQuery: %s, GotQuery: %s", index.Name(), expectedQueryStr,
+					resp.SearchQuery)
 			}
 		}
 	}
