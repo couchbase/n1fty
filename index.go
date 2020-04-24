@@ -101,6 +101,16 @@ func (i *FTSIndex) KeyspaceId() string {
 	return i.indexer.KeyspaceId()
 }
 
+func (i *FTSIndex) BucketId() string {
+	// FIXME
+	return ""
+}
+
+func (i *FTSIndex) ScopeId() string {
+	// FIXME
+	return ""
+}
+
 func (i *FTSIndex) Id() string {
 	return i.indexDef.UUID
 }

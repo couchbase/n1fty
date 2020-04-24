@@ -203,6 +203,16 @@ func (i *FTSIndexer) KeyspaceId() string {
 	return i.keyspace
 }
 
+func (i *FTSIndexer) BucketId() string {
+	// FIXME
+	return ""
+}
+
+func (i *FTSIndexer) ScopeId() string {
+	// FIXME
+	return ""
+}
+
 func (i *FTSIndexer) Name() datastore.IndexType {
 	return datastore.FTS
 }
