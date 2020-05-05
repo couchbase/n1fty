@@ -10,10 +10,8 @@
 package flex
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/couchbase/query/algebra"
 	"github.com/couchbase/query/expression"
@@ -131,11 +129,12 @@ func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifier
 			xType := x.Type().String()
 			if xType == "string" {
 				xType = "text"
-				// Check if the search term could be datetime.
-				var v string
-				if err := json.Unmarshal([]byte(exprY.String()), &v); err == nil {
-					if _, err = time.Parse(time.RFC3339, v); err == nil {
-						xType = "datetime"
+				// Check if the search term could be datetime (ISO-8601)
+				if exprYVal := exprY.Value(); exprYVal != nil {
+					if v, ok := exprYVal.Actual().(string); ok {
+						if _, _, err := expression.StrToTimeFormat(v); err == nil {
+							xType = "datetime"
+						}
 					}
 				}
 			}
