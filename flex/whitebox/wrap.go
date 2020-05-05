@@ -209,6 +209,10 @@ func (b *WrapKeyspace) Name() string {
 	return b.W.Name()
 }
 
+func (p *WrapKeyspace) QualifiedName() string {
+	return ""
+}
+
 func (b *WrapKeyspace) Count(context datastore.QueryContext) (int64, errors.Error) {
 	return b.W.Count(context)
 }

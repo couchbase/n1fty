@@ -64,6 +64,14 @@ func (i *Index) KeyspaceId() string {
 	return i.Parent.KeyspaceId()
 }
 
+func (i *Index) BucketId() string {
+	return ""
+}
+
+func (i *Index) ScopeId() string {
+	return ""
+}
+
 func (i *Index) Id() string {
 	return i.IdStr
 }

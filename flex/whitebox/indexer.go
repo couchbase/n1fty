@@ -28,6 +28,14 @@ func (i *Indexer) KeyspaceId() string {
 	return i.Keyspace.Id()
 }
 
+func (i *Indexer) BucketId() string {
+	return ""
+}
+
+func (i *Indexer) ScopeId() string {
+	return ""
+}
+
 func (i *Indexer) Name() datastore.IndexType {
 	return i.IndexType
 }
