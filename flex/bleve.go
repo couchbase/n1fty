@@ -14,9 +14,9 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/blevesearch/bleve/mapping"
+	"github.com/couchbase/query/expression"
 	"github.com/couchbase/query/value"
 )
 
@@ -455,9 +455,9 @@ func FlexBuildToBleveQuery(fb *FlexBuild, prevSibling map[string]interface{}) (
 					return nil, err
 				}
 
-				// datetime needs to follow RFC3339 format
-				if _, err = time.Parse(time.RFC3339, v); err != nil {
-					return nil, fmt.Errorf("unsupported datetime format (not RFC3339)")
+				// datetime needs to comply with ISO-8601 standard
+				if _, _, err := expression.StrToTimeFormat(v); err != nil {
+					return nil, err
 				}
 
 				switch args[0] {
@@ -557,14 +557,14 @@ func MaxNumericRangeQuery(f string, v float64, inclusive bool,
 func MinDatetimeRangeQuery(f string, v string, inclusive bool,
 	prev map[string]interface{}) (map[string]interface{}, error) {
 	if prev != nil && prev["field"] == f {
-		vDT, err := time.Parse(time.RFC3339, v)
+		vDT, _, err := expression.StrToTimeFormat(v)
 		if err != nil {
 			return nil, err
 		}
 		_, prevStartOk := prev["start"].(string)
 		prevEnd, prevEndOk := prev["end"].(string)
 		if !prevStartOk && prevEndOk {
-			prevEndDT, err := time.Parse(time.RFC3339, prevEnd)
+			prevEndDT, _, err := expression.StrToTimeFormat(prevEnd)
 			if err == nil && (vDT.Before(prevEndDT) || vDT.Equal(prevEndDT)) {
 				prev["start"] = v
 				prev["inclusive_start"] = inclusive
@@ -581,14 +581,14 @@ func MinDatetimeRangeQuery(f string, v string, inclusive bool,
 func MaxDatetimeRangeQuery(f string, v string, inclusive bool,
 	prev map[string]interface{}) (map[string]interface{}, error) {
 	if prev != nil && prev["field"] == f {
-		vDT, err := time.Parse(time.RFC3339, v)
+		vDT, _, err := expression.StrToTimeFormat(v)
 		if err != nil {
 			return nil, err
 		}
 		_, prevEndOk := prev["end"].(string)
 		prevStart, prevStartOk := prev["start"].(string)
 		if !prevEndOk && prevStartOk {
-			prevStartDT, err := time.Parse(time.RFC3339, prevStart)
+			prevStartDT, _, err := expression.StrToTimeFormat(prevStart)
 			if err == nil && (vDT.After(prevStartDT) || vDT.Equal(prevStartDT)) {
 				prev["end"] = v
 				prev["inclusive_end"] = inclusive

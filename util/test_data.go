@@ -683,6 +683,19 @@ var SampleIndexDefWithSeveralNestedFieldsUnderHotelMapping = []byte(`
 								"type": "text"
 							}
 							]
+						},
+						"createdOn": {
+							"enabled": true,
+							"dynamic": false,
+							"fields": [
+							{
+								"name": "createdOn",
+								"type": "datetime",
+								"index": true,
+								"include_in_all": true,
+								"docvalues": true
+							}
+							]
 						}
 					}
 				}
