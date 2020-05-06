@@ -319,15 +319,19 @@ func (i *FTSIndex) Sargable(field string, query,
 		optionsVal = options.Value()
 	}
 
-	// Exact will be true for as long as multiple type strings AREN'T
-	// specified in the FTS index definition.
-	// Multiple type strings constitute multiple types in the "type_field"
-	// mode and any operation in "docid_prefix" mode
-	//
-	// (this is more of a place holder for until partial sargability is
+	if i.multipleTypeStrs {
+		// As this index includes multiple type mappings, this index will
+		// not be supported for n1ql's SEARCH(..) functions to avoid the
+		// possibility of false positives
+		return 0, 0, false, nil, nil
+	}
+
+	// For now, Exact will always be true (to prevent n1ql from doing
+	// unnecessary KV fetches);
+	// This is more of a place holder for until partial sargability is
 	// supported where n1fty can determine whether a particular index
-	// would generate false positives or not for a given query.)
-	exact := !i.multipleTypeStrs
+	// would generate false positives or not for a given query.
+	exact := true
 
 	var queryFields map[util.SearchField]struct{}
 	if opq, ok := opaque.(map[string]interface{}); ok {
@@ -719,7 +723,7 @@ func (i *FTSIndex) SargableFlex(requestId string,
 	}
 
 	if bleveQuery == nil {
-		return nil, util.N1QLError(nil, "SargableFlex bleveQuery unavailable")
+		return nil, nil
 	}
 
 	res := &datastore.FTSFlexResponse{}
