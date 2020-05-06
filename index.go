@@ -708,6 +708,10 @@ func (i *FTSIndex) SargableFlex(requestId string,
 		return nil, util.N1QLError(err1, "SargableFlex Sargable")
 	}
 
+	if bleveQuery == nil {
+		return nil, util.N1QLError(nil, "SargableFlex bleveQuery unavailable")
+	}
+
 	res := &datastore.FTSFlexResponse{}
 	searchRequest := map[string]interface{}{
 		"query": bleveQuery,
