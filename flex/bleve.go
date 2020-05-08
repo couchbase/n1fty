@@ -44,41 +44,51 @@ func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl,
 		typeFieldPath = DefaultTypeFieldPath
 	}
 
+	fi := &FlexIndex{
+		IndexedFields: FieldInfos{
+			&FieldInfo{FieldPath: typeFieldPath, FieldType: "text"},
+		},
+		SupportedExprs: []SupportedExpr{},
+	}
+
+	var values value.Values
 	for _, t := range types {
 		typeEqEffect := "FlexBuild:n" // Strips `type = "BEER"` from expressions.
 		if !im.TypeMapping[t].Enabled {
 			typeEqEffect = "not-sargable"
 		}
 
-		fi, err := BleveToFlexIndex(&FlexIndex{
-			// To lead CheckFieldsUseds() to not-sargable.
-			IndexedFields: FieldInfos{
-				&FieldInfo{FieldPath: typeFieldPath, FieldType: "text"},
-			},
-			SupportedExprs: []SupportedExpr{
-				// Strips `type = "BEER"` from expressions.
-				&SupportedExprCmpFieldConstant{
-					Cmp:       "eq",
-					FieldPath: typeFieldPath,
-					ValueType: "text",
-					ValueMust: value.NewValue(t),
-					Effect:    typeEqEffect,
-				},
-				// To treat `type > "BEER"` as not-sargable.
-				&SupportedExprCmpFieldConstant{
-					Cmp:       "lt gt le ge",
-					FieldPath: typeFieldPath,
-					ValueType: "", // Treated as not-sargable.
-					Effect:    "not-sargable",
-				},
-			},
-		}, im, nil, im.TypeMapping[t], im.DefaultAnalyzer, fieldTrackTypes)
+		// Strips `type = "BEER"` from expressions.
+		fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
+			Cmp:       "eq",
+			FieldPath: typeFieldPath,
+			ValueType: "text",
+			ValueMust: value.NewValue(t),
+			Effect:    typeEqEffect,
+		})
+
+		// To treat `type > "BEER"` as not-sargable.
+		fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
+			Cmp:       "lt gt le ge",
+			FieldPath: typeFieldPath,
+			ValueType: "", // Treated as not-sargable.
+			Effect:    "not-sargable",
+		})
+
+		fi, err = BleveToFlexIndex(fi, im, nil, im.TypeMapping[t], im.DefaultAnalyzer,
+			fieldTrackTypes)
 		if err != nil {
 			return nil, err
 		}
 
+		values = append(values, value.NewValue(t))
+	}
+
+	if len(fi.SupportedExprs) > 0 {
+		// Add CondFlexIndex over all the types, iff at least one type mapping
+		// is enabled
 		rv = append(rv, &CondFlexIndex{
-			Cond:      MakeCondFuncEqVal(typeFieldPath, value.NewValue(t)),
+			Cond:      MakeCondFuncEqVals(typeFieldPath, values),
 			FlexIndex: fi,
 		})
 	}
@@ -226,7 +236,6 @@ func BleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 			FieldTypeCheck: true,
 		})
 
-		// TODO: Currently supports only default mapping.
 		// TODO: Currently supports only keyword fields.
 		// TODO: Need to support geopoint field types?
 		// TODO: Need to support non-keyword analyzers?

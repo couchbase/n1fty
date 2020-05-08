@@ -159,7 +159,7 @@ type CondFlexIndexes []*CondFlexIndex
 type CondFunc func(ids Identifiers, es expression.Expressions) (bool, error)
 
 // Returns a CondFunc that represents checking a field for value equality.
-func MakeCondFuncEqVal(fieldPath []string, v value.Value) CondFunc {
+func MakeCondFuncEqVals(fieldPath []string, vals value.Values) CondFunc {
 	return func(ids Identifiers, es expression.Expressions) (bool, error) {
 		for _, e := range es {
 			f, ok := e.(*expression.Eq)
@@ -168,8 +168,12 @@ func MakeCondFuncEqVal(fieldPath []string, v value.Value) CondFunc {
 			}
 
 			matches, c := MatchEqFieldPathToConstant(ids, fieldPath, f)
-			if matches && c.Value().Equals(v).Truth() {
-				return true, nil
+			if matches {
+				for _, v := range vals {
+					if c.Value().Equals(v).Truth() {
+						return true, nil
+					}
+				}
 			}
 		}
 
