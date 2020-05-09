@@ -717,3 +717,74 @@ var SampleIndexDefWithSeveralNestedFieldsUnderHotelMapping = []byte(`
 	"uuid": ""
 }
 `)
+
+var SampleIndexDefWithMultipleTypeMappings = []byte(`
+{
+	"type": "fulltext-index",
+	"name": "SampleIndexDefWithMultipleTypeMappings",
+	"sourceType": "gocbcore",
+	"sourceName": "travel-sample",
+	"planParams": {
+		"indexPartitions": 6
+	},
+	"params": {
+		"doc_config": {
+			"mode": "type_field",
+			"type_field": "type"
+		},
+		"mapping": {
+			"analysis": {},
+			"default_analyzer": "standard",
+			"default_datetime_parser": "dateTimeOptional",
+			"default_field": "_all",
+			"default_mapping": {
+				"dynamic": true,
+				"enabled": false
+			},
+			"default_type": "_default",
+			"type_field": "_type",
+			"types": {
+				"airline": {
+					"dynamic": false,
+					"enabled": true,
+					"properties": {
+						"country": {
+							"dynamic": false,
+							"enabled": true,
+							"fields": [
+							{
+								"analyzer": "keyword",
+								"index": true,
+								"name": "country",
+								"type": "text"
+							}
+							]
+						}
+					}
+				},
+				"airport": {
+					"dynamic": false,
+					"enabled": true,
+					"properties": {
+						"country": {
+							"dynamic": false,
+							"enabled": true,
+							"fields": [
+							{
+								"analyzer": "keyword",
+								"index": true,
+								"name": "country",
+								"type": "text"
+							}
+							]
+						}
+					}
+				}
+			}
+		},
+		"store": {
+			"indexType": "scorch"
+		}
+	}
+}
+`)

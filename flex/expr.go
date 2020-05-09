@@ -189,7 +189,11 @@ func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifier
 	if s.ValueMust != nil { // Must be a constant equal to ValueMust.
 		if c, ok := exprY.(*expression.Constant); !ok ||
 			!s.ValueMust.Equals(c.Value()).Truth() {
-			return true, nil, false, nil, nil
+			// If the flex index were to have multiple type mappings, there'd
+			// exist multiple supported expressions for evaluating the condition
+			// expression, so return matches=false to continue testing for
+			// supportability within another expression.
+			return false, nil, false, nil, nil
 		}
 	}
 
