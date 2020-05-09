@@ -286,6 +286,15 @@ func (s CondFlexIndexes) Sargable(
 			return nil, false, nil, err
 		}
 
+		if cFB == nil {
+			// If flex build is not available, it is safe to treat the expression as
+			// not-sargable. This can be in any of these situations:
+			// - an expression is treated as "not-sargable"
+			// - as expression is "FlexBuild:n" ("type"/cond expr)
+			// - expression doesn't hold a constant/parmeter
+			return nil, false, nil, nil
+		}
+
 		// Add the recursion's result to our composite results.
 		for cFieldTrack, n := range cFieldTracks {
 			if rFieldTracks == nil {
@@ -296,12 +305,10 @@ func (s CondFlexIndexes) Sargable(
 
 		rNeedsFiltering = rNeedsFiltering || cNeedsFiltering
 
-		if cFB != nil {
-			if rFB == nil {
-				rFB = &FlexBuild{Kind: "disjunct"}
-			}
-			rFB.Children = append(rFB.Children, cFB)
+		if rFB == nil {
+			rFB = &FlexBuild{Kind: "disjunct"}
 		}
+		rFB.Children = append(rFB.Children, cFB)
 
 		if len(cFieldTracks) > 0 {
 			continue // Expression sargable.
