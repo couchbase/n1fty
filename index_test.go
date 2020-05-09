@@ -1054,6 +1054,24 @@ func TestSargableFlexIndexWithMultipleTypeMappings(t *testing.T) {
 			queryStr:         `(t.type = "airline" OR t.type = "airport") AND t.country = "US"`,
 			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
 		},
+		{
+			queryStr:         `t.type = "airline" OR t.type = "airport" AND t.country = "US"`,
+			expectedQueryStr: ``,
+		},
+		{
+			queryStr:         `t.type = "airline" OR (t.type = "airport" AND t.country = "US")`,
+			expectedQueryStr: ``,
+		},
+		{
+			queryStr:         `(t.type = "airport") OR (t.type = "airline" AND t.country = "US")`,
+			expectedQueryStr: ``,
+		},
+		{
+			// Expect this expression to be sargable, although filtering (non-covering index)
+			// will ensure that no results are returned.
+			queryStr:         `t.type = "airport" AND t.type = "airline" AND t.country = "US"`,
+			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
+		},
 	}
 
 	for i := range tests {
