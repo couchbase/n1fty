@@ -599,68 +599,6 @@ func TestIndexSargabilityNoAllField(t *testing.T) {
 	}
 }
 
-func TestIndexMultipleTypeMappings(t *testing.T) {
-	index, err := setupSampleIndex([]byte(`{
-		"name": "default",
-		"type": "fulltext-index",
-		"sourceName": "default",
-		"planParams": {
-			"indexPartitions": 6
-		},
-		"params": {
-			"doc_config": {
-				"mode": "type_field",
-				"type_field": "type"
-			},
-			"mapping": {
-				"default_mapping": {
-					"dynamic": true,
-					"enabled": false
-				},
-				"type_field": "_type",
-				"types": {
-					"type1": {
-						"dynamic": true,
-						"enabled": true
-					},
-					"type2": {
-						"dynamic": true,
-						"enabled": true
-					}
-				}
-			},
-			"store": {
-				"indexType": "scorch"
-			}
-		}
-	}`))
-
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expectCondExprStr := "`type` IN [\"type1\", \"type2\"]"
-	expectCondExpr, err := parser.Parse(expectCondExprStr)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expectExprs := expectCondExpr.Children()
-	gotExprs := index.condExpr.Children()
-
-	if len(expectExprs) != len(gotExprs) {
-		t.Fatalf("Expected condExpr: %s, got: %s",
-			expectCondExpr.String(), index.condExpr.String())
-	}
-
-	for i := range expectExprs {
-		if len(expectExprs[i].Children()) != len(gotExprs[i].Children()) {
-			t.Fatalf("Expect expression: %s, got expression: %s",
-				expectExprs[i].String(), gotExprs[i].String())
-		}
-	}
-}
-
 // =============================================================================
 
 func TestNotSargableFlexIndex(t *testing.T) {
@@ -1027,5 +965,140 @@ func TestComplexQuerySargabilityOverFlexIndexes(t *testing.T) {
 					resp.SearchQuery)
 			}
 		}
+	}
+}
+
+// =============================================================================
+
+func TestIndexMultipleTypeMappings(t *testing.T) {
+	index, err := setupSampleIndex([]byte(`{
+		"name": "default",
+		"type": "fulltext-index",
+		"sourceName": "default",
+		"planParams": {
+			"indexPartitions": 6
+		},
+		"params": {
+			"doc_config": {
+				"mode": "type_field",
+				"type_field": "type"
+			},
+			"mapping": {
+				"default_mapping": {
+					"dynamic": true,
+					"enabled": false
+				},
+				"type_field": "_type",
+				"types": {
+					"type1": {
+						"dynamic": true,
+						"enabled": true
+					},
+					"type2": {
+						"dynamic": true,
+						"enabled": true
+					}
+				}
+			},
+			"store": {
+				"indexType": "scorch"
+			}
+		}
+	}`))
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectCondExprStr := "`type` IN [\"type1\", \"type2\"]"
+	expectCondExpr, err := parser.Parse(expectCondExprStr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectExprs := expectCondExpr.Children()
+	gotExprs := index.condExpr.Children()
+
+	if len(expectExprs) != len(gotExprs) {
+		t.Fatalf("Expected condExpr: %s, got: %s",
+			expectCondExpr.String(), index.condExpr.String())
+	}
+
+	for i := range expectExprs {
+		if len(expectExprs[i].Children()) != len(gotExprs[i].Children()) {
+			t.Fatalf("Expect expression: %s, got expression: %s",
+				expectExprs[i].String(), gotExprs[i].String())
+		}
+	}
+}
+
+func TestSargableFlexIndexWithMultipleTypeMappings(t *testing.T) {
+	index, err := setupSampleIndex(util.SampleIndexDefWithMultipleTypeMappings)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		queryStr         string
+		expectedQueryStr string
+	}{
+		{
+			queryStr:         `t.type = "airline" AND t.country = "US"`,
+			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
+		},
+		{
+			queryStr:         `t.type = "airport" AND t.country = "US"`,
+			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
+		},
+		{
+			queryStr:         `(t.type = "airline" OR t.type = "airport") AND t.country = "US"`,
+			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
+		},
+	}
+
+	for i := range tests {
+		queryExpression, err := parser.Parse(tests[i].queryStr)
+		if err != nil {
+			t.Fatal(tests[i].queryStr, err)
+		}
+
+		flexRequest := &datastore.FTSFlexRequest{
+			Keyspace: "t",
+			Pred:     queryExpression,
+		}
+
+		resp, err := index.SargableFlex("0", flexRequest)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(tests[i].expectedQueryStr) == 0 {
+			if resp != nil {
+				t.Errorf("[%d] Expected `%s` to not be sargable for index",
+					i, tests[i].queryStr)
+			}
+			continue
+		}
+
+		if resp == nil {
+			t.Errorf("[%d] Expected `%s` to be sargable for index", i, tests[i].queryStr)
+			continue
+		}
+
+		var gotQuery, expectedQuery map[string]interface{}
+		err = json.Unmarshal([]byte(resp.SearchQuery), &gotQuery)
+		if err != nil {
+			t.Errorf("[%d] SearchQuery: %s, err: %v", i, resp.SearchQuery, err)
+		}
+		err = json.Unmarshal([]byte(tests[i].expectedQueryStr), &expectedQuery)
+		if err != nil {
+			t.Errorf("[%d] ExpectedQuery: %s, err: %v", i, tests[i].expectedQueryStr, err)
+		}
+
+		if !reflect.DeepEqual(expectedQuery, gotQuery) {
+			t.Errorf("[%d] ExpectedQuery: %s, GotQuery: %s",
+				i, tests[i].expectedQueryStr, resp.SearchQuery)
+		}
+
 	}
 }

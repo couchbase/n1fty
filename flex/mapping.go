@@ -162,17 +162,43 @@ type CondFunc func(ids Identifiers, es expression.Expressions) (bool, error)
 func MakeCondFuncEqVals(fieldPath []string, vals value.Values) CondFunc {
 	return func(ids Identifiers, es expression.Expressions) (bool, error) {
 		for _, e := range es {
-			f, ok := e.(*expression.Eq)
-			if !ok {
-				continue
-			}
-
-			matches, c := MatchEqFieldPathToConstant(ids, fieldPath, f)
-			if matches {
-				for _, v := range vals {
-					if c.Value().Equals(v).Truth() {
-						return true, nil
+			if f, ok := e.(*expression.Eq); ok {
+				matches, c := MatchEqFieldPathToConstant(ids, fieldPath, f)
+				if matches {
+					for _, v := range vals {
+						if c.Value().Equals(v).Truth() {
+							return true, nil
+						}
 					}
+				}
+			} else if f, ok := e.(*expression.Or); ok {
+				// Collect all children of this Or expression, and check if
+				// every one of them are represented in the type vals.
+				exprs := collectDisjunctExprs(f, nil)
+				eligible := true
+				for _, ee := range exprs {
+					if ff, ok := ee.(*expression.Eq); ok {
+						matches, c := MatchEqFieldPathToConstant(ids, fieldPath, ff)
+						if matches {
+							found := false
+							for _, v := range vals {
+								if c.Value().Equals(v).Truth() {
+									found = true
+									break
+								}
+							}
+							if !found {
+								eligible = false
+								break
+							}
+						}
+					} else {
+						eligible = false
+						break
+					}
+				}
+				if eligible {
+					return true, nil
 				}
 			}
 		}
@@ -324,6 +350,23 @@ func collectConjunctExprs(ex expression.Expression,
 	if exAnd, ok := ex.(*expression.And); ok {
 		for _, child := range exAnd.Children() {
 			children = collectConjunctExprs(child, children)
+		}
+	} else {
+		children = append(children, ex)
+	}
+
+	return children
+}
+
+func collectDisjunctExprs(ex expression.Expression,
+	children expression.Expressions) expression.Expressions {
+	if children == nil {
+		children = make(expression.Expressions, 0, 2)
+	}
+
+	if exOr, ok := ex.(*expression.Or); ok {
+		for _, child := range exOr.Children() {
+			children = collectDisjunctExprs(child, children)
 		}
 	} else {
 		children = append(children, ex)
