@@ -96,12 +96,6 @@ need to check the WHERE clause for all type mappings
 //       ==> if only type field is in the query, then flexBuild will be empty,
 //           leading (hopefully) to empty SearchResult.
 //   will return not-sargable on any other usage of "type" field (via CheckFieldsUsed/IndexedFields).
-//   NOTE: (AAA) this might produce false negatives during dynamic indexing,
-//         which will activate, for example, on 'type >= "BEER"' supportedExpr
-//         and incorrectly (?) add a cmpFieldConstant to the FlexBuild?
-//         so, one solution is to add a high-precedence cmpFieldConstant
-//         supportedExpr of "lt gt le ge" on the type field that always
-//         returns not-sargable (via: Effect: "not-sargable").
 //
 // type=WINERY (disabled)
 //   IndexedFields += "type"=>"string".
@@ -138,8 +132,6 @@ need to check the WHERE clause for all type mappings
 //        "Effect: not-sargable" to capture that "type" field is
 //        never dynamically indexed?
 
-TODO: support OR's of AND's.
-TODO: support expressions that involve multiple types.
 TODO: what if the type mapping also explicitly indexes the type field, too?
       - and, what if that explicit type field has a different analyzer?
 */
