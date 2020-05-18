@@ -792,6 +792,14 @@ func TestSargableFlexIndex(t *testing.T) {
 				`"term":"1985-04-12T23:20:50.52Z"},"score":"none"}`,
 			expectedSargKeys: []string{"type"},
 		},
+		{
+			queryStr: "t.type IN ['airline', 'airport'] AND t.createdOn = '2020-05-18'",
+			expectedQueryStr: `{"query":{"conjuncts":[{"disjuncts":[{"field":"type",` +
+				`"term":"airline"},{"field":"type","term":"airport"}]},` +
+				`{"field":"createdOn","start":"2020-05-18","end":"2020-05-18",` +
+				`"inclusive_start":true,"inclusive_end":true}]},"score":"none"}`,
+			expectedSargKeys: []string{"type", "createdOn"},
+		},
 	}
 
 	for i := range tests {
@@ -861,6 +869,21 @@ func TestSargableDynamicFlexIndex(t *testing.T) {
 				`"start":"1985-04-12T23:20:50.52Z","inclusive_start":false,` +
 				`"end":"2020-01-30T12:00:00.00Z","inclusive_end":true},"score":"none"}`,
 			expectedSargKeys: []string{"createdOn"},
+		},
+		{
+			queryStr: "t.createdOn IN ['2020-05-18', '2020-05-19']",
+			expectedQueryStr: `{"query":{"disjuncts":[{"field":"createdOn","start":"2020-05-18",` +
+				`"end":"2020-05-18","inclusive_start":true,"inclusive_end":true},` +
+				`{"field":"createdOn","start":"2020-05-19","end":"2020-05-19",` +
+				`"inclusive_start":true,"inclusive_end":true}]},"score":"none"}`,
+			expectedSargKeys: []string{"createdOn"},
+		},
+		{
+			queryStr: "t.id IN [10] AND t.type = 'hotel'",
+			expectedQueryStr: `{"query":{"conjuncts":[{"field":"id","min":10,"max":10,` +
+				`"inclusive_min":true,"inclusive_max":true},{"field":"type","term":"hotel"}]}` +
+				`,"score":"none"}`,
+			expectedSargKeys: []string{"id", "type"},
 		},
 	}
 
@@ -1070,6 +1093,14 @@ func TestSargableFlexIndexWithMultipleTypeMappings(t *testing.T) {
 			// Expect this expression to be sargable, although filtering (non-covering index)
 			// will ensure that no results are returned.
 			queryStr:         `t.type = "airport" AND t.type = "airline" AND t.country = "US"`,
+			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
+		},
+		{
+			queryStr:         `t.type IN ["airline"] AND t.country = "US"`,
+			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
+		},
+		{
+			queryStr:         `t.type IN ["airline", "airport"] AND t.country = "US"`,
 			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
 		},
 	}

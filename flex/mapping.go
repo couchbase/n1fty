@@ -268,6 +268,7 @@ func (s CondFlexIndexes) Sargable(
 
 	// OR-of-AND's means all the OR's children must match a flex index.
 	for _, oChild := range o.Children() {
+		oChild = resolveExpr(oChild)
 		cFI, err := s.FindFlexIndex(ids, oChild)
 		if err != nil || cFI == nil {
 			return nil, false, nil, err
@@ -351,7 +352,7 @@ func collectConjunctExprs(ex expression.Expression,
 			children = collectConjunctExprs(child, children)
 		}
 	} else {
-		children = append(children, ex)
+		children = append(children, resolveExpr(ex))
 	}
 
 	return children
@@ -368,8 +369,26 @@ func collectDisjunctExprs(ex expression.Expression,
 			children = collectDisjunctExprs(child, children)
 		}
 	} else {
-		children = append(children, ex)
+		children = append(children, resolveExpr(ex))
 	}
 
 	return children
+}
+
+// This helper function will translate certain N1QL expressions into
+// simplified expressions that N1FTY-FLEX can interpret.
+func resolveExpr(e expression.Expression) expression.Expression {
+	if inExpr, ok := e.(*expression.In); ok {
+		// translates:
+		//     x IN ['a','b','c'] -> (x = 'a' OR x = 'b' OR x = 'c')
+		if ac, ok := inExpr.Second().(*expression.ArrayConstruct); ok {
+			disjuncts := make(expression.Expressions, len(ac.Children()))
+			for i, operand := range ac.Children() {
+				disjuncts[i] = expression.NewEq(inExpr.First(), operand)
+			}
+			return expression.NewOr(disjuncts...)
+		}
+	}
+
+	return e
 }

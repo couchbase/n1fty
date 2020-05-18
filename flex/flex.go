@@ -65,7 +65,7 @@ func (fi *FlexIndex) SargableCombo(ids Identifiers, e expression.Expression,
 	}
 
 	if _, ok := e.(*expression.Or); ok { // Handle OR composite.
-		return fi.SargableComposite(ids, e.Children(), eFTs, "disjunct")
+		return fi.SargableComposite(ids, collectDisjunctExprs(e, nil), eFTs, "disjunct")
 	}
 
 	if a, ok := e.(*expression.Any); ok { // Handle ANY-SATISFIES.
