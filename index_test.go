@@ -32,7 +32,7 @@ func setupSampleIndex(idef []byte) (*FTSIndex, error) {
 		return nil, err
 	}
 
-	pip, err := util.ProcessIndexDef(indexDef)
+	pip, err := util.ProcessIndexDef(indexDef, "", "")
 	if err != nil {
 		return nil, err
 	}

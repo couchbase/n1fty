@@ -46,9 +46,14 @@ var StatsLoggingIntervalMS = 60000      // 60s
 
 // FTSIndexer implements datastore.Indexer interface
 type FTSIndexer struct {
-	namespace string
-	keyspace  string
-	serverURL string
+	serverURL  string
+	namespace  string
+	keyspace   string
+	bucket     string
+	scope      string
+	collection string
+
+	collectionAware bool
 
 	agent *gocbcore.Agent
 
@@ -85,13 +90,30 @@ type stats struct {
 
 // -----------------------------------------------------------------------------
 
+// keyspace = bucket
 func NewFTSIndexer(serverIn, namespace, keyspace string) (datastore.Indexer,
 	errors.Error) {
-	logging.Infof("n1fty: server: %v, namespace: %v, keyspace: %v",
+	logging.Infof("n1fty: NewFTSIndexer, server: %v, namespace: %v, keyspace: %v",
 		serverIn, namespace, keyspace)
 
+	return newFTSIndexer(serverIn, namespace, keyspace, "", "", keyspace)
+}
+
+// keyspace = collection
+func NewFTSIndexer2(serverIn, namespace, bucket, scope, keyspace string) (
+	datastore.Indexer, errors.Error) {
+	logging.Infof("n1fty: NewFTSIndexer2, server: %v, namespace: %v, bucket: %v,"+
+		" scope: %v, keyspace: %v", serverIn, namespace, bucket, scope, keyspace)
+
+	return newFTSIndexer(serverIn, namespace, bucket, scope, keyspace, keyspace)
+}
+
+// -----------------------------------------------------------------------------
+
+func newFTSIndexer(serverIn, namespace, bucket, scope, collection, keyspace string) (
+	datastore.Indexer, errors.Error) {
 	server, _, bucketName :=
-		cbgt.CouchbaseParseSourceName(serverIn, "default", keyspace)
+		cbgt.CouchbaseParseSourceName(serverIn, "default", bucket)
 
 	conf := &gocbcore.AgentConfig{
 		UserString:           "n1fty",
@@ -106,7 +128,7 @@ func NewFTSIndexer(serverIn, namespace, keyspace string) (datastore.Indexer,
 	svrs := strings.Split(server, ";")
 	if len(svrs) <= 0 {
 		return nil, util.N1QLError(fmt.Errorf(
-			"NewFTSIndexer, no servers provided"), "")
+			"NewFTSIndexer2, no servers provided"), "")
 	}
 
 	err := conf.FromConnStr(svrs[0])
@@ -120,13 +142,17 @@ func NewFTSIndexer(serverIn, namespace, keyspace string) (datastore.Indexer,
 	}
 
 	indexer := &FTSIndexer{
-		namespace: namespace,
-		keyspace:  keyspace,
-		serverURL: svrs[0],
-		agent:     agent,
-		cfg:       srvConfig,
-		stats:     &stats{},
-		closeCh:   make(chan struct{}),
+		serverURL:       svrs[0],
+		namespace:       namespace,
+		keyspace:        keyspace,
+		bucket:          bucket,
+		scope:           scope,
+		collection:      collection,
+		collectionAware: collection == keyspace,
+		agent:           agent,
+		cfg:             srvConfig,
+		stats:           &stats{},
+		closeCh:         make(chan struct{}),
 	}
 
 	return indexer, nil
@@ -151,6 +177,8 @@ func (a *Authenticator) Credentials(req gocbcore.AuthCredsRequest) (
 		Password: password,
 	}}, nil
 }
+
+// -----------------------------------------------------------------------------
 
 func (i *FTSIndexer) SetConnectionSecurityConfig(
 	conf *datastore.ConnectionSecurityConfig) {
@@ -189,7 +217,7 @@ func (i *FTSIndexer) SetConnectionSecurityConfig(
 // It is recommended that query calls Close on the FTSIndexer
 // object once its usage is over, for a graceful cleanup.
 func (i *FTSIndexer) Close() error {
-	i.cfg.unSubscribe(i.namespace + "$" + i.keyspace)
+	i.cfg.unSubscribe(i.namespace + "$" + i.bucket + "$" + i.scope + "$" + i.keyspace)
 	close(i.closeCh)
 	return nil
 }
@@ -204,13 +232,11 @@ func (i *FTSIndexer) KeyspaceId() string {
 }
 
 func (i *FTSIndexer) BucketId() string {
-	// FIXME
-	return ""
+	return i.bucket
 }
 
 func (i *FTSIndexer) ScopeId() string {
-	// FIXME
-	return ""
+	return i.scope
 }
 
 func (i *FTSIndexer) Name() datastore.IndexType {
@@ -390,9 +416,9 @@ func (i *FTSIndexer) refresh(configMutexAcquired bool) errors.Error {
 		i.cfg.initConfig()
 
 		if configMutexAcquired {
-			i.cfg.subscribeLOCKED(i.namespace+"$"+i.keyspace, i)
+			i.cfg.subscribeLOCKED(i.namespace+"$"+i.bucket+"$"+i.scope+"$"+i.keyspace, i)
 		} else {
-			i.cfg.subscribe(i.namespace+"$"+i.keyspace, i)
+			i.cfg.subscribe(i.namespace+"$"+i.bucket+"$"+i.scope+"$"+i.keyspace, i)
 		}
 		// perform bleveMaxResultWindow initialisation only
 		// once per FTSIndexer instance.
@@ -532,12 +558,46 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 	map[string]datastore.Index, error) {
 	rv := map[string]datastore.Index{}
 	for _, indexDef := range indexDefs.IndexDefs {
-		// TODO: Also check the keyspace's UUID (or, bucket's UUID)?
-		if indexDef.SourceName != i.keyspace {
-			// If the source name of the index definition doesn't
-			// match the indexer's keyspace, do not include the
-			// index.
-			continue
+		if !i.collectionAware {
+			// TODO: Also check the keyspace's UUID (or, bucket's UUID)?
+			if indexDef.SourceName != i.keyspace {
+				// If the source name of the index definition doesn't
+				// match the indexer's keyspace, do not include the index.
+				continue
+			}
+		} else {
+			// Retrieve collections supported from the index definition
+			if indexDef.SourceName != i.bucket {
+				// If the source name of the index definition doesn't
+				// match the indexer's bucket, do not include the index.
+				continue
+			}
+
+			scope, collections, err :=
+				cbft.GetScopeCollectionsFromIndexDef(indexDef)
+			if err != nil {
+				continue
+			}
+
+			if scope != i.scope {
+				// If the scope handled by the index definition doesn't
+				// match the indexer's scope, do not include the index.
+				continue
+			}
+
+			var collectionFound bool
+			for _, coll := range collections {
+				if i.keyspace == coll {
+					collectionFound = true
+					break
+				}
+			}
+
+			if !collectionFound {
+				// If the indexer's keyspace isn't one of the collections
+				// that the index streams from, do not include the index.
+				continue
+			}
 		}
 
 		// If querying is disabled for the index, then skip it.
@@ -548,7 +608,7 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 			}
 		}
 
-		pip, err := util.ProcessIndexDef(indexDef)
+		pip, err := util.ProcessIndexDef(indexDef, i.scope, i.collection)
 		if err != nil {
 			logging.Warnf("n1fty: error processing index definition for: %v, err: %v",
 				indexDef.Name, err)
@@ -579,6 +639,11 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 func (i *FTSIndexer) supportedByCluster() bool {
 	i.m.RLock()
 	defer i.m.RUnlock()
+
+	if i.collectionAware {
+		return (cbgt.IsFeatureSupportedByCluster(cbft.FeatureGRPC, i.nodeDefs) &&
+			cbgt.IsFeatureSupportedByCluster(cbft.FeatureCollections, i.nodeDefs))
+	}
 
 	return cbgt.IsFeatureSupportedByCluster(cbft.FeatureGRPC, i.nodeDefs)
 }

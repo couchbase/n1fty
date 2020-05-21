@@ -56,7 +56,8 @@ type ProcessedIndexParams struct {
 // datastore.FTSIndex, especially by invoking ProcessIndexMapping().
 // The DocConfig.Mode is also checked here with current support for
 // "type_field" and "docid_prefix" modes.
-func ProcessIndexDef(indexDef *cbgt.IndexDef) (pip ProcessedIndexParams, err error) {
+func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
+	pip ProcessedIndexParams, err error) {
 	// Other types like "fulltext-alias" are not-FTSIndex'able for now.
 	if indexDef.Type != "fulltext-index" {
 		return

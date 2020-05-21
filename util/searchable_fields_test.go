@@ -29,7 +29,7 @@ func TestIndexDefConversion(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pip, err := ProcessIndexDef(indexDef)
+	pip, err := ProcessIndexDef(indexDef, "", "")
 	if err != nil ||
 		pip.SearchFields == nil ||
 		len(pip.DynamicMappings) > 0 ||
@@ -763,7 +763,7 @@ func TestProcessIndexDef(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		pip, err := ProcessIndexDef(indexDef)
+		pip, err := ProcessIndexDef(indexDef, "", "")
 		if (err != nil) != (test.expectErr != "") {
 			t.Fatalf("testi: %d, test: %+v,\n mismatch expectErr, got: %v",
 				testi, test, err)

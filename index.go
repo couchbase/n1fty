@@ -101,13 +101,11 @@ func (i *FTSIndex) KeyspaceId() string {
 }
 
 func (i *FTSIndex) BucketId() string {
-	// FIXME
-	return ""
+	return i.indexer.BucketId()
 }
 
 func (i *FTSIndex) ScopeId() string {
-	// FIXME
-	return ""
+	return i.indexer.ScopeId()
 }
 
 func (i *FTSIndex) Id() string {
