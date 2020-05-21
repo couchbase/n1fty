@@ -213,6 +213,10 @@ func (p *WrapKeyspace) QualifiedName() string {
 	return ""
 }
 
+func (p *WrapKeyspace) AuthKey() string {
+	return ""
+}
+
 func (b *WrapKeyspace) Count(context datastore.QueryContext) (int64, errors.Error) {
 	return b.W.Count(context)
 }
