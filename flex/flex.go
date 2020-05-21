@@ -79,8 +79,9 @@ func (fi *FlexIndex) SargableCombo(ids Identifiers, e expression.Expression,
 	// Otherwise, any other expr that references or uses any of our
 	// indexedFields (in a non-supported way) is not-sargable.
 	// Ex: ROUND(myIndexedField) > 100.
+	// (can be filtered out though)
 	if used, err := CheckFieldsUsed(fi.IndexedFields, ids, e); err != nil || used {
-		return nil, false, nil, err
+		return nil, true, nil, err
 	}
 
 	// Otherwise, any other expression is filterable as a "false
@@ -101,7 +102,7 @@ func (fi *FlexIndex) SargableComposite(ids Identifiers,
 		var ok bool
 		es, eFTs, ok = LearnConjunctFieldTypes(fi.IndexedFields, ids, es, eFTs)
 		if !ok {
-			return nil, false, nil, nil // Type mismatch is not-sargable.
+			return nil, true, nil, nil // Type mismatch is not-sargable.
 		}
 	}
 
@@ -138,7 +139,7 @@ func (fi *FlexIndex) SargableComposite(ids Identifiers,
 			continue // Expression is filterable when conjunct'ing.
 		}
 
-		return nil, false, nil, nil // Expression not-sargable.
+		return nil, true, nil, nil // Expression not-sargable, can be filtered out
 	}
 
 	// All expressions were sargable or ok for filtering.

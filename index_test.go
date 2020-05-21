@@ -795,6 +795,13 @@ func TestSargableFlexIndex(t *testing.T) {
 				`"term":"1985-04-12T23:20:50.52Z"},"score":"none"}`,
 			expectedSargKeys: []string{"type"},
 		},
+		{
+			// createdOn is indexed as "datetime", so this query is partially sargable.
+			queryStr: "t.type = 'hotel' AND t.createdOn = 'crap'",
+			expectedQueryStr: `{"query":{"field":"type",` +
+				`"term":"hotel"},"score":"none"}`,
+			expectedSargKeys: []string{"type"},
+		},
 	}
 
 	for i := range tests {
