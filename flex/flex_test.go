@@ -125,7 +125,7 @@ func TestFlexSargable(t *testing.T) {
 
 		{where: `a = "hi"`,
 			indexedFields: indexedFieldsA,
-			expectExact:   true, // Not sargable, so needsFiltering is false.
+			expectExact:   false, // Not sargable, needsFiltering is true.
 		},
 
 		{where: `b = "hi"`,
@@ -285,7 +285,7 @@ func TestFlexSargable(t *testing.T) {
 					ValueType: "number",
 				},
 			},
-			expectExact: true,
+			expectExact: false,
 		},
 
 		{about: `not sargable due to non-constant value`,
@@ -317,10 +317,10 @@ func TestFlexSargable(t *testing.T) {
 					ValueType: "text",
 				},
 			},
-			expectExact: true,
+			expectExact: false,
 		},
 
-		{about: `not sargable due to advanced reference to indexed field b`,
+		{about: `partially sargable due to advanced reference to indexed field b`,
 			where:         `a = "hi" AND UPPER(b)`,
 			indexedFields: indexedFieldsAB,
 			supportedExprs: []SupportedExpr{
@@ -333,7 +333,19 @@ func TestFlexSargable(t *testing.T) {
 					ValueType: "text",
 				},
 			},
-			expectExact: true,
+			expectFieldTracks: FieldTracks{
+				FieldTrack("a"): 1,
+			},
+			expectExact: false,
+			expectFlexBuild: &FlexBuild{
+				Kind: "conjunct",
+				Children: []*FlexBuild{
+					{
+						Kind: "cmpFieldConstant",
+						Data: []string{"eq", "a", "text", `"hi"`},
+					},
+				},
+			},
 		},
 
 		{where: `a = "hello" AND (b = 123 OR b = 222)`,
@@ -377,7 +389,7 @@ func TestFlexSargable(t *testing.T) {
 			},
 		},
 
-		{about: `not-sargable due to field ccc in the OR`,
+		{about: `partially sargable due to field ccc in the OR`,
 			where:         `a = "hello" AND (b = 123 OR b = 222 OR ccc = 333)`,
 			indexedFields: indexedFieldsAB,
 			supportedExprs: []SupportedExpr{
@@ -390,7 +402,19 @@ func TestFlexSargable(t *testing.T) {
 					ValueType: "text",
 				},
 			},
-			expectExact: true,
+			expectFieldTracks: FieldTracks{
+				FieldTrack("a"): 1,
+			},
+			expectExact: false,
+			expectFlexBuild: &FlexBuild{
+				Kind: "conjunct",
+				Children: []*FlexBuild{
+					{
+						Kind: "cmpFieldConstant",
+						Data: []string{"eq", "a", "text", `"hello"`},
+					},
+				},
+			},
 		},
 
 		{where: `a = "hello" AND x = 999 AND (b = 123 OR b = 222)`,
@@ -792,7 +816,7 @@ func TestFlexSargable(t *testing.T) {
 			},
 		},
 
-		{about: `test dynamic indexing with the mismatched type`,
+		{about: `test dynamic indexing with the mismatched type (partially sargable)`,
 			where:         "a = \"hello\" AND addr.city = 123",
 			indexedFields: indexedFieldsA,
 			supportedExprs: []SupportedExpr{
@@ -806,7 +830,19 @@ func TestFlexSargable(t *testing.T) {
 					FieldPathPartial: true,
 				},
 			},
-			expectExact: true,
+			expectFieldTracks: FieldTracks{
+				FieldTrack("a"): 1,
+			},
+			expectExact: false,
+			expectFlexBuild: &FlexBuild{
+				Kind: "conjunct",
+				Children: []*FlexBuild{
+					{
+						Kind: "cmpFieldConstant",
+						Data: []string{"eq", "a", "text", `"hello"`},
+					},
+				},
+			},
 		},
 
 		// ----------------------------------------------------------
@@ -824,7 +860,7 @@ func TestFlexSargable(t *testing.T) {
 					ValueType: "text",
 				},
 			},
-			expectExact: true,
+			expectExact: false,
 		},
 
 		{about: `test map/dict syntax with field as key`,
@@ -840,7 +876,7 @@ func TestFlexSargable(t *testing.T) {
 					ValueType: "text",
 				},
 			},
-			expectExact: true,
+			expectExact: false,
 		},
 
 		{about: `test map/dict syntax with field key b on field path`,
@@ -856,7 +892,7 @@ func TestFlexSargable(t *testing.T) {
 					ValueType: "text",
 				},
 			},
-			expectExact: true,
+			expectExact: false,
 		},
 
 		{about: `test nested indexing with map/dict syntax and conjunct`,
@@ -896,7 +932,7 @@ func TestFlexSargable(t *testing.T) {
 					ValueType: "text",
 				},
 			},
-			expectExact: true,
+			expectExact: false,
 		},
 
 		{about: `not-sargable - test map/dict syntax`,
@@ -908,7 +944,7 @@ func TestFlexSargable(t *testing.T) {
 					ValueType: "text",
 				},
 			},
-			expectExact: true,
+			expectExact: false,
 		},
 
 		{about: `not-sargable - test map/dict syntax`,
@@ -945,7 +981,7 @@ func TestFlexSargable(t *testing.T) {
 					FieldPathPartial: true,
 				},
 			},
-			expectExact: true,
+			expectExact: false,
 		},
 
 		{about: `not sargable - test map/dict syntax on dynamic field`,
@@ -958,7 +994,7 @@ func TestFlexSargable(t *testing.T) {
 					FieldPathPartial: true,
 				},
 			},
-			expectExact: true,
+			expectExact: false,
 		},
 
 		{about: `not sargable - test map/dict syntax on dynamic field w/ function expr`,
@@ -971,7 +1007,7 @@ func TestFlexSargable(t *testing.T) {
 					FieldPathPartial: true,
 				},
 			},
-			expectExact: true,
+			expectExact: false,
 		},
 
 		{about: `not sargable - test function on dynamic field w/ function expr`,
@@ -998,7 +1034,7 @@ func TestFlexSargable(t *testing.T) {
 			},
 		},
 
-		{about: `not sargable - test function on dynamic field w/ function expr`,
+		{about: `partially sargable - test function on dynamic field w/ function expr`,
 			where:         "a.b = \"hi\" AND UPPER(a.b)",
 			indexedFields: indexedFieldsA,
 			supportedExprs: []SupportedExpr{
@@ -1008,7 +1044,19 @@ func TestFlexSargable(t *testing.T) {
 					FieldPathPartial: true,
 				},
 			},
-			expectExact: true,
+			expectFieldTracks: FieldTracks{
+				FieldTrack("a.b"): 1,
+			},
+			expectExact: false,
+			expectFlexBuild: &FlexBuild{
+				Kind: "conjunct",
+				Children: []*FlexBuild{
+					{
+						Kind: "cmpFieldConstant",
+						Data: []string{"eq", "a.b", "text", `"hi"`},
+					},
+				},
+			},
 		},
 
 		{about: `not sargable - test map/dict syntax on dynamic field`,
@@ -1079,7 +1127,7 @@ func TestFlexSargable(t *testing.T) {
 			},
 		},
 
-		{about: `test dynamic indexing with function on nested value`,
+		{about: `test dynamic indexing with function on nested value (partially sargable)`,
 			where:         "a = \"hello\" AND ROUND(b.geopoint.lat = \"hi\")",
 			indexedFields: indexedFieldsAB,
 			supportedExprs: []SupportedExpr{
@@ -1093,10 +1141,22 @@ func TestFlexSargable(t *testing.T) {
 					FieldPathPartial: true,
 				},
 			},
-			expectExact: true,
+			expectFieldTracks: FieldTracks{
+				FieldTrack("a"): 1,
+			},
+			expectExact: false,
+			expectFlexBuild: &FlexBuild{
+				Kind: "conjunct",
+				Children: []*FlexBuild{
+					{
+						Kind: "cmpFieldConstant",
+						Data: []string{"eq", "a", "text", `"hello"`},
+					},
+				},
+			},
 		},
 
-		{about: `test dynamic indexing with function on nested array value`,
+		{about: `test dynamic indexing with function on nested array value (partially sargable)`,
 			where:         "a = \"hello\" AND ROUND(b.geopoint[1] = \"hi\")",
 			indexedFields: indexedFieldsAB,
 			supportedExprs: []SupportedExpr{
@@ -1110,10 +1170,22 @@ func TestFlexSargable(t *testing.T) {
 					FieldPathPartial: true,
 				},
 			},
-			expectExact: true,
+			expectFieldTracks: FieldTracks{
+				FieldTrack("a"): 1,
+			},
+			expectExact: false,
+			expectFlexBuild: &FlexBuild{
+				Kind: "conjunct",
+				Children: []*FlexBuild{
+					{
+						Kind: "cmpFieldConstant",
+						Data: []string{"eq", "a", "text", `"hello"`},
+					},
+				},
+			},
 		},
 
-		{about: `test dynamic indexing with nested functional array value`,
+		{about: `test dynamic indexing with nested functional array value (partially sargable)`,
 			where:         "a = \"hello\" AND b.geopoint[ROUND(1)] = \"hi\"",
 			indexedFields: indexedFieldsAB,
 			supportedExprs: []SupportedExpr{
@@ -1127,10 +1199,22 @@ func TestFlexSargable(t *testing.T) {
 					FieldPathPartial: true,
 				},
 			},
-			expectExact: true,
+			expectFieldTracks: FieldTracks{
+				FieldTrack("a"): 1,
+			},
+			expectExact: false,
+			expectFlexBuild: &FlexBuild{
+				Kind: "conjunct",
+				Children: []*FlexBuild{
+					{
+						Kind: "cmpFieldConstant",
+						Data: []string{"eq", "a", "text", `"hello"`},
+					},
+				},
+			},
 		},
 
-		{about: `test dynamic indexing with direct nested functional array value`,
+		{about: `test dynamic indexing with direct nested functional array value (partially sargable)`,
 			where:         "a = \"hello\" AND b[ROUND(1)] = \"hi\"",
 			indexedFields: indexedFieldsAB,
 			supportedExprs: []SupportedExpr{
@@ -1144,10 +1228,22 @@ func TestFlexSargable(t *testing.T) {
 					FieldPathPartial: true,
 				},
 			},
-			expectExact: true,
+			expectFieldTracks: FieldTracks{
+				FieldTrack("a"): 1,
+			},
+			expectExact: false,
+			expectFlexBuild: &FlexBuild{
+				Kind: "conjunct",
+				Children: []*FlexBuild{
+					{
+						Kind: "cmpFieldConstant",
+						Data: []string{"eq", "a", "text", `"hello"`},
+					},
+				},
+			},
 		},
 
-		{about: `test dynamic indexing with array value`,
+		{about: `test dynamic indexing with array value (partial sargability)`,
 			where:         "a = \"hello\" AND b.pets[0] = \"fluffy\"",
 			indexedFields: indexedFieldsAB,
 			supportedExprs: []SupportedExpr{
@@ -1161,10 +1257,22 @@ func TestFlexSargable(t *testing.T) {
 					FieldPathPartial: true,
 				},
 			},
-			expectExact: true,
+			expectFieldTracks: FieldTracks{
+				FieldTrack("a"): 1,
+			},
+			expectExact: false,
+			expectFlexBuild: &FlexBuild{
+				Kind: "conjunct",
+				Children: []*FlexBuild{
+					{
+						Kind: "cmpFieldConstant",
+						Data: []string{"eq", "a", "text", `"hello"`},
+					},
+				},
+			},
 		},
 
-		{about: `test non-dynamic, nested value`,
+		{about: `test non-dynamic, nested value (partial sargability)`,
 			where:         "a = \"hello\" AND b.x.y = \"hi\"",
 			indexedFields: indexedFieldsAB,
 			supportedExprs: []SupportedExpr{
@@ -1177,10 +1285,22 @@ func TestFlexSargable(t *testing.T) {
 					ValueType: "text",
 				},
 			},
-			expectExact: true,
+			expectFieldTracks: FieldTracks{
+				FieldTrack("a"): 1,
+			},
+			expectExact: false,
+			expectFlexBuild: &FlexBuild{
+				Kind: "conjunct",
+				Children: []*FlexBuild{
+					{
+						Kind: "cmpFieldConstant",
+						Data: []string{"eq", "a", "text", `"hello"`},
+					},
+				},
+			},
 		},
 
-		{about: `test non-dynamic indexing of nested functional array value`,
+		{about: `test non-dynamic indexing of nested functional array value (partial sargability)`,
 			where:         "a = \"hello\" AND b[ROUND(1)] = \"hi\"",
 			indexedFields: indexedFieldsAB,
 			supportedExprs: []SupportedExpr{
@@ -1193,7 +1313,19 @@ func TestFlexSargable(t *testing.T) {
 					ValueType: "text",
 				},
 			},
-			expectExact: true,
+			expectFieldTracks: FieldTracks{
+				FieldTrack("a"): 1,
+			},
+			expectExact: false,
+			expectFlexBuild: &FlexBuild{
+				Kind: "conjunct",
+				Children: []*FlexBuild{
+					{
+						Kind: "cmpFieldConstant",
+						Data: []string{"eq", "a", "text", `"hello"`},
+					},
+				},
+			},
 		},
 
 		// --------------------------------------------------------
@@ -1379,7 +1511,7 @@ func TestFlexSargable(t *testing.T) {
 					ValueType: "text",
 				},
 			},
-			expectExact: true,
+			expectExact: false,
 		},
 
 		{about: `top-level dynamic ANY-IN-SATISFIES`,

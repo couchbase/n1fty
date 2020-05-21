@@ -796,6 +796,13 @@ func TestSargableFlexIndex(t *testing.T) {
 			expectedSargKeys: []string{"type"},
 		},
 		{
+			// createdOn is indexed as "datetime", so this query is partially sargable.
+			queryStr: "t.type = 'hotel' AND t.createdOn = 'crap'",
+			expectedQueryStr: `{"query":{"field":"type",` +
+				`"term":"hotel"},"score":"none"}`,
+			expectedSargKeys: []string{"type"},
+		},
+		{
 			queryStr: "t.type IN ['airline', 'airport'] AND t.createdOn = '2020-05-18'",
 			expectedQueryStr: `{"query":{"conjuncts":[{"disjuncts":[{"field":"type",` +
 				`"term":"airline"},{"field":"type","term":"airport"}]},` +

@@ -154,8 +154,8 @@ func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifier
 					// in which case a term search will ensue over the field.
 					break
 				}
-				// Wrong type, so not-sargable
-				return true, nil, false, nil, nil
+				// Wrong type, so not-sargable, but can be filtered out
+				return true, nil, true, nil, nil
 			}
 		}
 
@@ -169,8 +169,8 @@ func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifier
 				return false, nil, false, nil, nil
 			}
 		} else if x.Type().String() != BleveTypeConv[s.ValueType] {
-			// Wrong type, so not-sargable
-			return true, nil, false, nil, nil
+			// Wrong type, so not-sargable, but can be filtered out
+			return true, nil, true, nil, nil
 		}
 
 	case *algebra.NamedParameter:
