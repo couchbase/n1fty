@@ -618,8 +618,10 @@ func TestNotSargableFlexIndex(t *testing.T) {
 		`t.isOpen < false`,
 		`t.createdOn > '1985-04-12T23:20:50.52Z'`,
 		`t.createdOn <= '2020-01-30T12:00:00.00Z'`,
-		`t.id < 10 AND t.id > 0`,              // min expression to be specified first
-		`t.type < "hotel" AND t.type > "hot"`, // min expression to specified first
+		`t.id < 10 AND t.id > 0`,                              // min expression to be specified first
+		`t.type < "hotel" AND t.type > "hot"`,                 // min expression to specified first
+		`t.createdOn >= 'asdasd' AND t.createdOn <= "dsadsa"`, // createdOn: incorrect datatype
+		`t.id = 10 OR t.createdOn = 'asdasd'`,                 // createdOn: incorrect datatype
 	} {
 		queryExp, err := parser.Parse(queryStr)
 		if err != nil {
@@ -786,7 +788,8 @@ func TestSargableFlexIndex(t *testing.T) {
 			expectedSargKeys: []string{"createdOn"},
 		},
 		{
-			// this is a "datetime" search term over a "text" indexed field
+			// this is a "datetime" search term over a "text" indexed field,
+			// query treated as sargable - although no results may be returned.
 			queryStr: "t.type = '1985-04-12T23:20:50.52Z'",
 			expectedQueryStr: `{"query":{"field":"type",` +
 				`"term":"1985-04-12T23:20:50.52Z"},"score":"none"}`,

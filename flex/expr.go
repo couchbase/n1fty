@@ -125,39 +125,52 @@ func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifier
 
 	switch x := exprY.(type) {
 	case *expression.Constant:
-		if fi.Dynamic {
-			xType := x.Type().String()
-			if xType == "string" {
-				xType = "text"
-				// Check if the search term could be datetime (ISO-8601)
-				if exprYVal := exprY.Value(); exprYVal != nil {
-					if v, ok := exprYVal.Actual().(string); ok {
-						if _, _, err := expression.StrToTimeFormat(v); err == nil {
-							xType = "datetime"
-						}
+		xType := x.Type().String()
+		if xType == "string" {
+			xType = "text"
+			// Check if the search term could be datetime (ISO-8601)
+			if exprYVal := exprY.Value(); exprYVal != nil {
+				if v, ok := exprYVal.Actual().(string); ok {
+					if _, _, err := expression.StrToTimeFormat(v); err == nil {
+						xType = "datetime"
 					}
 				}
 			}
+		}
 
+		if fi.Dynamic {
 			if xType != s.ValueType {
-				// If the flex index is dynamic, there'd exist field names
-				// with multiple types, so search for fields of other types.
+				// If the flex index is dynamic, there'd exist IndexedFields
+				// with all data types, so continue search for IndexedFields
+				// where the type matches.
 				return false, nil, false, nil, nil
 			}
-		} else if x.Type().String() != BleveTypeConv[s.ValueType] {
-			return true, nil, false, nil, nil // Wrong const type, so not-sargable.
+		} else {
+			if xType != s.ValueType {
+				if s.ValueType == "text" && xType == "datetime" {
+					// In a non-dynamic index, allow the case where the stored
+					// indexed field is of type "text", and the query over the
+					// field contains a string but of a datetime format,
+					// in which case a term search will ensue over the field.
+					break
+				}
+				// Wrong type, so not-sargable
+				return true, nil, false, nil, nil
+			}
 		}
 
 	case *expression.Neg:
 		// type : "number"
 		if fi.Dynamic {
 			if x.Type().String() != s.ValueType {
-				// If the flex index is dynamic, there'd exist field names
-				// with multiple types, so search for fields of other types.
+				// If the flex index is dynamic, there'd exist IndexedFields
+				// with all data types, so continue search for IndexedFields
+				// where the type matches.
 				return false, nil, false, nil, nil
 			}
 		} else if x.Type().String() != BleveTypeConv[s.ValueType] {
-			return true, nil, false, nil, nil // Wrong const type, so not-sargable
+			// Wrong type, so not-sargable
+			return true, nil, false, nil, nil
 		}
 
 	case *algebra.NamedParameter:
