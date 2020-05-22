@@ -217,3 +217,29 @@ func TestDocIDQueryEvaluation(t *testing.T) {
 		t.Fatal("Expected evaluation for key-1 to succeed")
 	}
 }
+
+func TestMB39592(t *testing.T) {
+	item := value.NewAnnotatedValue([]byte(`{"name":"xyz","dept":"Engineering"}`))
+	item.SetAttachment("meta", map[string]interface{}{"id": "key"})
+	item.SetId("key")
+
+	for _, q := range []map[string]interface{}{
+		{"match": "xyz", "field": "name"},
+		{"wildcard": "Eng?neer?ng", "field": "dept"},
+	} {
+		queryVal := value.NewValue(q)
+		v, err := NewVerify("`temp_keyspace`", "", queryVal, nil)
+		if err != nil {
+			t.Fatal(queryVal, err)
+		}
+
+		ret, err := v.Evaluate(item)
+		if err != nil {
+			t.Fatal(queryVal, err)
+		}
+
+		if !ret {
+			t.Fatalf("Expected evaluation for key to succeed for `%v`", queryVal)
+		}
+	}
+}
