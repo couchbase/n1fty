@@ -386,11 +386,24 @@ func FetchFieldsToSearchFromQuery(que query.Query) (map[SearchField]struct{}, er
 					fieldDesc.Type = "text"
 					fieldDesc.Analyzer = qqq.Analyzer
 				default:
+					// The analyzer expectation for the following queries is keyword:
+					//   - *query.TermQuery
+					//   - *query.PhraseQuery
+					//   - *query.MultiPhraseQuery
+					//   - *query.FuzzyQuery
+					//   - *query.PrefixQuery
+					//   - *query.RegexpQuery
+					//   - *query.WildcardQuery
 					fieldDesc.Type = "text"
+					fieldDesc.Analyzer = "keyword"
 				}
 
 				queryFields[fieldDesc] = struct{}{}
 			}
+			// The following are non-Fieldable queries:
+			//   - *query.DocIDQuery
+			//   - *query.MatchAllQuery
+			//   - *query.MatchNoneQuery
 		}
 	}
 
