@@ -83,24 +83,37 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef) (pip ProcessedIndexParams, err err
 			return
 		}
 
+		var multipleTypeStrs bool
 		m, indexedCount, typeStrs, dynamic, allFieldSearchable,
 			defaultAnalyzer, defaultDateTimeParser := ProcessIndexMapping(im)
 		if typeStrs != nil {
-			for i := range typeStrs.S {
-				if strings.ContainsAny(typeStrs.S[i], "\"\\") {
+			if len(typeStrs.S) == 1 {
+				// single type mapping
+				if len(typeStrs.S[0]) == 0 || strings.ContainsAny(typeStrs.S[0], "\"\\") {
 					return
 				}
 
-				// Ex: condExpr: '`type` IN ["beer", "brewery"]'.
-				if len(condExpr) == 0 {
-					condExpr = "`" + typeField + "` IN [\"" + typeStrs.S[i] + "\""
-				} else {
-					condExpr += ", \"" + typeStrs.S[i] + "\""
-				}
-			}
+				// Ex: condExpr == '`type`="beer"'.
+				condExpr = "`" + typeField + "`" + "=\"" + typeStrs.S[0] + "\""
+			} else if len(typeStrs.S) > 1 {
+				// multiple type mappings, supported only with FLEX
+				multipleTypeStrs = true
+				for i := range typeStrs.S {
+					if len(typeStrs.S[i]) == 0 || strings.ContainsAny(typeStrs.S[i], "\"\\") {
+						return
+					}
 
-			if len(condExpr) > 0 {
-				condExpr += "]"
+					// Ex: condExpr: '`type` IN ["beer", "brewery"]'.
+					if len(condExpr) == 0 {
+						condExpr = "`" + typeField + "` IN [\"" + typeStrs.S[i] + "\""
+					} else {
+						condExpr += ", \"" + typeStrs.S[i] + "\""
+					}
+				}
+
+				if len(condExpr) > 0 {
+					condExpr += "]"
+				}
 			}
 		}
 
@@ -114,7 +127,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef) (pip ProcessedIndexParams, err err
 			AllFieldSearchable:    allFieldSearchable,
 			DefaultAnalyzer:       defaultAnalyzer,
 			DefaultDateTimeParser: defaultDateTimeParser,
-			MultipleTypeStrs:      typeStrs != nil && len(typeStrs.S) > 1,
+			MultipleTypeStrs:      multipleTypeStrs,
 		}, nil
 
 	case "docid_prefix":
