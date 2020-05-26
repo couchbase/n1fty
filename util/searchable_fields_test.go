@@ -205,7 +205,7 @@ func TestProcessIndexDef(t *testing.T) {
 				{Name: "country", Type: "text", Analyzer: "da"}:       false,
 				{Name: "country", Type: "text", Analyzer: "standard"}: false,
 			},
-			expectCondExpr:              "`type` IN [\"hotel\"]",
+			expectCondExpr:              "`type`=\"hotel\"",
 			expectDynamic:               false,
 			expectDefaultAnalyzer:       "standard",
 			expectDefaultDateTimeParser: "dateTimeOptional",
@@ -382,7 +382,7 @@ func TestProcessIndexDef(t *testing.T) {
 				{Name: "country", Type: "text", Analyzer: "cjk"}:      false,
 				{Name: "country", Type: "text", Analyzer: "standard"}: false,
 			},
-			expectCondExpr:              "`type` IN [\"hotel\"]",
+			expectCondExpr:              "`type`=\"hotel\"",
 			expectDynamic:               false,
 			expectDefaultAnalyzer:       "standard",
 			expectDefaultDateTimeParser: "crap",
@@ -428,7 +428,7 @@ func TestProcessIndexDef(t *testing.T) {
 			expectSearchFields: map[SearchField]bool{
 				{Name: "country", Type: "text", Analyzer: "super"}: false,
 			},
-			expectCondExpr:              "`type` IN [\"hotel\"]",
+			expectCondExpr:              "`type`=\"hotel\"",
 			expectDynamic:               false,
 			expectDefaultAnalyzer:       "super",
 			expectDefaultDateTimeParser: "dateTimeOptional",
@@ -467,7 +467,7 @@ func TestProcessIndexDef(t *testing.T) {
 			expectSearchFields: map[SearchField]bool{
 				{Name: "country", Type: "text", Analyzer: "standard"}: false,
 			},
-			expectCondExpr:              "`type` IN [\"hotel\"]",
+			expectCondExpr:              "`type`=\"hotel\"",
 			expectDynamic:               false,
 			expectDefaultAnalyzer:       "standard",
 			expectDefaultDateTimeParser: "dateTimeOptional",
@@ -641,7 +641,7 @@ func TestProcessIndexDef(t *testing.T) {
 			expectSearchFields: map[SearchField]bool{
 				{Name: "", Type: "", Analyzer: "standard"}: true,
 			},
-			expectCondExpr:              "`type` IN [\"hotel\"]",
+			expectCondExpr:              "`type`=\"hotel\"",
 			expectDynamic:               true,
 			expectDefaultAnalyzer:       "standard",
 			expectDefaultDateTimeParser: "dateTimeOptional",
@@ -672,7 +672,7 @@ func TestProcessIndexDef(t *testing.T) {
 			expectSearchFields: map[SearchField]bool{
 				{Name: "", Type: "", Analyzer: "standard"}: true,
 			},
-			expectCondExpr:              "`type` IN [\"hotel\"]",
+			expectCondExpr:              "`type`=\"hotel\"",
 			expectDynamic:               true,
 			expectDefaultAnalyzer:       "standard",
 			expectDefaultDateTimeParser: "dateTimeOptional",
@@ -748,7 +748,7 @@ func TestProcessIndexDef(t *testing.T) {
 			expectSearchFields: map[SearchField]bool{
 				{Name: "country", Type: "text", Analyzer: "super"}: false,
 			},
-			expectCondExpr:              "`type` IN [\"hotel\"]",
+			expectCondExpr:              "`type`=\"hotel\"",
 			expectDynamic:               false,
 			expectDefaultAnalyzer:       "super",
 			expectDefaultDateTimeParser: "dateTimeOptional",
