@@ -147,19 +147,22 @@ type CondFlexIndex struct {
 // A slice of conditional flex indexes.
 type CondFlexIndexes []*CondFlexIndex
 
-// Returns true when the expressions match the condition check.
-type CondFunc func(ids Identifiers, es expression.Expressions) (bool, error)
+// Returns true when the expressions match the condition check, also
+// returns an array of the requested "types" (obtained from query).
+type CondFunc func(ids Identifiers, es expression.Expressions) (
+	bool, []string, error)
 
 // Returns a CondFunc that represents checking a field for value equality.
 func MakeCondFuncEqVals(fieldPath []string, vals value.Values) CondFunc {
-	return func(ids Identifiers, es expression.Expressions) (bool, error) {
+	return func(ids Identifiers, es expression.Expressions) (
+		bool, []string, error) {
 		for _, e := range es {
 			if f, ok := e.(*expression.Eq); ok {
 				matches, c := MatchEqFieldPathToConstant(ids, fieldPath, f)
 				if matches {
 					for _, v := range vals {
 						if c.Value().Equals(v).Truth() {
-							return true, nil
+							return true, []string{v.Actual().(string)}, nil
 						}
 					}
 				}
@@ -168,6 +171,7 @@ func MakeCondFuncEqVals(fieldPath []string, vals value.Values) CondFunc {
 				// every one of them are represented in the type vals.
 				exprs := collectDisjunctExprs(f, nil)
 				var eligible bool
+				var requestedTypes []string
 			OUTER:
 				for _, ee := range exprs {
 					if ff, ok := ee.(*expression.Eq); ok {
@@ -176,6 +180,7 @@ func MakeCondFuncEqVals(fieldPath []string, vals value.Values) CondFunc {
 							for _, v := range vals {
 								if c.Value().Equals(v).Truth() {
 									eligible = true
+									requestedTypes = append(requestedTypes, v.Actual().(string))
 									continue OUTER
 								}
 							}
@@ -185,21 +190,22 @@ func MakeCondFuncEqVals(fieldPath []string, vals value.Values) CondFunc {
 					break
 				}
 				if eligible {
-					return true, nil
+					return true, requestedTypes, nil
 				}
 			}
 		}
 
-		return false, nil
+		return false, nil, nil
 	}
 }
 
 // Returns a CondFunc that represents checking a field is not equal to
 // any of the given vals.
 func MakeCondFuncNeqVals(fieldPath []string, vals []string) CondFunc {
-	return func(ids Identifiers, es expression.Expressions) (bool, error) {
+	return func(ids Identifiers, es expression.Expressions) (
+		bool, []string, error) {
 		if len(vals) <= 0 {
-			return true, nil // Empty vals means CondFunc always matches.
+			return true, nil, nil // Empty vals means CondFunc always matches.
 		}
 
 		m := map[value.Value]struct{}{}
@@ -224,7 +230,7 @@ func MakeCondFuncNeqVals(fieldPath []string, vals []string) CondFunc {
 			}
 		}
 
-		return len(m) <= 0, nil
+		return len(m) <= 0, nil, nil
 	}
 }
 
@@ -264,12 +270,12 @@ func (s CondFlexIndexes) Sargable(
 	// OR-of-AND's means all the OR's children must match a flex index.
 	for _, oChild := range o.Children() {
 		oChild = resolveExpr(oChild)
-		cFI, err := s.FindFlexIndex(ids, oChild)
+		cFI, requestedTypes, err := s.FindFlexIndex(ids, oChild)
 		if err != nil || cFI == nil {
 			return nil, false, nil, err
 		}
 
-		cFieldTracks, cNeedsFiltering, cFB, err := cFI.Sargable(ids, oChild, eFTs)
+		cFieldTracks, cNeedsFiltering, cFB, err := cFI.Sargable(ids, oChild, requestedTypes, eFTs)
 		if err != nil {
 			return nil, false, nil, err
 		}
@@ -315,25 +321,26 @@ func (s CondFlexIndexes) Sargable(
 
 // Find the first FlexIndex whose Cond matches the given AND expression.
 func (s CondFlexIndexes) FindFlexIndex(ids Identifiers, e expression.Expression) (
-	rv *FlexIndex, err error) {
+	rv *FlexIndex, requestedTypes []string, err error) {
 	children := collectConjunctExprs(e, nil)
 
 	for _, cfi := range s {
-		matches, err := cfi.Cond(ids, children)
+		matches, reqTypes, err := cfi.Cond(ids, children)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		if matches {
 			if rv != nil {
-				return nil, nil // >1 matches, so not a match.
+				return nil, nil, nil // >1 matches, so not a match.
 			}
 
 			rv = cfi.FlexIndex
+			requestedTypes = reqTypes
 		}
 	}
 
-	return rv, nil // Might return nil.
+	return rv, requestedTypes, nil // Might return nil.
 }
 
 // -------------------------------------------------------------------------

@@ -21,9 +21,10 @@ import (
 // default dynamic with default_analyzer: keyword, in which case
 // SupportedExprs for multiple types will be made available.
 type FlexIndex struct {
-	IndexedFields  FieldInfos // Ex: "hireDate", "city", "salary".
-	SupportedExprs []SupportedExpr
-	Dynamic        bool
+	IndexedFields   FieldInfos // Ex: "hireDate", "city", "salary".
+	SupportedExprs  []SupportedExpr
+	FieldTrackTypes map[FieldTrack]map[string]struct{} // Ex: {"city":{{"airport":..}}}
+	Dynamic         bool
 }
 
 // Sargable() checks if expression (e) is amenable to a FlexIndex scan.
@@ -45,35 +46,36 @@ type FlexIndex struct {
 // are intermediary AND/OR composite expressions, or are expressions
 // that are filterable later for potential false-positives.
 func (fi *FlexIndex) Sargable(ids Identifiers, e expression.Expression,
-	eFTs FieldTypes) (FieldTracks, bool, *FlexBuild, error) {
+	requestedTypes []string, eFTs FieldTypes) (
+	FieldTracks, bool, *FlexBuild, error) {
 	// Check if matches one of the supported expressions.
 	for _, se := range fi.SupportedExprs {
-		matches, ft, needsFiltering, fb, err := se.Supports(fi, ids, e, eFTs)
+		matches, ft, needsFiltering, fb, err := se.Supports(fi, ids, e, requestedTypes, eFTs)
 		if err != nil || matches {
 			return ft, needsFiltering, fb, err
 		}
 	}
 
 	// When not an explicitly supported expr, it might be a combination expr.
-	return fi.SargableCombo(ids, e, eFTs)
+	return fi.SargableCombo(ids, e, requestedTypes, eFTs)
 }
 
 func (fi *FlexIndex) SargableCombo(ids Identifiers, e expression.Expression,
-	eFTs FieldTypes) (FieldTracks, bool, *FlexBuild, error) {
+	requestedTypes []string, eFTs FieldTypes) (FieldTracks, bool, *FlexBuild, error) {
 	if _, ok := e.(*expression.And); ok { // Handle AND composite.
-		return fi.SargableComposite(ids, collectConjunctExprs(e, nil), eFTs, "conjunct")
+		return fi.SargableComposite(ids, collectConjunctExprs(e, nil), requestedTypes, eFTs, "conjunct")
 	}
 
 	if _, ok := e.(*expression.Or); ok { // Handle OR composite.
-		return fi.SargableComposite(ids, collectDisjunctExprs(e, nil), eFTs, "disjunct")
+		return fi.SargableComposite(ids, collectDisjunctExprs(e, nil), requestedTypes, eFTs, "disjunct")
 	}
 
 	if a, ok := e.(*expression.Any); ok { // Handle ANY-SATISFIES.
-		return fi.SargableAnySatisfies(ids, a, eFTs, false)
+		return fi.SargableAnySatisfies(ids, a, requestedTypes, eFTs, false)
 	}
 
 	if a, ok := e.(*expression.AnyEvery); ok { // ANY-AND-EVERY-SATISFIES.
-		return fi.SargableAnySatisfies(ids, a, eFTs, true)
+		return fi.SargableAnySatisfies(ids, a, requestedTypes, eFTs, true)
 	}
 
 	// Otherwise, any other expr that references or uses any of our
@@ -93,7 +95,7 @@ func (fi *FlexIndex) SargableCombo(ids Identifiers, e expression.Expression,
 
 // Processes a composite expression (AND's/OR's) via recursion.
 func (fi *FlexIndex) SargableComposite(ids Identifiers,
-	es expression.Expressions, eFTs FieldTypes, kind string) (
+	es expression.Expressions, requestedTypes []string, eFTs FieldTypes, kind string) (
 	rFieldTracks FieldTracks, rNeedsFiltering bool, rFB *FlexBuild, err error) {
 	conjunct := kind == "conjunct"
 	if conjunct {
@@ -109,7 +111,7 @@ func (fi *FlexIndex) SargableComposite(ids Identifiers,
 	// Loop through the expressions and recurse.  Return early if we
 	// find an expression that's not-sargable or isn't filterable.
 	for _, cExpr := range es {
-		cFieldTracks, cNeedsFiltering, cFB, err := fi.Sargable(ids, cExpr, eFTs)
+		cFieldTracks, cNeedsFiltering, cFB, err := fi.Sargable(ids, cExpr, requestedTypes, eFTs)
 		if err != nil {
 			return nil, false, nil, err
 		}
@@ -150,7 +152,7 @@ func (fi *FlexIndex) SargableComposite(ids Identifiers,
 
 // Process ANY-(AND-EVERY)-SATISFIES by pushing onto identifiers stack.
 func (fi *FlexIndex) SargableAnySatisfies(ids Identifiers,
-	a expression.CollectionPredicate, ftypes FieldTypes,
+	a expression.CollectionPredicate, requestedTypes []string, ftypes FieldTypes,
 	forceNeedsFiltering bool) (FieldTracks, bool, *FlexBuild, error) {
 	// For now, only 1 binding, as chain semantics is underspecified.
 	ids, ok := ids.Push(a.Bindings(), 1)
@@ -158,7 +160,7 @@ func (fi *FlexIndex) SargableAnySatisfies(ids Identifiers,
 		return nil, false, nil, nil
 	}
 
-	ft, needsFiltering, fb, err := fi.Sargable(ids, a.Satisfies(), ftypes)
+	ft, needsFiltering, fb, err := fi.Sargable(ids, a.Satisfies(), requestedTypes, ftypes)
 
 	return ft, needsFiltering || forceNeedsFiltering, fb, err
 }

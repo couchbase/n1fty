@@ -21,8 +21,8 @@ import (
 // Allows apps to declare supported expressions to FlexSargable().
 type SupportedExpr interface {
 	// Checks whether the SupportedExpr can handle an expr.
-	Supports(fi *FlexIndex, ids Identifiers,
-		expr expression.Expression, exprFTs FieldTypes) (matches bool,
+	Supports(fi *FlexIndex, ids Identifiers, expr expression.Expression,
+		requestedTypes []string, exprFTs FieldTypes) (matches bool,
 		ft FieldTracks, needsFiltering bool, fb *FlexBuild, err error)
 }
 
@@ -32,7 +32,7 @@ type SupportedExpr interface {
 type SupportedExprNoop struct{}
 
 func (s *SupportedExprNoop) Supports(fi *FlexIndex, ids Identifiers,
-	expr expression.Expression, exprFTs FieldTypes) (
+	expr expression.Expression, requestedTypes []string, exprFTs FieldTypes) (
 	bool, FieldTracks, bool, *FlexBuild, error) {
 	fmt.Printf("SupportedExprNoop, expr: %+v, %#v\n", expr, expr)
 	return false, nil, false, nil, nil
@@ -45,7 +45,7 @@ func (s *SupportedExprNoop) Supports(fi *FlexIndex, ids Identifiers,
 type SupportedExprNotSargable struct{}
 
 func (s *SupportedExprNotSargable) Supports(fi *FlexIndex, ids Identifiers,
-	expr expression.Expression, exprFTs FieldTypes) (
+	expr expression.Expression, requestedTypes []string, exprFTs FieldTypes) (
 	bool, FieldTracks, bool, *FlexBuild, error) {
 	return true, nil, false, nil, nil
 }
@@ -86,7 +86,7 @@ var CmpReverse = map[string]string{
 }
 
 func (s *SupportedExprCmpFieldConstant) Supports(fi *FlexIndex, ids Identifiers,
-	expr expression.Expression, exprFTs FieldTypes) (
+	expr expression.Expression, requestedTypes []string, exprFTs FieldTypes) (
 	bool, FieldTracks, bool, *FlexBuild, error) {
 	f, ok := expr.(expression.BinaryFunction)
 	if !ok || (s.Cmp == "" && f.Name() != "eq") ||
@@ -95,17 +95,19 @@ func (s *SupportedExprCmpFieldConstant) Supports(fi *FlexIndex, ids Identifiers,
 	}
 
 	matches, fieldTracks, needsFiltering, flexBuild, err :=
-		s.SupportsXY(fi, ids, f.Name(), f.First(), f.Second(), exprFTs)
+		s.SupportsXY(fi, ids, f.Name(), f.First(), f.Second(),
+			requestedTypes, exprFTs)
 	if err != nil || matches {
 		return matches, fieldTracks, needsFiltering, flexBuild, err
 	}
 
-	return s.SupportsXY(fi, ids, CmpReverse[f.Name()], f.Second(), f.First(), exprFTs)
+	return s.SupportsXY(fi, ids, CmpReverse[f.Name()], f.Second(), f.First(),
+		requestedTypes, exprFTs)
 }
 
 func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifiers,
-	fName string, exprX, exprY expression.Expression, exprFTs FieldTypes) (
-	bool, FieldTracks, bool, *FlexBuild, error) {
+	fName string, exprX, exprY expression.Expression, requestedTypes []string,
+	exprFTs FieldTypes) (bool, FieldTracks, bool, *FlexBuild, error) {
 	suffix, ok := ExpressionFieldPathSuffix(ids, exprX, s.FieldPath, nil)
 	if !ok {
 		return false, nil, false, nil, nil
@@ -155,7 +157,7 @@ func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifier
 					break
 				}
 				// Wrong type, so not-sargable, but can be filtered out
-				return true, nil, true, nil, nil
+				return false, nil, true, nil, nil
 			}
 		}
 
@@ -170,7 +172,7 @@ func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifier
 			}
 		} else if x.Type().String() != BleveTypeConv[s.ValueType] {
 			// Wrong type, so not-sargable, but can be filtered out
-			return true, nil, true, nil, nil
+			return false, nil, true, nil, nil
 		}
 
 	case *algebra.NamedParameter:
@@ -191,11 +193,22 @@ func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifier
 		fieldTrack = fieldTrack + strings.Join(suffix, ".")
 	}
 
+	if len(requestedTypes) > 0 {
+		if supportedTypes, exists := fi.FieldTrackTypes[FieldTrack(fieldTrack)]; exists {
+			for _, typ := range requestedTypes {
+				if _, exists := supportedTypes[typ]; !exists {
+					// One of the requested types isn't supported for this field path
+					return false, nil, true, nil, nil
+				}
+			}
+		}
+	}
+
 	if exprFieldTypesCheck {
 		fieldType, ok := exprFTs.Lookup(FieldTrack(fieldTrack))
 		if !ok || fieldType != BleveTypeConv[s.ValueType] {
 			// Wrong field type, not-sargable (check filtering, for conjuncts)
-			return true, nil, true, nil, nil
+			return false, nil, true, nil, nil
 		}
 	}
 
