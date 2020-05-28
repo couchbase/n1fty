@@ -777,6 +777,18 @@ var SampleIndexDefWithMultipleTypeMappings = []byte(`
 								"type": "text"
 							}
 							]
+						},
+						"city": {
+							"dynamic": false,
+							"enabled": true,
+							"fields": [
+							{
+								"analyzer": "keyword",
+								"index": true,
+								"name": "city",
+								"type": "text"
+							}
+							]
 						}
 					}
 				}

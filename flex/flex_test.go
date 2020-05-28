@@ -2707,7 +2707,7 @@ func TestFlexSargable(t *testing.T) {
 		}
 
 		fieldTracks, needsFiltering, flexBuild, err := fi.Sargable(
-			identifiers, exprWhereSimplified, nil)
+			identifiers, exprWhereSimplified, nil, nil)
 		if err != test.expectErr {
 			t.Fatalf("testi: %d, test: %+v\n  exprWhereSimplified: %+v\n"+
 				"  mismatch err: %v",

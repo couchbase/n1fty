@@ -27,11 +27,15 @@ var DefaultTypeFieldPath = []string{"type"}
 func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl,
 	typeFieldPath []string) (rv CondFlexIndexes, err error) {
 	// Map of FieldTrack => fieldType => count.
-	fieldTrackTypes := map[FieldTrack]map[string]int{}
-	for _, dm := range im.TypeMapping {
-		countFieldTrackTypes(nil, dm, im.DefaultAnalyzer, fieldTrackTypes)
+	fieldTrackTypeCounts := map[FieldTrack]map[string]int{}
+	// Map of FieldTrack => array of type mappings within which they occur
+	fieldTrackTypes := map[FieldTrack]map[string]struct{}{}
+	for t, dm := range im.TypeMapping {
+		countFieldTrackTypes(nil, t, dm, im.DefaultAnalyzer,
+			fieldTrackTypeCounts, fieldTrackTypes)
 	}
-	countFieldTrackTypes(nil, im.DefaultMapping, im.DefaultAnalyzer, fieldTrackTypes)
+	countFieldTrackTypes(nil, "", im.DefaultMapping, im.DefaultAnalyzer,
+		fieldTrackTypeCounts, fieldTrackTypes)
 
 	types := make([]string, 0, len(im.TypeMapping))
 	for t := range im.TypeMapping {
@@ -49,6 +53,10 @@ func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl,
 			&FieldInfo{FieldPath: typeFieldPath, FieldType: "text"},
 		},
 		SupportedExprs: []SupportedExpr{},
+	}
+
+	if len(fieldTrackTypes) > 0 {
+		fi.FieldTrackTypes = fieldTrackTypes
 	}
 
 	var values value.Values
@@ -75,8 +83,8 @@ func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl,
 			Effect:    "not-sargable",
 		})
 
-		fi, err = BleveToFlexIndex(fi, im, nil, im.TypeMapping[t], im.DefaultAnalyzer,
-			fieldTrackTypes)
+		fi, err = BleveToFlexIndex(fi, nil, im.TypeMapping[t], im.DefaultAnalyzer,
+			fieldTrackTypeCounts)
 		if err != nil {
 			return nil, err
 		}
@@ -96,9 +104,13 @@ func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl,
 	if im.DefaultMapping != nil {
 		fi, err := BleveToFlexIndex(&FlexIndex{
 			IndexedFields: FieldInfos{},
-		}, im, nil, im.DefaultMapping, im.DefaultAnalyzer, fieldTrackTypes)
+		}, nil, im.DefaultMapping, im.DefaultAnalyzer, fieldTrackTypeCounts)
 		if err != nil {
 			return nil, err
+		}
+
+		if len(fieldTrackTypes) > 0 {
+			fi.FieldTrackTypes = fieldTrackTypes
 		}
 
 		rv = append(rv, &CondFlexIndex{
@@ -112,9 +124,12 @@ func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl,
 
 // ------------------------------------------------------------------------
 
-// Populates into mm the counts of field types.
-func countFieldTrackTypes(path []string, dm *mapping.DocumentMapping,
-	defaultAnalyzer string, mm map[FieldTrack]map[string]int) {
+// Populates into fieldTrackTypeCounts the counts of field types, and into
+// fieldTrackTypes all the type mappings within which the field tracks occur.
+func countFieldTrackTypes(path []string, typeMappingName string,
+	dm *mapping.DocumentMapping, defaultAnalyzer string,
+	fieldTrackTypeCounts map[FieldTrack]map[string]int,
+	fieldTrackTypes map[FieldTrack]map[string]struct{}) {
 	if dm == nil || !dm.Enabled {
 		return
 	}
@@ -141,18 +156,25 @@ func countFieldTrackTypes(path []string, dm *mapping.DocumentMapping,
 
 			fieldTrack := FieldTrack(strings.Join(path, "."))
 
-			m := mm[fieldTrack]
+			m := fieldTrackTypeCounts[fieldTrack]
 			if m == nil {
 				m = map[string]int{}
-				mm[fieldTrack] = m
+				fieldTrackTypeCounts[fieldTrack] = m
 			}
-
 			m[f.Type] = m[f.Type] + 1
+
+			if len(typeMappingName) > 0 {
+				if _, exists := fieldTrackTypes[fieldTrack]; !exists {
+					fieldTrackTypes[fieldTrack] = map[string]struct{}{}
+				}
+				fieldTrackTypes[fieldTrack][typeMappingName] = struct{}{}
+			}
 		}
 	}
 
 	for propName, propDM := range dm.Properties {
-		countFieldTrackTypes(append(path, propName), propDM, defaultAnalyzer, mm)
+		countFieldTrackTypes(append(path, propName), typeMappingName, propDM,
+			defaultAnalyzer, fieldTrackTypeCounts, fieldTrackTypes)
 	}
 }
 
@@ -181,9 +203,9 @@ var BleveTypeConv = map[string]string{
 // Recursively initializes a FlexIndex from a given bleve document
 // mapping.  Note: the backing array for path is mutated as the
 // recursion proceeds.
-func BleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
-	path []string, dm *mapping.DocumentMapping, defaultAnalyzer string,
-	fieldTrackTypes map[FieldTrack]map[string]int) (rv *FlexIndex, err error) {
+func BleveToFlexIndex(fi *FlexIndex, path []string, dm *mapping.DocumentMapping,
+	defaultAnalyzer string, fieldTrackTypeCounts map[FieldTrack]map[string]int) (
+	rv *FlexIndex, err error) {
 	if dm == nil || !dm.Enabled {
 		return fi, nil
 	}
@@ -212,7 +234,7 @@ func BleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 		}
 
 		// Fields that are indexed using different types are not supported.
-		if len(fieldTrackTypes[FieldTrack(strings.Join(path, "."))]) != 1 {
+		if len(fieldTrackTypeCounts[FieldTrack(strings.Join(path, "."))]) != 1 {
 			continue
 		}
 
@@ -252,8 +274,8 @@ func BleveToFlexIndex(fi *FlexIndex, im *mapping.IndexMappingImpl,
 	sort.Strings(ns)
 
 	for _, n := range ns {
-		fi, err = BleveToFlexIndex(fi, im,
-			append(path, n), dm.Properties[n], defaultAnalyzer, fieldTrackTypes)
+		fi, err = BleveToFlexIndex(fi, append(path, n), dm.Properties[n],
+			defaultAnalyzer, fieldTrackTypeCounts)
 		if err != nil {
 			return nil, err
 		}
