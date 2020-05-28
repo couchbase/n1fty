@@ -1106,12 +1106,22 @@ func TestSargableFlexIndexWithMultipleTypeMappings(t *testing.T) {
 			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
 		},
 		{
+			// No "type" expressions provided.
+			queryStr:         `(t.city = "airline" OR t.city = "airport") AND t.country = "US"`,
+			expectedQueryStr: ``,
+		},
+		{
 			queryStr:         `t.type IN ["airline"] AND t.country = "US"`,
 			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
 		},
 		{
 			queryStr:         `t.type IN ["airline", "airport"] AND t.country = "US"`,
 			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
+		},
+		{
+			// No "type" expressions provided.
+			queryStr:         `t.city IN ["airline", "airport"] AND t.country = "US"`,
+			expectedQueryStr: ``,
 		},
 	}
 
