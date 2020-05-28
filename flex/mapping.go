@@ -167,27 +167,22 @@ func MakeCondFuncEqVals(fieldPath []string, vals value.Values) CondFunc {
 				// Collect all children of this Or expression, and check if
 				// every one of them are represented in the type vals.
 				exprs := collectDisjunctExprs(f, nil)
-				eligible := true
+				var eligible bool
+			OUTER:
 				for _, ee := range exprs {
 					if ff, ok := ee.(*expression.Eq); ok {
 						matches, c := MatchEqFieldPathToConstant(ids, fieldPath, ff)
 						if matches {
-							found := false
 							for _, v := range vals {
 								if c.Value().Equals(v).Truth() {
-									found = true
-									break
+									eligible = true
+									continue OUTER
 								}
 							}
-							if !found {
-								eligible = false
-								break
-							}
 						}
-					} else {
-						eligible = false
-						break
 					}
+					eligible = false
+					break
 				}
 				if eligible {
 					return true, nil
@@ -339,6 +334,8 @@ func (s CondFlexIndexes) FindFlexIndex(ids Identifiers, e expression.Expression)
 
 	return rv, nil // Might return nil.
 }
+
+// -------------------------------------------------------------------------
 
 func collectConjunctExprs(ex expression.Expression,
 	children expression.Expressions) expression.Expressions {
