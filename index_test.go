@@ -1153,21 +1153,22 @@ func TestSargableFlexIndexWithMultipleTypeMappings(t *testing.T) {
 			expectedQueryStr: ``,
 		},
 		{
-			// MB-39517: "city" not indexed but country is, so partially sargable.
+			// MB-39517: "city" not indexed within "airline", but country is within both, so partially sargable
 			queryStr:         `t.type IN ["airline", "airport"] AND t.country = "US" AND t.city = "SF"`,
 			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
 		},
 		{
-			// MB-39517: "city" not indexed but country is, so partially sargable.
+			// MB-39517: "city" not indexed within "airline", but country is within both, so partially sargable
 			queryStr:         `(t.type = "airline" OR t.type = "airport") AND t.country = "US" AND t.city = "SF"`,
 			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
 		},
 		{
-			// MB-39517: "city" not indexed and although country is, it's a disjunction
+			// MB-39517: "city" not indexed within "airline", although country is within both, it's a disjunction
 			queryStr:         `t.type IN ["airline", "airport"] AND t.country = "US" OR t.city = "SF"`,
 			expectedQueryStr: ``,
 		},
 		{
+			// MB-39517: "city" not indexed within "airline", although country is within both, it's a disjunction
 			queryStr:         `(t.type = "airline" OR t.type = "airport") AND t.country = "US" OR t.city = "SF"`,
 			expectedQueryStr: ``,
 		},

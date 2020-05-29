@@ -64,8 +64,8 @@ func (s *WrapDatastore) NamespaceByName(name string) (p datastore.Namespace, e e
 	return &WrapNamespace{Parent: s, W: ns}, err
 }
 
-func (s *WrapDatastore) Authorize(p *auth.Privileges, c auth.Credentials, r *http.Request) (auth.AuthenticatedUsers, errors.Error) {
-	return s.W.Authorize(p, c, r)
+func (s *WrapDatastore) Authorize(p *auth.Privileges, c *auth.Credentials) (auth.AuthenticatedUsers, errors.Error) {
+	return s.W.Authorize(p, c)
 }
 
 func (s *WrapDatastore) CredsString(r *http.Request) string {
