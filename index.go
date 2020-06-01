@@ -47,7 +47,9 @@ type FTSIndex struct {
 
 	condExpr expression.Expression
 
-	dynamic            bool // true if a top-level dynamic mapping is enabled
+	// map of dynamic mappings to their default analyzers
+	dynamicMappings map[string]string
+
 	allFieldSearchable bool // true if _all field contains some content
 
 	defaultAnalyzer       string
@@ -76,7 +78,7 @@ func newFTSIndex(indexer *FTSIndexer, indexDef *cbgt.IndexDef,
 		searchableFields:      pip.SearchFields,
 		indexedCount:          pip.IndexedCount,
 		condExpr:              condExpr,
-		dynamic:               pip.Dynamic,
+		dynamicMappings:       pip.DynamicMappings,
 		allFieldSearchable:    pip.AllFieldSearchable,
 		defaultAnalyzer:       pip.DefaultAnalyzer,
 		defaultDateTimeParser: pip.DefaultDateTimeParser,
@@ -343,7 +345,7 @@ func (i *FTSIndex) Sargable(field string, query,
 	if queryVal == nil && len(queryFields) == 0 {
 		// this index will be sargable for the unavailable query if
 		// it has a default dynamic mapping with the _all field searchable.
-		if i.dynamic && i.allFieldSearchable {
+		if len(i.dynamicMappings) > 0 && i.allFieldSearchable {
 			return int(math.MaxInt64), math.MaxInt64, exact, opaque, nil
 		}
 
@@ -461,10 +463,11 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 					im, _ = imInterface.(*mapping.IndexMappingImpl)
 				}
 
-				searchableFields, _, _, dynamic, _, defaultAnalyzer, defaultDateTimeParser :=
-					util.ProcessIndexMapping(im)
+				searchableFields, _, _, dynamicMappings, _,
+					defaultAnalyzer, defaultDateTimeParser := util.ProcessIndexMapping(im)
 
-				if !dynamic && !i.dynamic {
+				if len(dynamicMappings) == 0 && len(i.dynamicMappings) == 0 {
+					// no dynamic mappings
 					for k, expect := range searchableFields {
 						if got, exists := i.searchableFields[k]; !exists || got != expect {
 							return rv
@@ -498,13 +501,14 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		}
 	}
 
-	if i.dynamic {
+	for _, defaultAnalyzer := range i.dynamicMappings {
 		// sargable, only if all query fields' analyzers are the same
-		// as default analyzer.
+		// as the default analyzer for one of the available dynamic
+		// mapping.
 		compatibleWithDynamicMapping := true
 		for f := range queryFields {
 			if f.Analyzer != "" &&
-				f.Analyzer != i.defaultAnalyzer {
+				f.Analyzer != defaultAnalyzer {
 				compatibleWithDynamicMapping = false
 				break
 			}
