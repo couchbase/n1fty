@@ -26,7 +26,7 @@ func setupSampleIndex(idef []byte) (*FTSIndex, error) {
 		return nil, err
 	}
 
-	if pip.SearchFields != nil || pip.Dynamic {
+	if pip.SearchFields != nil || len(pip.DynamicMappings) > 0 {
 		return newFTSIndex(nil, indexDef, pip)
 	}
 

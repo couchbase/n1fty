@@ -32,7 +32,7 @@ func TestIndexDefConversion(t *testing.T) {
 	pip, err := ProcessIndexDef(indexDef)
 	if err != nil ||
 		pip.SearchFields == nil ||
-		pip.Dynamic ||
+		len(pip.DynamicMappings) > 0 ||
 		pip.DefaultAnalyzer != "standard" ||
 		pip.DefaultDateTimeParser != "dateTimeOptional" {
 		t.Fatalf("unexpected return values from SearchFieldsForIndexDef")
@@ -800,9 +800,9 @@ func TestProcessIndexDef(t *testing.T) {
 			}
 		}
 
-		if test.expectDynamic != pip.Dynamic {
+		if test.expectDynamic != (len(pip.DynamicMappings) > 0) {
 			t.Fatalf("testi: %d, test: %+v,\n mismatch dynamic, got: %+v",
-				testi, test, pip.Dynamic)
+				testi, test, pip.DynamicMappings)
 		}
 
 		if test.expectDefaultAnalyzer != pip.DefaultAnalyzer {

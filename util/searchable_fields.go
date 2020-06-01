@@ -45,7 +45,7 @@ type ProcessedIndexParams struct {
 	SearchFields          map[SearchField]bool
 	IndexedCount          int64
 	CondExpr              string
-	Dynamic               bool
+	DynamicMappings       map[string]string // Default Analyzers of enabled dynamic mappings
 	AllFieldSearchable    bool
 	DefaultAnalyzer       string
 	DefaultDateTimeParser string
@@ -84,7 +84,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef) (pip ProcessedIndexParams, err err
 		}
 
 		var multipleTypeStrs bool
-		m, indexedCount, typeStrs, dynamic, allFieldSearchable,
+		m, indexedCount, typeStrs, dynamicMappings, allFieldSearchable,
 			defaultAnalyzer, defaultDateTimeParser := ProcessIndexMapping(im)
 		if typeStrs != nil {
 			if len(typeStrs.S) == 1 {
@@ -123,7 +123,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef) (pip ProcessedIndexParams, err err
 			SearchFields:          m,
 			IndexedCount:          indexedCount,
 			CondExpr:              condExpr,
-			Dynamic:               dynamic,
+			DynamicMappings:       dynamicMappings,
 			AllFieldSearchable:    allFieldSearchable,
 			DefaultAnalyzer:       defaultAnalyzer,
 			DefaultDateTimeParser: defaultDateTimeParser,
@@ -138,7 +138,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef) (pip ProcessedIndexParams, err err
 			return
 		}
 
-		m, indexedCount, typeStrs, dynamic, allFieldSearchable,
+		m, indexedCount, typeStrs, dynamicMappings, allFieldSearchable,
 			defaultAnalyzer, defaultDateTimeParser := ProcessIndexMapping(im)
 		if typeStrs != nil {
 			for i := range typeStrs.S {
@@ -162,7 +162,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef) (pip ProcessedIndexParams, err err
 			SearchFields:          m,
 			IndexedCount:          indexedCount,
 			CondExpr:              condExpr,
-			Dynamic:               dynamic,
+			DynamicMappings:       dynamicMappings,
 			AllFieldSearchable:    allFieldSearchable,
 			DefaultAnalyzer:       defaultAnalyzer,
 			DefaultDateTimeParser: defaultDateTimeParser,
@@ -189,62 +189,74 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef) (pip ProcessedIndexParams, err err
 //    mapping is NOT enabled, where typeStrs will be for example ..
 //    &Strings{["beer", "brewery", ..]}
 func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
-	indexedCount int64, typeStrs *Strings, dynamic bool, allFieldSearchable bool,
-	defaultAnalyzer string, defaultDateTimeParser string) {
+	indexedCount int64, typeStrs *Strings, dynamicMappings map[string]string,
+	allFieldSearchable bool, defaultAnalyzer string, defaultDateTimeParser string) {
 	var ok bool
+	dynamicMappings = map[string]string{}
 
 	m = map[SearchField]bool{}
 
+	var typeMappings int
 	for t, tm := range im.TypeMapping {
+		typeMappings++
 		if tm.Enabled {
 			m, indexedCount, allFieldSearchable, ok = ProcessDocumentMapping(
 				im, im.DefaultAnalyzer, im.DefaultDateTimeParser,
 				nil, tm, m, 0)
 			if !ok {
-				return nil, 0, nil, false, false, "", ""
+				return nil, 0, nil, nil, false, "", ""
 			}
 
 			if typeStrs == nil {
 				typeStrs = &Strings{}
 			}
 			typeStrs.S = append(typeStrs.S, t)
-			if !dynamic {
-				dynamic = tm.Dynamic
+			if tm.Dynamic {
+				if tm.DefaultAnalyzer != "" {
+					dynamicMappings[t] = tm.DefaultAnalyzer
+				} else {
+					dynamicMappings[t] = im.DefaultAnalyzer
+				}
 			}
 		}
 	}
 
 	if im.DefaultMapping != nil && im.DefaultMapping.Enabled {
 		// Saw both type mapping(s) & default mapping, so not-FTSIndex'able.
-		if len(im.TypeMapping) > 0 {
-			return nil, 0, nil, false, false, "", ""
+		if typeMappings > 0 {
+			return nil, 0, nil, nil, false, "", ""
 		}
 
 		m, indexedCount, allFieldSearchable, ok = ProcessDocumentMapping(
 			im, im.DefaultAnalyzer, im.DefaultDateTimeParser,
 			nil, im.DefaultMapping, m, 0)
 		if !ok {
-			return nil, 0, nil, false, false, "", ""
+			return nil, 0, nil, nil, false, "", ""
 		}
 
 		typeStrs = nil
-		if !dynamic {
-			dynamic = im.DefaultMapping.Dynamic
+		if im.DefaultMapping.Dynamic {
+			if im.DefaultMapping.DefaultAnalyzer != "" {
+				dynamicMappings["default"] = im.DefaultMapping.DefaultAnalyzer
+			} else {
+				dynamicMappings["default"] = im.DefaultAnalyzer
+			}
 		}
 	}
 
-	if dynamic {
+	if len(dynamicMappings) > 0 {
 		// If one of the index's top level mappings is dynamic, the _all field
 		// will contain every field's content.
 		allFieldSearchable = true
 	}
 
-	if len(m) <= 0 {
-		return nil, 0, nil, false, false, "", ""
+	if len(m) == 0 && len(dynamicMappings) == 0 {
+		// No indexed fields or dynamic mappings
+		return nil, 0, nil, nil, false, "", ""
 	}
 
-	return m, indexedCount, typeStrs, dynamic, allFieldSearchable,
-		im.DefaultAnalyzer, im.DefaultDateTimeParser
+	return m, indexedCount, typeStrs, dynamicMappings,
+		allFieldSearchable, im.DefaultAnalyzer, im.DefaultDateTimeParser
 }
 
 func ProcessDocumentMapping(im *mapping.IndexMappingImpl,
