@@ -138,9 +138,13 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef) (pip ProcessedIndexParams, err err
 			return
 		}
 
+		var multipleTypeStrs bool
 		m, indexedCount, typeStrs, dynamicMappings, allFieldSearchable,
 			defaultAnalyzer, defaultDateTimeParser := ProcessIndexMapping(im)
 		if typeStrs != nil {
+			if len(typeStrs.S) > 1 {
+				multipleTypeStrs = true
+			}
 			for i := range typeStrs.S {
 				if strings.ContainsAny(typeStrs.S[i], DisallowedChars) ||
 					strings.ContainsAny(typeStrs.S[i], dc.DocIDPrefixDelim) {
@@ -166,7 +170,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef) (pip ProcessedIndexParams, err err
 			AllFieldSearchable:    allFieldSearchable,
 			DefaultAnalyzer:       defaultAnalyzer,
 			DefaultDateTimeParser: defaultDateTimeParser,
-			MultipleTypeStrs:      len(condExpr) > 0, // condExpr with LIKE clause
+			MultipleTypeStrs:      multipleTypeStrs,
 		}, nil
 
 	case "docid_regexp":
