@@ -29,10 +29,10 @@ type SearchField struct {
 	DateFormat string
 }
 
-// Strings is a wrapper that allows for a nil (pointer) value that's
-// distinct from an empty []string.
-type Strings struct {
-	S []string
+// Types is a wrapper that allows for a nil (pointer) value that's
+// distinct from an empty map[string]bool.
+type Types struct {
+	S map[string]bool // Map of type-mapping name to whether it is enabled or not
 }
 
 // DisallowedChars represents disallowed characters such as within
@@ -84,31 +84,30 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 			return
 		}
 
-		var multipleTypeStrs bool
 		m, indexedCount, typeStrs, dynamicMappings, allFieldSearchable,
 			defaultAnalyzer, defaultDateTimeParser := ProcessIndexMapping(im)
+		var types []string
 		if typeStrs != nil {
-			if len(typeStrs.S) == 1 {
-				// single type mapping
-				if len(typeStrs.S[0]) == 0 || strings.ContainsAny(typeStrs.S[0], "\"\\") {
+			for typeMapping, enabled := range typeStrs.S {
+				if len(typeMapping) == 0 || strings.ContainsAny(typeMapping, "\"\\") {
 					return
 				}
 
-				// Ex: condExpr == '`type`="beer"'.
-				condExpr = "`" + typeField + "`" + "=\"" + typeStrs.S[0] + "\""
-			} else if len(typeStrs.S) > 1 {
-				// multiple type mappings, supported only with FLEX
-				multipleTypeStrs = true
-				for i := range typeStrs.S {
-					if len(typeStrs.S[i]) == 0 || strings.ContainsAny(typeStrs.S[i], "\"\\") {
-						return
-					}
+				if enabled {
+					types = append(types, typeMapping)
+				}
+			}
 
+			if len(types) == 1 {
+				// Ex: condExpr == '`type`="beer"'.
+				condExpr = "`" + typeField + "`" + "=\"" + types[0] + "\""
+			} else if len(types) > 1 {
+				for i := range types {
 					// Ex: condExpr: '`type` IN ["beer", "brewery"]'.
 					if len(condExpr) == 0 {
-						condExpr = "`" + typeField + "` IN [\"" + typeStrs.S[i] + "\""
+						condExpr = "`" + typeField + "` IN [\"" + types[i] + "\""
 					} else {
-						condExpr += ", \"" + typeStrs.S[i] + "\""
+						condExpr += ", \"" + types[i] + "\""
 					}
 				}
 
@@ -128,7 +127,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 			AllFieldSearchable:    allFieldSearchable,
 			DefaultAnalyzer:       defaultAnalyzer,
 			DefaultDateTimeParser: defaultDateTimeParser,
-			MultipleTypeStrs:      multipleTypeStrs,
+			MultipleTypeStrs:      len(types) > 1,
 		}, nil
 
 	case "docid_prefix":
@@ -143,20 +142,22 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 		m, indexedCount, typeStrs, dynamicMappings, allFieldSearchable,
 			defaultAnalyzer, defaultDateTimeParser := ProcessIndexMapping(im)
 		if typeStrs != nil {
-			if len(typeStrs.S) > 1 {
-				multipleTypeStrs = true
-			}
-			for i := range typeStrs.S {
-				if strings.ContainsAny(typeStrs.S[i], DisallowedChars) ||
-					strings.ContainsAny(typeStrs.S[i], dc.DocIDPrefixDelim) {
+			for typeMapping, enabled := range typeStrs.S {
+				if !enabled {
+					continue
+				}
+
+				if strings.ContainsAny(typeMapping, DisallowedChars) ||
+					strings.ContainsAny(typeMapping, dc.DocIDPrefixDelim) {
 					return
 				}
 
 				// Ex: condExpr == 'META().id LIKE "beer-%" OR META().id LIKE "brewery-%"'.
 				if len(condExpr) == 0 {
-					condExpr = `META().id LIKE "` + typeStrs.S[i] + dc.DocIDPrefixDelim + `%"`
+					condExpr = `META().id LIKE "` + typeMapping + dc.DocIDPrefixDelim + `%"`
 				} else {
-					condExpr += ` OR META().id LIKE "` + typeStrs.S[i] + dc.DocIDPrefixDelim + `%"`
+					multipleTypeStrs = true
+					condExpr += ` OR META().id LIKE "` + typeMapping + dc.DocIDPrefixDelim + `%"`
 				}
 			}
 		}
@@ -174,7 +175,95 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 			MultipleTypeStrs:      multipleTypeStrs,
 		}, nil
 
-	case "docid_regexp":
+	case "scope.collection.type_field":
+		typeField := bp.DocConfig.TypeField
+		if len(typeField) <= 0 ||
+			strings.ContainsAny(typeField, DisallowedChars) {
+			return
+		}
+
+		var multipleTypeStrs bool
+		m, indexedCount, typeStrs, dynamicMappings, allFieldSearchable,
+			defaultAnalyzer, defaultDateTimeParser := ProcessIndexMapping(im)
+		if typeStrs != nil {
+			scopeCollTypes := map[string]bool{}
+			var entireScopeCollIndexed bool
+			for typeMapping, enabled := range typeStrs.S {
+				if len(typeMapping) == 0 || strings.ContainsAny(typeMapping, "\"\\") {
+					return
+				}
+
+				arr := strings.SplitN(typeMapping, ".", 3)
+				if len(arr) == 1 {
+					if (scope == "" || scope == "_default") &&
+						(collection == "" || collection == "_default") {
+						scopeCollTypes[arr[0]] = enabled
+					}
+				} else if len(arr) == 2 {
+					if scope == arr[0] && collection == arr[1] {
+						entireScopeCollIndexed = enabled
+					}
+				} else if len(arr) == 3 {
+					if scope == arr[0] && collection == arr[1] {
+						scopeCollTypes[arr[2]] = enabled
+					}
+				}
+			}
+
+			if entireScopeCollIndexed {
+				if len(scopeCollTypes) > 0 {
+					// Do not consider this index, to avoid the possibility of false negatives.
+					return
+				}
+				// condExpr is nil
+			} else {
+				var types []string
+				for typeName, enabled := range scopeCollTypes {
+					if enabled {
+						types = append(types, typeName)
+					}
+				}
+
+				if len(types) == 0 {
+					// Do not consider index, as nothing relevant to the scope.collection is
+					// indexed.
+					return
+				} else if len(types) == 1 {
+					// Ex: condExpr == '`type`="beer"'
+					condExpr = "`" + typeField + "`" + "=\"" + types[0] + "\""
+				} else {
+					multipleTypeStrs = true
+					for i := range types {
+						// Ex: condExpr: '`type` IN ["beer", "brewery"]'.
+						if len(condExpr) == 0 {
+							condExpr = "`" + typeField + "` IN [\"" + types[i] + "\""
+						} else {
+							condExpr += ", \"" + types[i] + "\""
+						}
+					}
+					condExpr += "]"
+				}
+			}
+		}
+
+		return ProcessedIndexParams{
+			IndexMapping:          im,
+			DocConfig:             &bp.DocConfig,
+			SearchFields:          m,
+			IndexedCount:          indexedCount,
+			CondExpr:              condExpr,
+			DynamicMappings:       dynamicMappings,
+			AllFieldSearchable:    allFieldSearchable,
+			DefaultAnalyzer:       defaultAnalyzer,
+			DefaultDateTimeParser: defaultDateTimeParser,
+			MultipleTypeStrs:      multipleTypeStrs,
+		}, nil
+
+	case "scope.collection.docid_prefix":
+		// TODO
+		return
+
+	case "docid_regexp", "scope.collection.docid_regexp":
 		// N1QL doesn't currently support a generic regexp-based
 		// condExpr, so not-FTSIndex'able.
 		return
@@ -192,18 +281,19 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 //
 // B) more than one type mapping is OK for as long as the default
 //    mapping is NOT enabled, where typeStrs will be for example ..
-//    &Strings{["beer", "brewery", ..]}
+//    &types{{"beer":true}, {"brewery":true}, ..]}
 func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
-	indexedCount int64, typeStrs *Strings, dynamicMappings map[string]string,
+	indexedCount int64, typeStrs *Types, dynamicMappings map[string]string,
 	allFieldSearchable bool, defaultAnalyzer string, defaultDateTimeParser string) {
 	var ok bool
 	dynamicMappings = map[string]string{}
 
 	m = map[SearchField]bool{}
 
-	var typeMappings int
 	for t, tm := range im.TypeMapping {
-		typeMappings++
+		if typeStrs == nil {
+			typeStrs = &Types{S: make(map[string]bool)}
+		}
 		if tm.Enabled {
 			m, indexedCount, allFieldSearchable, ok = ProcessDocumentMapping(
 				im, im.DefaultAnalyzer, im.DefaultDateTimeParser,
@@ -212,10 +302,6 @@ func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 				return nil, 0, nil, nil, false, "", ""
 			}
 
-			if typeStrs == nil {
-				typeStrs = &Strings{}
-			}
-			typeStrs.S = append(typeStrs.S, t)
 			if tm.Dynamic {
 				if tm.DefaultAnalyzer != "" {
 					dynamicMappings[t] = tm.DefaultAnalyzer
@@ -224,11 +310,12 @@ func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 				}
 			}
 		}
+		typeStrs.S[t] = tm.Enabled
 	}
 
 	if im.DefaultMapping != nil && im.DefaultMapping.Enabled {
 		// Saw both type mapping(s) & default mapping, so not-FTSIndex'able.
-		if typeMappings > 0 {
+		if typeStrs != nil {
 			return nil, 0, nil, nil, false, "", ""
 		}
 
@@ -239,7 +326,6 @@ func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 			return nil, 0, nil, nil, false, "", ""
 		}
 
-		typeStrs = nil
 		if im.DefaultMapping.Dynamic {
 			if im.DefaultMapping.DefaultAnalyzer != "" {
 				dynamicMappings["default"] = im.DefaultMapping.DefaultAnalyzer
