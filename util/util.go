@@ -32,6 +32,8 @@ var bleveMaxResultWindow = int64(10000)
 type MappingDetails struct {
 	UUID       string
 	SourceName string
+	Scope      string
+	Collection string
 	IMapping   mapping.IndexMapping
 	DocConfig  *cbft.BleveDocumentConfig
 }
@@ -56,22 +58,27 @@ func SetIndexMapping(name string, mappingDetails *MappingDetails) {
 	mappingsCacheLock.Unlock()
 }
 
-func FetchIndexMapping(name, uuid, keyspace string) (mapping.IndexMapping, *cbft.BleveDocumentConfig, error) {
+func FetchIndexMapping(name, uuid, keyspace string) (
+	mapping.IndexMapping, *cbft.BleveDocumentConfig, string, string, error) {
 	if len(keyspace) == 0 || len(name) == 0 {
 		// Return default index mapping if keyspace not provided.
-		return EmptyIndexMapping, nil, nil
+		return EmptyIndexMapping, nil, "", "", nil
 	}
 	mappingsCacheLock.RLock()
 	defer mappingsCacheLock.RUnlock()
 	if info, exists := mappingsCache[name]; exists {
 		// validate sourceName/keyspace, additionally check UUID if provided
-		if info.SourceName == keyspace {
+		indexKeyspace := info.SourceName
+		if len(info.Scope) > 0 && len(info.Collection) > 0 {
+			indexKeyspace += "." + info.Scope + "." + info.Collection
+		}
+		if indexKeyspace == keyspace {
 			if uuid == "" || info.UUID == uuid {
-				return info.IMapping, info.DocConfig, nil
+				return info.IMapping, info.DocConfig, info.Scope, info.Collection, nil
 			}
 		}
 	}
-	return nil, nil, fmt.Errorf("index mapping not found for: %v", name)
+	return nil, nil, "", "", fmt.Errorf("index mapping not found for: %v", name)
 }
 
 func BuildIndexMappingOnFields(queryFields map[SearchField]struct{}, defaultAnalyzer string,

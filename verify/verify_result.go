@@ -42,6 +42,9 @@ func KVConfigForMoss() map[string]interface{} {
 	}
 }
 
+// NewVerify expects nameAndKeyspace to be either of:
+//     - `bucket_name`
+//     - `bucket_name.scope_name.collection_name`
 func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
 	datastore.Verify, errors.Error) {
 	if query == nil {
@@ -93,6 +96,7 @@ func (v *VerifyCtx) initVerifyCtx() errors.Error {
 	}
 
 	var idxMapping mapping.IndexMapping
+	var scope, collection string
 	var docConfig *cbft.BleveDocumentConfig
 
 	var indexOptionAvailable bool
@@ -117,7 +121,7 @@ func (v *VerifyCtx) initVerifyCtx() errors.Error {
 				}
 			}
 
-			idxMapping, docConfig, err = util.FetchIndexMapping(
+			idxMapping, docConfig, scope, collection, err = util.FetchIndexMapping(
 				indexVal.Actual().(string), indexUUID, keyspace)
 			if err != nil {
 				return util.N1QLError(nil, "index mapping not found")
@@ -173,6 +177,8 @@ func (v *VerifyCtx) initVerifyCtx() errors.Error {
 	v.coll = collh.Collection()
 	v.defaultType = defaultType
 	v.docConfig = docConfig
+	v.scope = scope
+	v.collection = collection
 	v.initialised = true
 
 	return nil
@@ -197,6 +203,8 @@ type VerifyCtx struct {
 	initialised bool
 	idx         bleve.Index
 	m           mapping.IndexMapping
+	scope       string
+	collection  string
 	sr          *bleve.SearchRequest
 	udc         *upsidedown.UpsideDownCouch
 	coll        mo.Collection
@@ -226,7 +234,12 @@ func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
 
 	doc := item.Actual()
 	if v.docConfig != nil {
-		doc = v.docConfig.BuildDocumentFromObj([]byte(key), doc, v.defaultType)
+		bdoc := v.docConfig.BuildDocumentFromObj([]byte(key), doc, v.defaultType)
+		if len(v.scope) > 0 && len(v.collection) > 0 {
+			// decorate type with scope and collection info
+			bdoc.SetType(v.scope + "." + v.collection + "." + bdoc.Type())
+		}
+		doc = bdoc
 	}
 
 	kdoc := document.NewDocument(key)

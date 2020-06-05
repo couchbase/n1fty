@@ -629,6 +629,8 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 				SourceName: indexDef.SourceName,
 				IMapping:   pip.IndexMapping,
 				DocConfig:  pip.DocConfig,
+				Scope:      i.scope,
+				Collection: i.collection,
 			})
 		}
 	}

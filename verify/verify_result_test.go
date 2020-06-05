@@ -12,9 +12,12 @@
 package verify
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/blevesearch/bleve"
+	"github.com/blevesearch/bleve/mapping"
+	"github.com/couchbase/cbft"
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/value"
 )
@@ -241,5 +244,91 @@ func TestMB39592(t *testing.T) {
 		if !ret {
 			t.Fatalf("Expected evaluation for key to succeed for `%v`", queryVal)
 		}
+	}
+}
+
+func TestVerifyEvalWithScopeCollectionMapping(t *testing.T) {
+	indexParams := []byte(`{
+		"doc_config": {
+			"mode": "scope.collection.type_field",
+			"type_field": "type"
+		},
+		"mapping": {
+			"default_mapping": {
+				"enabled": false
+			},
+			"type_field": "_type",
+			"types": {
+				"scope1.collection1.airline": {
+					"dynamic": false,
+					"enabled": true,
+					"properties": {
+						"country": {
+							"enabled": true,
+							"dynamic": false,
+							"fields": [{
+								"name": "country",
+								"type": "text",
+								"analyzer": "keyword",
+								"index": true
+							}]
+						}
+					}
+				}
+			},
+			"store": {
+				"indexType": "scorch"
+			}
+		}
+	}`)
+	bp := cbft.NewBleveParams()
+	err := json.Unmarshal(indexParams, bp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	im, ok := bp.Mapping.(*mapping.IndexMappingImpl)
+	if !ok {
+		t.Fatal("Unable to set up index mapping")
+	}
+
+	util.SetIndexMapping("temp", &util.MappingDetails{
+		UUID:       "tempUUID",
+		SourceName: "temp_keyspace",
+		IMapping:   im,
+		DocConfig:  &bp.DocConfig,
+		Scope:      "scope1",
+		Collection: "collection1",
+	})
+
+	item := value.NewAnnotatedValue([]byte(`{
+		"name" : "xyz",
+		"country" : "United States",
+		"type" : "airline"
+	}`))
+	item.SetAttachment("meta", map[string]interface{}{"id": "key"})
+	item.SetId("key")
+
+	q := value.NewValue(map[string]interface{}{
+		"match": "United States",
+		"field": "country",
+	})
+
+	options := value.NewValue(map[string]interface{}{
+		"index": "temp",
+	})
+
+	v, err := NewVerify("`temp_keyspace.scope1.collection1`", "", q, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := v.Evaluate(item)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !got {
+		t.Fatal("Expected key to pass evaluation")
 	}
 }
