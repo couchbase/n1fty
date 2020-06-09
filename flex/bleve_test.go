@@ -24,11 +24,10 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 		expectErr       string
 	}{
 		{
-			m: &mapping.IndexMappingImpl{},
-		},
-		{
 			m: &mapping.IndexMappingImpl{
-				DefaultMapping: &mapping.DocumentMapping{},
+				DefaultMapping: &mapping.DocumentMapping{
+					Enabled: true,
+				},
 			},
 			expectFlexIndex: &FlexIndex{
 				IndexedFields: FieldInfos{},

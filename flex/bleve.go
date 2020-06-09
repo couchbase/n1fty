@@ -101,7 +101,7 @@ func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl,
 		})
 	}
 
-	if im.DefaultMapping != nil {
+	if im.DefaultMapping != nil && im.DefaultMapping.Enabled {
 		fi, err := BleveToFlexIndex(&FlexIndex{
 			IndexedFields: FieldInfos{},
 		}, nil, im.DefaultMapping, im.DefaultAnalyzer, fieldTrackTypeCounts)
