@@ -50,6 +50,8 @@ type ProcessedIndexParams struct {
 	DefaultAnalyzer       string
 	DefaultDateTimeParser string
 	MultipleTypeStrs      bool
+	Scope                 string
+	Collection            string
 }
 
 // ProcessIndexDef determines if an indexDef is supportable as an
@@ -128,6 +130,8 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 			DefaultAnalyzer:       defaultAnalyzer,
 			DefaultDateTimeParser: defaultDateTimeParser,
 			MultipleTypeStrs:      len(types) > 1,
+			Scope:                 scope,
+			Collection:            collection,
 		}, nil
 
 	case "docid_prefix":
@@ -173,6 +177,8 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 			DefaultAnalyzer:       defaultAnalyzer,
 			DefaultDateTimeParser: defaultDateTimeParser,
 			MultipleTypeStrs:      multipleTypeStrs,
+			Scope:                 scope,
+			Collection:            collection,
 		}, nil
 
 	case "scope.collection.type_field":
@@ -257,6 +263,8 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 			DefaultAnalyzer:       defaultAnalyzer,
 			DefaultDateTimeParser: defaultDateTimeParser,
 			MultipleTypeStrs:      multipleTypeStrs,
+			Scope:                 scope,
+			Collection:            collection,
 		}, nil
 
 	case "scope.collection.docid_prefix":
@@ -341,6 +349,8 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 			DefaultAnalyzer:       defaultAnalyzer,
 			DefaultDateTimeParser: defaultDateTimeParser,
 			MultipleTypeStrs:      multipleTypeStrs,
+			Scope:                 scope,
+			Collection:            collection,
 		}, nil
 
 	case "docid_regexp", "scope.collection.docid_regexp":

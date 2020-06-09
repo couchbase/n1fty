@@ -758,7 +758,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 	for testi, test := range tests {
 		jm, _ := json.Marshal(test.m)
 
-		cfis, err := BleveToCondFlexIndexes(test.m, nil)
+		cfis, err := BleveToCondFlexIndexes(test.m, nil, "", "")
 		if (err != nil) != (test.expectErr != "") {
 			t.Fatalf("test: %v,\n jm: %s,\n BleveToCondFlexIndexes err mismatch, got: %v",
 				testi, jm, err)
@@ -813,7 +813,7 @@ func SKIP_TestBleveToCondFlexIndexes(t *testing.T) {
 	for _, test := range tests {
 		jm, _ := json.Marshal(test.m)
 
-		cfis, err := BleveToCondFlexIndexes(test.m, nil)
+		cfis, err := BleveToCondFlexIndexes(test.m, nil, "", "")
 		if (err != nil) != (test.expectErr != "") {
 			t.Fatalf("test: %+v,\n jm: %s,\n BleveToCondFlexIndexes err mismatch, got: %v",
 				test, jm, err)

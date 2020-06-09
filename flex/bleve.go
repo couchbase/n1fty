@@ -23,24 +23,48 @@ import (
 
 var DefaultTypeFieldPath = []string{"type"}
 
+// Extracts scope, collection and type names typeMapping:
+//     "scope.collection.type" => "scope", "collection", "type"
+//     "scope.collection"      => "scope", "collection", ""
+//     "type"                  => "_default", "_default", "type"
+func extractScopeCollTypeNames(t string) (string, string, string) {
+	scopeCollType := strings.SplitN(t, ".", 3)
+	if len(scopeCollType) == 1 {
+		return "_default", "_default", scopeCollType[0]
+	} else if len(scopeCollType) == 2 {
+		// typeName is empty (subscribing to the entire scope.collection)
+		return scopeCollType[0], scopeCollType[1], ""
+	}
+	return scopeCollType[0], scopeCollType[1], scopeCollType[2]
+}
+
 // BleveToCondFlexIndexes translates a bleve index into CondFlexIndexes.
 // NOTE: checking for DocConfig.Mode should be done beforehand.
 func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl,
-	docConfig *cbft.BleveDocumentConfig) (rv CondFlexIndexes, err error) {
+	docConfig *cbft.BleveDocumentConfig, scope, collection string) (
+	rv CondFlexIndexes, err error) {
 	if im == nil {
 		return nil, fmt.Errorf("index mapping not available")
 	}
 
+	collectionAware := len(scope) > 0 && len(collection) > 0
 	// Map of FieldTrack => fieldType => count.
 	fieldTrackTypeCounts := map[FieldTrack]map[string]int{}
 	// Map of FieldTrack => array of type mappings within which they occur
 	fieldTrackTypes := map[FieldTrack]map[string]struct{}{}
 	// Array of type mapping names
 	types := make([]string, 0, len(im.TypeMapping))
-
 	for t, dm := range im.TypeMapping {
+		typeName := t
+		if collectionAware {
+			sName, cName, tName := extractScopeCollTypeNames(t)
+			if sName != scope || cName != collection {
+				continue
+			}
+			typeName = tName
+		}
 		types = append(types, t)
-		countFieldTrackTypes(nil, t, dm, im.DefaultAnalyzer,
+		countFieldTrackTypes(nil, typeName, dm, im.DefaultAnalyzer,
 			fieldTrackTypeCounts, fieldTrackTypes)
 	}
 	countFieldTrackTypes(nil, "", im.DefaultMapping, im.DefaultAnalyzer,
@@ -61,66 +85,84 @@ func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl,
 	mode := "type_field"
 	if docConfig != nil {
 		mode = docConfig.Mode
-		if mode == "type_field" {
+		switch mode {
+		case "type_field", "scope.collection.type_field":
 			if len(docConfig.TypeField) > 0 {
 				typeFieldPath = []string{docConfig.TypeField}
 			}
 			fi.IndexedFields = append(fi.IndexedFields,
 				&FieldInfo{FieldPath: typeFieldPath, FieldType: "text"})
-		} else if mode == "docid_prefix" {
+		case "docid_prefix", "scope.collection.docid_prefix":
 			typeFieldPath = []string{"meta().id"}
-		} else {
-			return nil, fmt.Errorf("unsupported docConfig.mode: %v", docConfig.Mode)
+		default:
+			return nil, fmt.Errorf("unsupported docConfig.mode: %v", mode)
 		}
 	}
 
 	values := map[value.Value]*valueDetails{}
+	var skipCondFuncEqCheck bool
 	for _, t := range types {
 		typeEqEffect := "FlexBuild:n" // Strips `type = "BEER"` from expressions.
 		if !im.TypeMapping[t].Enabled {
 			typeEqEffect = "not-sargable"
 		}
 
-		if mode == "type_field" {
-			val := value.NewValue(t)
+		typeName := t
+		if collectionAware {
+			// scope, collection previously validated
+			_, _, typeName = extractScopeCollTypeNames(t)
+		}
 
-			// Strips `type = "BEER"` from expressions.
-			fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
-				Cmp:       "eq",
-				FieldPath: typeFieldPath,
-				ValueType: "text",
-				ValueMust: val,
-				Effect:    typeEqEffect,
-			})
+		if len(typeName) > 0 {
+			// Cond (FlexBuild:n) expression available only when typeName is available in
+			// the type mapping, this is the scenario where index is subscibing to a
+			// specifc "type" of documents within the scope.collection.
 
-			// To treat `type > "BEER"` as not-sargable.
-			fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
-				Cmp:       "lt gt le ge",
-				FieldPath: typeFieldPath,
-				ValueType: "", // Treated as not-sargable.
-				Effect:    "not-sargable",
-			})
+			if mode == "type_field" || mode == "scope.collection.type_field" {
+				val := value.NewValue(typeName)
 
-			values[val] = &valueDetails{
-				typeName: t,
-				cmp:      "eq",
+				// Strips `type = "BEER"` from expressions.
+				fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
+					Cmp:       "eq",
+					FieldPath: typeFieldPath,
+					ValueType: "text",
+					ValueMust: val,
+					Effect:    typeEqEffect,
+				})
+
+				// To treat `type > "BEER"` as not-sargable.
+				fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
+					Cmp:       "lt gt le ge",
+					FieldPath: typeFieldPath,
+					ValueType: "", // Treated as not-sargable.
+					Effect:    "not-sargable",
+				})
+
+				values[val] = &valueDetails{
+					typeName: typeName,
+					cmp:      "eq",
+				}
+			} else if mode == "docid_prefix" || mode == "scope.collection.docid_prefix" {
+				val := value.NewValue(typeName + docConfig.DocIDPrefixDelim + "%")
+
+				// Strips `meta().id LIKE "BEER-%"` fro expressions.
+				fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
+					Cmp:       "like",
+					FieldPath: typeFieldPath,
+					ValueType: "text",
+					ValueMust: val,
+					Effect:    typeEqEffect,
+				})
+
+				values[val] = &valueDetails{
+					typeName: typeName,
+					cmp:      "like",
+				}
 			}
-		} else if mode == "docid_prefix" {
-			val := value.NewValue(t + docConfig.DocIDPrefixDelim + "%")
-
-			// Strips `meta().id LIKE "BEER-%"` fro expressions.
-			fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
-				Cmp:       "like",
-				FieldPath: typeFieldPath,
-				ValueType: "text",
-				ValueMust: val,
-				Effect:    typeEqEffect,
-			})
-
-			values[val] = &valueDetails{
-				typeName: t,
-				cmp:      "like",
-			}
+		} else {
+			// No Cond expression for this FlexIndex as it's subscribing to the entire
+			// scope.collection.
+			skipCondFuncEqCheck = true
 		}
 
 		fi, err = BleveToFlexIndex(fi, nil, im.TypeMapping[t], im.DefaultAnalyzer,
@@ -134,7 +176,7 @@ func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl,
 		// Add CondFlexIndex over all the types, iff at least one type mapping
 		// is enabled
 		rv = append(rv, &CondFlexIndex{
-			Cond:      MakeCondFuncEqVals(typeFieldPath, values),
+			Cond:      MakeCondFuncEqVals(typeFieldPath, values, skipCondFuncEqCheck),
 			FlexIndex: fi,
 		})
 	}
@@ -152,7 +194,9 @@ func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl,
 		}
 
 		rv = append(rv, &CondFlexIndex{
-			Cond:      MakeCondFuncNeqVals(typeFieldPath, types),
+			// TODO: setting NEQ []string to nil as we don't allow a type mapping (enabled
+			//       or disabled) along side an enabled default mapping
+			Cond:      MakeCondFuncNeqVals(typeFieldPath, nil),
 			FlexIndex: fi,
 		})
 	}

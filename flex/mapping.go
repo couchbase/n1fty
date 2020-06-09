@@ -158,9 +158,16 @@ type valueDetails struct {
 }
 
 // Returns a CondFunc that represents checking a field for value equality.
-func MakeCondFuncEqVals(fieldPath []string, vals map[value.Value]*valueDetails) CondFunc {
+func MakeCondFuncEqVals(fieldPath []string, vals map[value.Value]*valueDetails,
+	skipCheck bool) CondFunc {
 	return func(ids Identifiers, es expression.Expressions) (
 		bool, []string, error) {
+		if skipCheck {
+			// Skip checking expressions, as there're no condition expressions
+			// to match, ex: type mapping - scope.collection
+			return true, []string{}, nil
+		}
+
 		for _, e := range es {
 			if f, ok := e.(*expression.Eq); ok {
 				matches, c := MatchEqFieldPathToConstant(ids, fieldPath, f)

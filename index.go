@@ -86,7 +86,7 @@ func newFTSIndex(indexer *FTSIndexer, indexDef *cbgt.IndexDef,
 	}
 
 	condFlexIndexes, err := flex.BleveToCondFlexIndexes(
-		pip.IndexMapping, pip.DocConfig)
+		pip.IndexMapping, pip.DocConfig, pip.Scope, pip.Collection)
 	if err == nil && len(condFlexIndexes) > 0 {
 		index.condFlexIndexes = condFlexIndexes
 	}
