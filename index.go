@@ -85,13 +85,8 @@ func newFTSIndex(indexer *FTSIndexer, indexDef *cbgt.IndexDef,
 		multipleTypeStrs:      pip.MultipleTypeStrs,
 	}
 
-	var typeFieldPath []string
-	if pip.DocConfig != nil && strings.Contains(pip.DocConfig.Mode, "type_field") {
-		typeFieldPath = []string{pip.DocConfig.TypeField}
-	}
-
 	condFlexIndexes, err := flex.BleveToCondFlexIndexes(
-		pip.IndexMapping, typeFieldPath)
+		pip.IndexMapping, pip.DocConfig)
 	if err == nil && len(condFlexIndexes) > 0 {
 		index.condFlexIndexes = condFlexIndexes
 	}

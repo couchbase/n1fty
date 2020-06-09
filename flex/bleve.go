@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/blevesearch/bleve/mapping"
+	"github.com/couchbase/cbft"
 	"github.com/couchbase/query/expression"
 	"github.com/couchbase/query/value"
 )
@@ -25,33 +26,30 @@ var DefaultTypeFieldPath = []string{"type"}
 // BleveToCondFlexIndexes translates a bleve index into CondFlexIndexes.
 // NOTE: checking for DocConfig.Mode should be done beforehand.
 func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl,
-	typeFieldPath []string) (rv CondFlexIndexes, err error) {
+	docConfig *cbft.BleveDocumentConfig) (rv CondFlexIndexes, err error) {
+	if im == nil {
+		return nil, fmt.Errorf("index mapping not available")
+	}
+
 	// Map of FieldTrack => fieldType => count.
 	fieldTrackTypeCounts := map[FieldTrack]map[string]int{}
 	// Map of FieldTrack => array of type mappings within which they occur
 	fieldTrackTypes := map[FieldTrack]map[string]struct{}{}
+	// Array of type mapping names
+	types := make([]string, 0, len(im.TypeMapping))
+
 	for t, dm := range im.TypeMapping {
+		types = append(types, t)
 		countFieldTrackTypes(nil, t, dm, im.DefaultAnalyzer,
 			fieldTrackTypeCounts, fieldTrackTypes)
 	}
 	countFieldTrackTypes(nil, "", im.DefaultMapping, im.DefaultAnalyzer,
 		fieldTrackTypeCounts, fieldTrackTypes)
 
-	types := make([]string, 0, len(im.TypeMapping))
-	for t := range im.TypeMapping {
-		types = append(types, t)
-	}
-
 	sort.Strings(types) // For output stability.
 
-	if len(typeFieldPath) == 0 {
-		typeFieldPath = DefaultTypeFieldPath
-	}
-
 	fi := &FlexIndex{
-		IndexedFields: FieldInfos{
-			&FieldInfo{FieldPath: typeFieldPath, FieldType: "text"},
-		},
+		IndexedFields:  FieldInfos{},
 		SupportedExprs: []SupportedExpr{},
 	}
 
@@ -59,37 +57,77 @@ func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl,
 		fi.FieldTrackTypes = fieldTrackTypes
 	}
 
-	var values value.Values
+	typeFieldPath := DefaultTypeFieldPath
+	mode := "type_field"
+	if docConfig != nil {
+		mode = docConfig.Mode
+		if mode == "type_field" {
+			if len(docConfig.TypeField) > 0 {
+				typeFieldPath = []string{docConfig.TypeField}
+			}
+			fi.IndexedFields = append(fi.IndexedFields,
+				&FieldInfo{FieldPath: typeFieldPath, FieldType: "text"})
+		} else if mode == "docid_prefix" {
+			typeFieldPath = []string{"meta().id"}
+		} else {
+			return nil, fmt.Errorf("unsupported docConfig.mode: %v", docConfig.Mode)
+		}
+	}
+
+	values := map[value.Value]*valueDetails{}
 	for _, t := range types {
 		typeEqEffect := "FlexBuild:n" // Strips `type = "BEER"` from expressions.
 		if !im.TypeMapping[t].Enabled {
 			typeEqEffect = "not-sargable"
 		}
 
-		// Strips `type = "BEER"` from expressions.
-		fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
-			Cmp:       "eq",
-			FieldPath: typeFieldPath,
-			ValueType: "text",
-			ValueMust: value.NewValue(t),
-			Effect:    typeEqEffect,
-		})
+		if mode == "type_field" {
+			val := value.NewValue(t)
 
-		// To treat `type > "BEER"` as not-sargable.
-		fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
-			Cmp:       "lt gt le ge",
-			FieldPath: typeFieldPath,
-			ValueType: "", // Treated as not-sargable.
-			Effect:    "not-sargable",
-		})
+			// Strips `type = "BEER"` from expressions.
+			fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
+				Cmp:       "eq",
+				FieldPath: typeFieldPath,
+				ValueType: "text",
+				ValueMust: val,
+				Effect:    typeEqEffect,
+			})
+
+			// To treat `type > "BEER"` as not-sargable.
+			fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
+				Cmp:       "lt gt le ge",
+				FieldPath: typeFieldPath,
+				ValueType: "", // Treated as not-sargable.
+				Effect:    "not-sargable",
+			})
+
+			values[val] = &valueDetails{
+				typeName: t,
+				cmp:      "eq",
+			}
+		} else if mode == "docid_prefix" {
+			val := value.NewValue(t + docConfig.DocIDPrefixDelim + "%")
+
+			// Strips `meta().id LIKE "BEER-%"` fro expressions.
+			fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
+				Cmp:       "like",
+				FieldPath: typeFieldPath,
+				ValueType: "text",
+				ValueMust: val,
+				Effect:    typeEqEffect,
+			})
+
+			values[val] = &valueDetails{
+				typeName: t,
+				cmp:      "like",
+			}
+		}
 
 		fi, err = BleveToFlexIndex(fi, nil, im.TypeMapping[t], im.DefaultAnalyzer,
 			fieldTrackTypeCounts)
 		if err != nil {
 			return nil, err
 		}
-
-		values = append(values, value.NewValue(t))
 	}
 
 	if len(fi.SupportedExprs) > 0 {

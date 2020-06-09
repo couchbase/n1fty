@@ -1230,3 +1230,83 @@ func TestSargableFlexIndexWithMultipleTypeMappings(t *testing.T) {
 		}
 	}
 }
+
+func TestSargableFlexIndexDocIDPrefixWithMultipleTypeMappings(t *testing.T) {
+	index, err := setupSampleIndex(util.SampleIndexDefWithDocIdPrefixMultipleTypeMappings)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		queryStr         string
+		expectedQueryStr string
+	}{
+		{
+			queryStr:         `meta().id LIKE "airline-%" AND t.country = "US"`,
+			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
+		},
+		{
+			queryStr:         `meta().id LIKE "airport-%" AND t.country = "US"`,
+			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
+		},
+		{
+			queryStr:         `(meta().id LIKE "airline-%" OR meta().id LIKE "airport-%") AND t.country = "US"`,
+			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
+		},
+		{
+			// MB-39517: "city" indexed within "airport" type mapping
+			queryStr:         `meta().id LIKE "airport-%" AND t.city = "SF"`,
+			expectedQueryStr: `{"query":{"field":"city","term":"SF"},"score":"none"}`,
+		},
+		{
+			// MB-39517: "city" only indexed within "airport" type mapping
+			queryStr:         `meta().id LIKE "airline-%" AND t.city = "SF"`,
+			expectedQueryStr: ``,
+		},
+	}
+
+	for i := range tests {
+		queryExpression, err := parser.Parse(tests[i].queryStr)
+		if err != nil {
+			t.Fatal(tests[i].queryStr, err)
+		}
+
+		flexRequest := &datastore.FTSFlexRequest{
+			Keyspace: "t",
+			Pred:     queryExpression,
+		}
+
+		resp, err := index.SargableFlex("0", flexRequest)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(tests[i].expectedQueryStr) == 0 {
+			if resp != nil {
+				t.Errorf("[%d] Expected `%s` to not be sargable for index",
+					i, tests[i].queryStr)
+			}
+			continue
+		}
+
+		if resp == nil {
+			t.Errorf("[%d] Expected `%s` to be sargable for index", i, tests[i].queryStr)
+			continue
+		}
+
+		var gotQuery, expectedQuery map[string]interface{}
+		err = json.Unmarshal([]byte(resp.SearchQuery), &gotQuery)
+		if err != nil {
+			t.Errorf("[%d] SearchQuery: %s, err: %v", i, resp.SearchQuery, err)
+		}
+		err = json.Unmarshal([]byte(tests[i].expectedQueryStr), &expectedQuery)
+		if err != nil {
+			t.Errorf("[%d] ExpectedQuery: %s, err: %v", i, tests[i].expectedQueryStr, err)
+		}
+
+		if !reflect.DeepEqual(expectedQuery, gotQuery) {
+			t.Errorf("[%d] ExpectedQuery: %s, GotQuery: %s",
+				i, tests[i].expectedQueryStr, resp.SearchQuery)
+		}
+	}
+}

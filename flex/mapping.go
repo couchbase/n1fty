@@ -152,17 +152,31 @@ type CondFlexIndexes []*CondFlexIndex
 type CondFunc func(ids Identifiers, es expression.Expressions) (
 	bool, []string, error)
 
+type valueDetails struct {
+	typeName string
+	cmp      string
+}
+
 // Returns a CondFunc that represents checking a field for value equality.
-func MakeCondFuncEqVals(fieldPath []string, vals value.Values) CondFunc {
+func MakeCondFuncEqVals(fieldPath []string, vals map[value.Value]*valueDetails) CondFunc {
 	return func(ids Identifiers, es expression.Expressions) (
 		bool, []string, error) {
 		for _, e := range es {
 			if f, ok := e.(*expression.Eq); ok {
 				matches, c := MatchEqFieldPathToConstant(ids, fieldPath, f)
 				if matches {
-					for _, v := range vals {
-						if c.Value().Equals(v).Truth() {
-							return true, []string{v.Actual().(string)}, nil
+					for k, v := range vals {
+						if v.cmp == "eq" && c.Value().Equals(k).Truth() {
+							return true, []string{v.typeName}, nil
+						}
+					}
+				}
+			} else if f, ok := e.(*expression.Like); ok {
+				matches, c := MatchLikeFieldPathMetaIDToConstant(f)
+				if matches {
+					for k, v := range vals {
+						if v.cmp == "like" && c.Value().Equals(k).Truth() {
+							return true, []string{v.typeName}, nil
 						}
 					}
 				}
@@ -177,10 +191,21 @@ func MakeCondFuncEqVals(fieldPath []string, vals value.Values) CondFunc {
 					if ff, ok := ee.(*expression.Eq); ok {
 						matches, c := MatchEqFieldPathToConstant(ids, fieldPath, ff)
 						if matches {
-							for _, v := range vals {
-								if c.Value().Equals(v).Truth() {
+							for k, v := range vals {
+								if v.cmp == "eq" && c.Value().Equals(k).Truth() {
 									eligible = true
-									requestedTypes = append(requestedTypes, v.Actual().(string))
+									requestedTypes = append(requestedTypes, v.typeName)
+									continue OUTER
+								}
+							}
+						}
+					} else if ff, ok := ee.(*expression.Like); ok {
+						matches, c := MatchLikeFieldPathMetaIDToConstant(ff)
+						if matches {
+							for k, v := range vals {
+								if v.cmp == "like" && c.Value().Equals(k).Truth() {
+									eligible = true
+									requestedTypes = append(requestedTypes, v.typeName)
 									continue OUTER
 								}
 							}
@@ -255,6 +280,20 @@ func MatchEqFieldPathToConstant(ids Identifiers, fieldPath []string,
 	}
 
 	return m(f.Second(), f.First()) // Commute to check c = a.foo.
+}
+
+func MatchLikeFieldPathMetaIDToConstant(f *expression.Like) (bool, *expression.Constant) {
+	// Check pattern `meta().id like c`
+	id := expression.NewField(expression.NewMeta(), expression.NewFieldName("id", false))
+	if e, ok := f.First().(*expression.Field); ok {
+		if e.EquivalentTo(id) {
+			if c, ok := f.Second().(*expression.Constant); ok {
+				return true, c
+			}
+		}
+	}
+
+	return false, nil
 }
 
 // -------------------------------------------------------------------------
