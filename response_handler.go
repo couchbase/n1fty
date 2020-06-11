@@ -179,11 +179,13 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 							fmt.Errorf("partition: %s, err: %s, ", string(partition), string(er)))
 						return nil
 					})
-				conn.Error(util.N1QLError(fmt.Errorf("search err summary: %v", errs),
-					"response_handler: err"))
+				if len(errs) > 0 {
+					conn.Error(util.N1QLError(fmt.Errorf("search err summary: %v", errs),
+						"response_handler: err"))
 
-				// return here, as partial results are NOT supported
-				return
+					// return here, as partial results are NOT supported
+					return
+				}
 			}
 
 			hits, _, _, err = jsonparser.Get(r.SearchResult, "hits")
