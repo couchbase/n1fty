@@ -226,9 +226,13 @@ func TestBuildSearchRequest(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		sr, q, err := BuildSearchRequest("", test.query)
+		temp, q, err := BuildSearchRequest("", test.query)
 		if err != nil {
 			t.Fatalf("Expected no error for q: %+v, but got err: %v", test.query, err)
+		}
+		sr, err := temp.ConvertToBleveSearchRequest()
+		if err != nil {
+			t.Fatalf("Error in converting to bleve.SearchRequest, err: %v", err)
 		}
 
 		switch qq := q.(type) {
@@ -281,7 +285,7 @@ func TestBuildSearchRequest(t *testing.T) {
 					" from: %v", sr.Size, sr.From)
 			}
 
-			if sr.Sort != nil {
+			if len(sr.Sort) != 0 {
 				t.Fatalf("incorrect search request formed, with Sort ,"+
 					"expected to be nil, got: %v ", sr.Sort)
 			}

@@ -167,7 +167,7 @@ func FetchKeySpace(nameAndKeyspace string) string {
 }
 
 func ParseQueryToSearchRequest(field string, input value.Value) (
-	map[SearchField]struct{}, *bleve.SearchRequest, error) {
+	map[SearchField]struct{}, *cbft.SearchRequest, error) {
 	field = CleanseField(field)
 
 	queryFields := map[SearchField]struct{}{}
@@ -177,29 +177,36 @@ func ParseQueryToSearchRequest(field string, input value.Value) (
 	}
 
 	var err error
-	var query query.Query
+	var q query.Query
 
-	rv := &bleve.SearchRequest{}
+	rv := &cbft.SearchRequest{}
 
 	// if the input has a query field that is an object type
 	// then it is a search request
 	if qf, ok := input.Field("query"); ok && qf.Type() == value.OBJECT {
-		rv, query, err = BuildSearchRequest(field, input)
+		rv, q, err = BuildSearchRequest(field, input)
 		if err != nil {
 			return nil, nil, err
 		}
 	} else {
-		query, err = BuildQuery(field, input)
+		q, err = BuildQuery(field, input)
 		if err != nil {
 			return nil, nil, err
 		}
-		rv.Query = query
-		rv.From = 0
-		rv.Size = math.MaxInt64
+		rv.Q, err = json.Marshal(q)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		from := 0
+		rv.From = &from
+		size := math.MaxInt64
+		rv.Size = &size
+
 		rv.Sort = nil
 	}
 
-	queryFields, err = FetchFieldsToSearchFromQuery(query)
+	queryFields, err = FetchFieldsToSearchFromQuery(q)
 	if err != nil {
 		return nil, nil, err
 	}

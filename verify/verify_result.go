@@ -164,9 +164,11 @@ func (v *VerifyCtx) initVerifyCtx() errors.Error {
 
 	v.idx = idx
 	v.m = idxMapping
-	searchRequest.Size = 1
-	searchRequest.From = 0
-	v.sr = searchRequest
+	if v.sr, err = searchRequest.ConvertToBleveSearchRequest(); err != nil {
+		return util.N1QLError(err, "could not generate *bleve.SearchRequest")
+	}
+	v.sr.Size = 1
+	v.sr.From = 0
 	v.udc = udc
 	v.coll = collh.Collection()
 	v.defaultType = defaultType

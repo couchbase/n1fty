@@ -19,7 +19,6 @@ import (
 	"strings"
 
 	"github.com/blevesearch/bleve"
-	"github.com/blevesearch/bleve/search"
 	"github.com/blevesearch/bleve/search/query"
 	"github.com/couchbase/cbft"
 	pb "github.com/couchbase/cbft/protobuf"
@@ -29,30 +28,39 @@ import (
 	"github.com/couchbase/query/value"
 )
 
-func unmarshalSearchRequest(input []byte) (*bleve.SearchRequest, error) {
-	var temp *cbft.SearchRequest
-	err := json.Unmarshal(input, &temp)
+func unmarshalSearchRequest(field string, input []byte) (
+	*cbft.SearchRequest, query.Query, error) {
+	var sr *cbft.SearchRequest
+	err := json.Unmarshal(input, &sr)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	sr, err := temp.ConvertToBleveSearchRequest()
+	temp, err := sr.ConvertToBleveSearchRequest()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// if both size and limit were missing, set the request size to MaxInt64,
 	// so as to stream results
-	if temp.Size == nil && temp.Limit == nil {
-		sr.Size = math.MaxInt64
+	if sr.Size == nil && sr.Limit == nil {
+		size := math.MaxInt64
+		sr.Size = &size
 	}
 
 	// if sort were nil, set request's sort to nil.
-	if temp.Sort == nil {
-		sr.Sort = nil
+	if sr.Sort == nil {
+		sr.Sort = []json.RawMessage{}
 	}
 
-	return sr, nil
+	if field != "" {
+		UpdateFieldsInQuery(temp.Query, field)
+		if sr.Q, err = json.Marshal(temp.Query); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return sr, temp.Query, nil
 }
 
 func UpdateFieldsInQuery(q query.Query, field string) {
@@ -122,7 +130,7 @@ func BuildQueryFromSearchRequest(field string,
 	return sr.Query, nil
 }
 
-func BuildSearchRequest(field string, input value.Value) (*bleve.SearchRequest,
+func BuildSearchRequest(field string, input value.Value) (*cbft.SearchRequest,
 	query.Query, error) {
 	if input == nil {
 		return nil, nil, fmt.Errorf("query not provided")
@@ -133,16 +141,12 @@ func BuildSearchRequest(field string, input value.Value) (*bleve.SearchRequest,
 		return nil, nil, err
 	}
 
-	sr, err := unmarshalSearchRequest(srBytes)
+	sr, q, err := unmarshalSearchRequest(field, srBytes)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if field != "" {
-		UpdateFieldsInQuery(sr.Query, field)
-	}
-
-	return sr, sr.Query, nil
+	return sr, q, nil
 }
 
 func BuildQueryFromString(field, input string) (query.Query, error) {
@@ -172,22 +176,22 @@ func CheckForPagination(input value.Value) bool {
 		return false
 	}
 
-	sr, err := unmarshalSearchRequest(srBytes)
+	sr, _, err := unmarshalSearchRequest("", srBytes)
 	if err != nil {
 		return false
 	}
 
 	// if any of them is set, then pagination is found.
-	if (sr.Size >= 0 && sr.Size != math.MaxInt64) ||
-		sr.From > 0 ||
-		sr.Sort != nil {
+	if (sr.Size != nil && *(sr.Size) >= 0 && *(sr.Size) != math.MaxInt64) ||
+		(sr.From != nil && *(sr.From) > 0) ||
+		len(sr.Sort) > 0 {
 		return true
 	}
 
 	return false
 }
 
-func BuildProtoSearchRequest(sr *bleve.SearchRequest,
+func BuildProtoSearchRequest(sr *cbft.SearchRequest,
 	searchInfo *datastore.FTSSearchInfo, vector timestamp.Vector,
 	consistencyLevel datastore.ScanConsistency,
 	indexName string) (*pb.SearchRequest, error) {
@@ -215,22 +219,30 @@ func BuildProtoSearchRequest(sr *bleve.SearchRequest,
 			tempOrder = append(tempOrder, "-"+field)
 		}
 
-		sr.Sort = search.ParseSortOrderStrings(tempOrder)
+		sr.Sort = make([]json.RawMessage, len(tempOrder))
+		for i := range tempOrder {
+			if err := sr.Sort[i].UnmarshalJSON([]byte(tempOrder[i])); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	// Stream results when ..
 	// - SearchRequest: Sort method NOT provided
 	// - SearchRequest: From + Size exceeds window
 
-	if sr.From < 0 {
-		sr.From = int(searchInfo.Offset)
+	if sr.From == nil || *(sr.From) < 0 {
+		from := int(searchInfo.Offset)
+		sr.From = &from
 	}
 
-	if sr.Size < 0 || sr.Size == math.MaxInt64 {
+	if sr.Size == nil || *(sr.Size) < 0 || *(sr.Size) == math.MaxInt64 {
 		if int(searchInfo.Limit) != math.MaxInt64 {
-			sr.Size = int(searchInfo.Limit)
+			limit := int(searchInfo.Limit)
+			sr.Size = &limit
 		} else {
-			sr.Size = 0
+			size := 0
+			sr.Size = &size
 			searchRequest.Stream = true
 		}
 	}
@@ -239,10 +251,11 @@ func BuildProtoSearchRequest(sr *bleve.SearchRequest,
 		searchRequest.Stream = true
 	}
 
-	if sr.Size+sr.From > int(GetBleveMaxResultWindow()) {
+	if (*(sr.Size) + *(sr.From)) > int(GetBleveMaxResultWindow()) {
 		searchRequest.Stream = true
-		sr.From = 0
-		sr.Size = 0
+		zero := 0
+		sr.From = &zero
+		sr.Size = &zero
 	}
 
 	var err error
@@ -281,4 +294,14 @@ func BuildProtoSearchRequest(sr *bleve.SearchRequest,
 	}
 
 	return searchRequest, nil
+}
+
+// Sets collection information within the provided SearchRequest
+func DecorateSearchRequest(sr *cbft.SearchRequest, collection string) *cbft.SearchRequest {
+	if sr == nil || len(collection) == 0 {
+		return sr
+	}
+
+	sr.Collections = []string{collection}
+	return sr
 }

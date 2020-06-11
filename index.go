@@ -19,8 +19,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/blevesearch/bleve"
 	"github.com/blevesearch/bleve/mapping"
+	"github.com/couchbase/cbft"
 	"github.com/couchbase/cbgt"
 	"github.com/couchbase/n1fty/flex"
 	"github.com/couchbase/n1fty/util"
@@ -217,6 +217,13 @@ func (i *FTSIndex) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 		return
 	}
 
+	searchRequest := sargRV.searchRequest
+	if i.indexer != nil && i.indexer.collectionAware {
+		// Decorate the search request while addressing a collection aware index
+		// with the collection filter.
+		searchRequest = util.DecorateSearchRequest(searchRequest, i.indexer.collection)
+	}
+
 	starttm := time.Now()
 
 	var waitGroup sync.WaitGroup
@@ -236,8 +243,7 @@ func (i *FTSIndex) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 		}
 	}()
 
-	searchReq, err := util.BuildProtoSearchRequest(sargRV.searchRequest,
-		searchInfo,
+	searchReq, err := util.BuildProtoSearchRequest(searchRequest, searchInfo,
 		vector, cons, i.indexDef.Name)
 	if err != nil {
 		conn.Error(util.N1QLError(err, "search request parse err"))
@@ -276,7 +282,7 @@ type sargableRV struct {
 	count         int
 	indexedCount  int64
 	opaque        map[string]interface{}
-	searchRequest *bleve.SearchRequest
+	searchRequest *cbft.SearchRequest
 	err           errors.Error
 }
 
@@ -408,7 +414,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 
 	var err error
 	var queryFields map[util.SearchField]struct{}
-	var sr *bleve.SearchRequest
+	var sr *cbft.SearchRequest
 
 	if queryFieldsInterface, exists := rv.opaque["query_fields"]; !exists {
 		// if opaque didn't carry a "query" entry, go ahead and
@@ -428,7 +434,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		// if an entry for "query" exists, we can assume that an entry for
 		// "search_request" also exists.
 		srInterface, _ := rv.opaque["search_request"]
-		sr, _ = srInterface.(*bleve.SearchRequest)
+		sr, _ = srInterface.(*cbft.SearchRequest)
 	}
 
 	rv.searchRequest = sr

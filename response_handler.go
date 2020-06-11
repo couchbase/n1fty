@@ -25,8 +25,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/blevesearch/bleve"
 	"github.com/buger/jsonparser"
+	"github.com/couchbase/cbft"
 	pb "github.com/couchbase/cbft/protobuf"
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/datastore"
@@ -38,11 +38,11 @@ type responseHandler struct {
 	i            *FTSIndex
 	requestID    string
 	backfillFile *os.File
-	sr           *bleve.SearchRequest
+	sr           *cbft.SearchRequest
 }
 
 func newResponseHandler(i *FTSIndex, requestID string,
-	sr *bleve.SearchRequest) *responseHandler {
+	sr *cbft.SearchRequest) *responseHandler {
 	return &responseHandler{
 		i:         i,
 		requestID: requestID,
