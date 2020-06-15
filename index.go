@@ -725,20 +725,19 @@ func (i *FTSIndex) SargableFlex(requestId string,
 		return nil, nil
 	}
 
-	res := &datastore.FTSFlexResponse{}
 	searchRequest := map[string]interface{}{
 		"query": bleveQuery,
 		"score": "none",
 	}
-	stringer := expression.NewStringer()
-	res.SearchQuery = stringer.Visit(expression.NewConstant(value.NewValue(searchRequest)))
 
 	searchOptions := map[string]interface{}{
 		"index": i.Name(),
 	}
 
+	stringer := expression.NewStringer()
+
+	res := &datastore.FTSFlexResponse{}
 	res.SearchOptions = stringer.Visit(expression.NewConstant(value.NewValue(searchOptions)))
-	res.SearchOrders = nil
 	res.StaticSargKeys = make(map[string]expression.Expression, 8)
 	for s := range fieldTracks {
 		e, _ := parser.Parse(string(s))
@@ -746,7 +745,27 @@ func (i *FTSIndex) SargableFlex(requestId string,
 	}
 	if !needsFiltering && !i.multipleTypeStrs {
 		res.RespFlags |= datastore.FTS_FLEXINDEX_EXACT
+
+		if req.CheckPageable {
+			// Check for pageability of the index, only if EXACT
+			// Set Offset, Limit settings only if:
+			//     - they fall within the BleveMaxResultWindow
+			//     - ORDER BY is not requested (for now)
+			if req.Offset+req.Limit <= util.GetBleveMaxResultWindow() &&
+				len(req.Order) == 0 {
+				// Update searchRequest settings
+				searchRequest["size"] = req.Limit
+				searchRequest["from"] = req.Offset
+
+				// FTS index can handle LIMIT and OFFSET settings
+				res.RespFlags |= datastore.FTS_FLEXINDEX_LIMIT
+				res.RespFlags |= datastore.FTS_FLEXINDEX_OFFSET
+			}
+		}
 	}
+
+	res.SearchQuery = stringer.Visit(expression.NewConstant(value.NewValue(searchRequest)))
+	res.SearchOrders = nil
 
 	return res, nil
 }
