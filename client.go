@@ -242,8 +242,7 @@ func extractHosts(nodeDefs *cbgt.NodeDefs) ([]string, []string) {
 				}
 			}
 		}
-		// if any node in the cluster don't support grpc then
-		// fail here.
+		// if any node in the cluster doesn't support gRPC then fail right away
 		if !grpcFeatureSupport {
 			return nil, nil
 		}
