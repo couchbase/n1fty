@@ -172,6 +172,10 @@ func setupFTSClient(nodeDefs *cbgt.NodeDefs) (*ftsClient, error) {
 	}
 
 	hosts, sslHosts := extractHosts(nodeDefs)
+	if len(hosts) == 0 && len(sslHosts) == 0 {
+		return nil, ErrFeatureUnavailable
+	}
+
 	secConfig := loadSecurityConfig()
 	gRPCOpts := []grpc.DialOption{
 		grpc.WithBackoffMaxDelay(DefaultGrpcMaxBackOffDelay),
@@ -216,6 +220,7 @@ func setupFTSClient(nodeDefs *cbgt.NodeDefs) (*ftsClient, error) {
 func extractHosts(nodeDefs *cbgt.NodeDefs) ([]string, []string) {
 	hosts := []string{}
 	sslHosts := []string{}
+	var grpcFeatureSupport bool
 
 	for _, v := range nodeDefs.NodeDefs {
 		extrasBindGRPC, err := v.GetFromParsedExtras("bindGRPC")
@@ -223,6 +228,7 @@ func extractHosts(nodeDefs *cbgt.NodeDefs) ([]string, []string) {
 			if bindGRPCstr, ok := extrasBindGRPC.(string); ok {
 				if bindGRPCstr != "" {
 					hosts = append(hosts, bindGRPCstr)
+					grpcFeatureSupport = true
 				}
 			}
 		}
@@ -232,8 +238,13 @@ func extractHosts(nodeDefs *cbgt.NodeDefs) ([]string, []string) {
 			if bindGRPCSSLstr, ok := extrasBindGRPCSSL.(string); ok {
 				if bindGRPCSSLstr != "" {
 					sslHosts = append(sslHosts, bindGRPCSSLstr)
+					grpcFeatureSupport = true
 				}
 			}
+		}
+		// if any node in the cluster doesn't support gRPC then fail right away
+		if !grpcFeatureSupport {
+			return nil, nil
 		}
 	}
 
