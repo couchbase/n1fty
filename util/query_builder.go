@@ -160,13 +160,6 @@ func BuildQueryFromString(field, input string) (query.Query, error) {
 	return q, nil
 }
 
-func BuildSortFromBytes(sBytes []byte) (search.SortOrder, error) {
-	if sBytes == nil {
-		return nil, nil
-	}
-	return search.ParseSortOrderJSON(append([]json.RawMessage(nil), sBytes))
-}
-
 // CheckForPagination looks for any of the pagination
 // details in the given search request
 func CheckForPagination(input value.Value) bool {
