@@ -220,9 +220,9 @@ func setupFTSClient(nodeDefs *cbgt.NodeDefs) (*ftsClient, error) {
 func extractHosts(nodeDefs *cbgt.NodeDefs) ([]string, []string) {
 	hosts := []string{}
 	sslHosts := []string{}
-	var grpcFeatureSupport bool
 
 	for _, v := range nodeDefs.NodeDefs {
+		var grpcFeatureSupport bool
 		extrasBindGRPC, err := v.GetFromParsedExtras("bindGRPC")
 		if err == nil && extrasBindGRPC != nil {
 			if bindGRPCstr, ok := extrasBindGRPC.(string); ok {
