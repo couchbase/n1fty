@@ -101,10 +101,13 @@ func (c *ftsClient) initConnections(hosts []string,
 		return ErrFeatureUnavailable
 	}
 
+OUTER:
 	for i, hostPort := range hosts {
 		cbUser, cbPasswd, err := cbauth.GetHTTPServiceAuth(hostPort)
 		if err != nil {
-			return fmt.Errorf("client: cbauth err: %v", err)
+			// it is possible that some hosts may be unreachable during
+			// a cluster operation, so ignore error here; see: MB-40125
+			continue
 		}
 
 		opts := options[:]
@@ -118,7 +121,7 @@ func (c *ftsClient) initConnections(hosts []string,
 			conn, err := grpc.Dial(hostPort, opts...)
 			if err != nil {
 				logging.Infof("client: grpc.Dial for host: %s, err: %v", hostPort, err)
-				return err
+				continue OUTER
 			}
 			logging.Infof("client: grpc client connection #%d created for host: %v", j, hostPort)
 			c.gRPCConnMap[hostPort] = append(c.gRPCConnMap[hostPort], conn)
