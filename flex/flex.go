@@ -152,7 +152,7 @@ func (fi *FlexIndex) SargableComposite(ids Identifiers,
 
 // Process ANY-(AND-EVERY)-SATISFIES by pushing onto identifiers stack.
 func (fi *FlexIndex) SargableAnySatisfies(ids Identifiers,
-	a expression.CollectionPredicate, requestedTypes []string, ftypes FieldTypes,
+	a expression.CollPredicate, requestedTypes []string, ftypes FieldTypes,
 	forceNeedsFiltering bool) (FieldTracks, bool, *FlexBuild, error) {
 	// For now, only 1 binding, as chain semantics is underspecified.
 	ids, ok := ids.Push(a.Bindings(), 1)
