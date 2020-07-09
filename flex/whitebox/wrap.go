@@ -264,6 +264,10 @@ func (b *WrapKeyspace) Release() {
 	b.W.Release()
 }
 
+func (b *WrapKeyspace) IsBucket() bool {
+	return true
+}
+
 func (b *WrapKeyspace) Size(ctx datastore.QueryContext) (int64, errors.Error) {
 	// TODO fix the place holder impl
 	return b.W.Size(ctx)
