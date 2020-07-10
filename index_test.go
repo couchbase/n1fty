@@ -949,12 +949,16 @@ func TestComplexQuerySargabilityOverFlexIndexes(t *testing.T) {
 				expectedQueryStrDefaultMapping: `{"query":{"conjuncts":[{"field":"type","term":"hotel"},` +
 					`{"disjuncts":[{"field":"reviews.ratings.Cleanliness","inclusive_max":true,` +
 					`"inclusive_min":true,"max":5,"min":5},{"field":"reviews.ratings.Overall",` +
-					`"inclusive_max":true,"inclusive_min":true,"max":4,"min":4}]}]},"score":"none"}`,
-				expectedQueryStrCustomMapping: `{"query":{"disjuncts":[{"field":"reviews.ratings.Cleanliness",` +
+					`"inclusive_max":true,"inclusive_min":true,"max":4,"min":4}]},` +
+					`{"field":"public_likes","wildcard":"Raymundo Quigley"}]},"score":"none"}`,
+				expectedQueryStrCustomMapping: `{"query":{"conjuncts":[{"disjuncts":[` +
+					`{"field":"reviews.ratings.Cleanliness",` +
 					`"inclusive_max":true,"inclusive_min":true,"max":5,"min":5},` +
 					`{"field":"reviews.ratings.Overall","inclusive_max":true,"inclusive_min":true,` +
-					`"max":4,"min":4}]},"score":"none"}`,
-				expectedSargKeys: []string{"type", "reviews.ratings.Cleanliness", "reviews.ratings.Overall"},
+					`"max":4,"min":4}]},{"field":"public_likes","wildcard":"Raymundo Quigley"}]},"score":"none"}`,
+				expectedSargKeys: []string{
+					"type", "reviews.ratings.Cleanliness", "reviews.ratings.Overall", "public_likes",
+				},
 			},
 		}
 
@@ -1302,6 +1306,82 @@ func TestSargableFlexIndexDocIDPrefixWithMultipleTypeMappings(t *testing.T) {
 		err = json.Unmarshal([]byte(tests[i].expectedQueryStr), &expectedQuery)
 		if err != nil {
 			t.Errorf("[%d] ExpectedQuery: %s, err: %v", i, tests[i].expectedQueryStr, err)
+		}
+
+		if !reflect.DeepEqual(expectedQuery, gotQuery) {
+			t.Errorf("[%d] ExpectedQuery: %s, GotQuery: %s",
+				i, tests[i].expectedQueryStr, resp.SearchQuery)
+		}
+	}
+}
+
+func TestSargableFlexIndexWithLikeExpressions(t *testing.T) {
+	index, err := setupSampleIndex(util.SampleIndexDefDynamicWithAnalyzerKeyword)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		queryStr         string
+		expectedQueryStr string
+	}{
+		{
+			queryStr:         `t.type LIKE "ho%l"`,
+			expectedQueryStr: `{"query":{"field":"type","wildcard":"ho*l"},"score":"none"}`,
+		},
+		{
+			queryStr:         `t.type LIKE "hot_l"`,
+			expectedQueryStr: `{"query":{"field":"type","wildcard":"hot?l"},"score":"none"}`,
+		},
+		{
+			queryStr:         `t.type LIKE "%t%"`,
+			expectedQueryStr: `{"query":{"field":"type","wildcard":"*t*"},"score":"none"}`,
+		},
+		{
+			queryStr:         `t.type LIKE "\\%@hot_l%"`,
+			expectedQueryStr: `{"query":{"field":"type","wildcard":"\\%@hot?l*"},"score":"none"}`,
+		},
+	}
+
+	for i := range tests {
+		queryExpression, err := parser.Parse(tests[i].queryStr)
+		if err != nil {
+			t.Fatal(tests[i].queryStr, err)
+		}
+
+		flexRequest := &datastore.FTSFlexRequest{
+			Keyspace: "t",
+			Pred:     queryExpression,
+		}
+
+		resp, err := index.SargableFlex("0", flexRequest)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(tests[i].expectedQueryStr) == 0 {
+			if resp != nil {
+				t.Errorf("[%d] Expected `%s` to not be sargable for index, but got: %v",
+					i, tests[i].queryStr, resp)
+			}
+			continue
+		}
+
+		if resp == nil {
+			t.Errorf("[%d] Expected `%s` to be sargable for index", i, tests[i].queryStr)
+			continue
+		}
+
+		var gotQuery, expectedQuery map[string]interface{}
+		err = json.Unmarshal([]byte(resp.SearchQuery), &gotQuery)
+		if err != nil {
+			t.Errorf("[%d] SearchQuery: %s, err: %v", i, resp.SearchQuery, err)
+			continue
+		}
+		err = json.Unmarshal([]byte(tests[i].expectedQueryStr), &expectedQuery)
+		if err != nil {
+			t.Errorf("[%d] ExpectedQuery: %s, err: %v", i, tests[i].expectedQueryStr, err)
+			continue
 		}
 
 		if !reflect.DeepEqual(expectedQuery, gotQuery) {

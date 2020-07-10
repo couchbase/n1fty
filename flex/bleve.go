@@ -12,6 +12,7 @@ package flex
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -328,7 +329,7 @@ func BleveToFlexIndex(fi *FlexIndex, path []string, dm *mapping.DocumentMapping,
 		})
 
 		fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
-			Cmp:       "eq",
+			Cmp:       "eq like",
 			FieldPath: fieldPath,
 			ValueType: f.Type,
 		})
@@ -388,7 +389,7 @@ func BleveToFlexIndex(fi *FlexIndex, path []string, dm *mapping.DocumentMapping,
 			})
 
 			fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
-				Cmp:              "eq",
+				Cmp:              "eq like",
 				FieldPath:        dynamicPath,
 				ValueType:        "text",
 				FieldPathPartial: true,
@@ -446,7 +447,26 @@ func BleveToFlexIndex(fi *FlexIndex, path []string, dm *mapping.DocumentMapping,
 	return fi, nil
 }
 
-// --------------------------------------
+// ------------------------------------------------------------------------
+
+func wildcardReplacer(s string) string {
+	switch s {
+	case `\_`:
+		return "_"
+	case `\%`:
+		return "%"
+	case `_`:
+		return "?"
+	case `%`:
+		return "*"
+	default:
+		return s
+	}
+}
+
+var repl = regexp.MustCompile(`\\_|\\%|_|%`)
+
+// ------------------------------------------------------------------------
 
 // FlexBuildToBleveQuery translates a flex build tree into a bleve
 // query tree in map[string]interface{} representation.
@@ -504,7 +524,10 @@ func FlexBuildToBleveQuery(fb *FlexBuild, prevSibling map[string]interface{}) (
 				switch args[0] {
 				case "eq":
 					return map[string]interface{}{"term": v, "field": args[1]}, nil
-
+				case "like":
+					v = regexp.QuoteMeta(v)
+					v = repl.ReplaceAllStringFunc(v, wildcardReplacer)
+					return map[string]interface{}{"wildcard": v, "field": args[1]}, nil
 				case "lt":
 					return MaxTermRangeQuery(args[1], v, false, prevSibling)
 				case "le":

@@ -214,7 +214,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				},
 				SupportedExprs: []SupportedExpr{
 					&SupportedExprCmpFieldConstant{
-						Cmp:       "eq",
+						Cmp:       "eq like",
 						FieldPath: []string{"f1"},
 						ValueType: "text",
 					},
@@ -276,7 +276,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				},
 				SupportedExprs: []SupportedExpr{
 					&SupportedExprCmpFieldConstant{
-						Cmp:       "eq",
+						Cmp:       "eq like",
 						FieldPath: []string{"f1"},
 						ValueType: "text",
 					},
@@ -324,7 +324,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				},
 				SupportedExprs: []SupportedExpr{
 					&SupportedExprCmpFieldConstant{
-						Cmp:       "eq",
+						Cmp:       "eq like",
 						FieldPath: []string{"f1"},
 						ValueType: "text",
 					},
@@ -368,7 +368,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				},
 				SupportedExprs: []SupportedExpr{
 					&SupportedExprCmpFieldConstant{
-						Cmp:       "eq",
+						Cmp:       "eq like",
 						FieldPath: []string{"addr", "f1"},
 						ValueType: "text",
 					},
@@ -456,7 +456,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				},
 				SupportedExprs: []SupportedExpr{
 					&SupportedExprCmpFieldConstant{
-						Cmp:       "eq",
+						Cmp:       "eq like",
 						FieldPath: []string{"addr", "f1"},
 						ValueType: "text",
 					},
@@ -467,7 +467,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 						FieldTypeCheck: true,
 					},
 					&SupportedExprCmpFieldConstant{
-						Cmp:       "eq",
+						Cmp:       "eq like",
 						FieldPath: []string{"pets", "f1"},
 						ValueType: "text",
 					},
@@ -521,7 +521,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				},
 				SupportedExprs: []SupportedExpr{
 					&SupportedExprCmpFieldConstant{
-						Cmp:              "eq",
+						Cmp:              "eq like",
 						FieldPath:        nil,
 						ValueType:        "text",
 						FieldPathPartial: true,
@@ -598,7 +598,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				},
 				SupportedExprs: []SupportedExpr{
 					&SupportedExprCmpFieldConstant{
-						Cmp:              "eq",
+						Cmp:              "eq like",
 						FieldPath:        nil,
 						ValueType:        "text",
 						FieldPathPartial: true,
@@ -695,7 +695,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 				},
 				SupportedExprs: []SupportedExpr{
 					&SupportedExprCmpFieldConstant{
-						Cmp:       "eq",
+						Cmp:       "eq like",
 						FieldPath: []string{"addr", "f1"},
 						ValueType: "text",
 					},
@@ -706,7 +706,7 @@ func TestBleveToCondFlexIndexesSimple(t *testing.T) {
 						FieldTypeCheck: true,
 					},
 					&SupportedExprCmpFieldConstant{
-						Cmp:              "eq",
+						Cmp:              "eq like",
 						FieldPath:        []string{"addr"},
 						ValueType:        "text",
 						FieldPathPartial: true,
