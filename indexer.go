@@ -443,12 +443,12 @@ func (i *FTSIndexer) initClient(nodeDefs *cbgt.NodeDefs, force bool) error {
 	}
 
 	// setup new client
-	var err error
-	i.client, err = setupFTSClient(nodeDefs)
+	client, err := setupFTSClient(nodeDefs)
 	if err != nil {
 		return err
 	}
 
+	i.client = client
 	i.nodeDefs = nodeDefs
 
 	return nil
