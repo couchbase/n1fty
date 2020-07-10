@@ -237,7 +237,7 @@ func (i *FTSIndex) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 
 	client := ftsClient.getGrpcClient()
 	if client == nil {
-		conn.Error(util.N1QLError(nil, "client unavailable, try refreshing"))
+		conn.Error(util.N1QLError(nil, "gRPC client unavailable, try refreshing"))
 		return
 	}
 
