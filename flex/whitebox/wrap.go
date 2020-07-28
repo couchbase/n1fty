@@ -117,6 +117,14 @@ func (s *WrapDatastore) SetConnectionSecurityConfig(config *datastore.Connection
 	// TODO
 }
 
+func (s *WrapDatastore) CreateSystemCollection() errors.Error {
+	return nil
+}
+
+func (s *WrapDatastore) GetSystemKeyspace() (datastore.Keyspace, errors.Error) {
+	return nil, nil
+}
+
 // ------------------------------------------------------------------------
 
 type WrapNamespace struct {
