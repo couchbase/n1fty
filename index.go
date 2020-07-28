@@ -732,6 +732,9 @@ func (i *FTSIndex) SargableFlex(requestId string,
 	searchRequest := map[string]interface{}{
 		"query": bleveQuery,
 		"score": "none",
+		"ctl": map[string]interface{}{
+			"timeout": 120000, // Default timeout for FLEX queries: 2 minutes
+		},
 	}
 
 	searchOptions := map[string]interface{}{
