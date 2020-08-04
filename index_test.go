@@ -46,6 +46,29 @@ func setupSampleIndex(idef []byte) (*FTSIndex, error) {
 
 // =============================================================================
 
+func TestBuildQueryWithCtlTimeout(t *testing.T) {
+	index, err := setupSampleIndex(util.SampleIndexDefDynamicDefault)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	query := expression.NewConstant(map[string]interface{}{
+		"query": map[string]interface{}{
+			"match": "blah",
+		},
+		"ctl": map[string]interface{}{
+			"timeout": 3000,
+		},
+	})
+
+	sargRV := index.buildQueryAndCheckIfSargable("", query.Value(), nil, nil)
+	if sargRV.timeoutMS != 3000 {
+		t.Fatalf("Expected timeout to be 3000ms, but got: %v", sargRV.timeoutMS)
+	}
+}
+
+// =============================================================================
+
 func TestIndexSargabilityTypeFieldWithSpecialCharacter(t *testing.T) {
 	// For this test we're going to consider an index definition with
 	// type_field over a field name with a special character - whitespace.

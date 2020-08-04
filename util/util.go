@@ -174,35 +174,42 @@ func FetchKeySpace(nameAndKeyspace string) string {
 }
 
 func ParseQueryToSearchRequest(field string, input value.Value) (
-	map[SearchField]struct{}, *cbft.SearchRequest, error) {
+	map[SearchField]struct{}, *cbft.SearchRequest, int64, error) {
 	field = CleanseField(field)
 
 	queryFields := map[SearchField]struct{}{}
 	if input == nil {
 		queryFields[SearchField{Name: field}] = struct{}{}
-		return queryFields, nil, nil
+		return queryFields, nil, 0, nil
 	}
 
 	var err error
 	var q query.Query
 
 	rv := &cbft.SearchRequest{}
+	var ctlTimeout int64
 
 	// if the input has a query field that is an object type
 	// then it is a search request
 	if qf, ok := input.Field("query"); ok && qf.Type() == value.OBJECT {
 		rv, q, err = BuildSearchRequest(field, input)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, 0, err
+		}
+
+		if cf, ok := input.Field("ctl"); ok && cf.Type() == value.OBJECT {
+			if tf, ok := cf.Field("timeout"); ok && tf.Type() == value.NUMBER {
+				ctlTimeout = int64(tf.Actual().(float64))
+			}
 		}
 	} else {
 		q, err = BuildQuery(field, input)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, 0, err
 		}
 		rv.Q, err = json.Marshal(q)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, 0, err
 		}
 
 		from := 0
@@ -215,10 +222,10 @@ func ParseQueryToSearchRequest(field string, input value.Value) (
 
 	queryFields, err = FetchFieldsToSearchFromQuery(q)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, 0, err
 	}
 
-	return queryFields, rv, nil
+	return queryFields, rv, ctlTimeout, nil
 }
 
 // Value MUST be an object

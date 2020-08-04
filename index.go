@@ -13,6 +13,7 @@ package n1fty
 
 import (
 	"context"
+	"encoding/json"
 	"math"
 	"strings"
 	"sync"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/blevesearch/bleve/mapping"
 	"github.com/couchbase/cbft"
+	pb "github.com/couchbase/cbft/protobuf"
 	"github.com/couchbase/cbgt"
 	"github.com/couchbase/n1fty/flex"
 	"github.com/couchbase/n1fty/util"
@@ -250,6 +252,20 @@ func (i *FTSIndex) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 		return
 	}
 
+	if sargRV.timeoutMS <= 0 {
+		// If timeout specified in SearchRequest, apply it to the
+		// gRPC search request, otherwise default to 2 minutes
+		sargRV.timeoutMS = 120000 // defaults to 2min
+	}
+
+	queryCtlParams := &pb.QueryCtlParams{
+		Ctl: &pb.QueryCtl{
+			Timeout: sargRV.timeoutMS,
+		},
+	}
+
+	searchReq.QueryCtlParams, _ = json.Marshal(queryCtlParams)
+
 	ftsClient := i.indexer.getClient()
 	if ftsClient == nil {
 		conn.Error(util.N1QLError(nil, "client unavailable, try refreshing"))
@@ -283,6 +299,7 @@ type sargableRV struct {
 	indexedCount  int64
 	opaque        map[string]interface{}
 	searchRequest *cbft.SearchRequest
+	timeoutMS     int64
 	err           errors.Error
 }
 
@@ -415,11 +432,12 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 	var err error
 	var queryFields map[util.SearchField]struct{}
 	var sr *cbft.SearchRequest
+	var ctlTimeout int64
 
 	if queryFieldsInterface, exists := rv.opaque["query_fields"]; !exists {
 		// if opaque didn't carry a "query" entry, go ahead and
 		// process the field+query provided to retrieve queryFields.
-		queryFields, sr, err = util.ParseQueryToSearchRequest(field, query)
+		queryFields, sr, ctlTimeout, err = util.ParseQueryToSearchRequest(field, query)
 		if err != nil {
 			rv.err = util.N1QLError(err, "failed to parse query to search request")
 			return rv
@@ -428,6 +446,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		// update opaqueMap with query, search_request
 		rv.opaque["query_fields"] = queryFields
 		rv.opaque["search_request"] = sr
+		rv.opaque["ctl_timeout"] = ctlTimeout
 	} else {
 		queryFields, _ = queryFieldsInterface.(map[util.SearchField]struct{})
 
@@ -435,9 +454,12 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		// "search_request" also exists.
 		srInterface, _ := rv.opaque["search_request"]
 		sr, _ = srInterface.(*cbft.SearchRequest)
+
+		ctlTimeout, _ = rv.opaque["ctl_timeout"].(int64)
 	}
 
 	rv.searchRequest = sr
+	rv.timeoutMS = ctlTimeout
 
 	if options != nil {
 		// check if an "index" entry exists and if it matches
