@@ -735,22 +735,21 @@ func TestSargableFlexIndex(t *testing.T) {
 		expectedSargKeys []string
 	}{
 		{
-			queryStr: "t.type = 'hotel' AND t.country = 'United States'",
-			expectedQueryStr: `{"query":{"field":"type","term":"hotel"},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+			queryStr:         "t.type = 'hotel' AND t.country = 'United States'",
+			expectedQueryStr: `{"query":{"field":"type","term":"hotel"},"score":"none"}`,
 			expectedSargKeys: []string{"type"},
 		},
 		{
 			queryStr: "t.type >= 'hot' AND t.type <= 'hotel'",
 			expectedQueryStr: `{"query": {"field":"type","min":"hot","inclusive_min":true,` +
-				`"max":"hotel","inclusive_max":true},"score":"none","ctl":{"timeout":120000}}`,
+				`"max":"hotel","inclusive_max":true},"score":"none"}`,
 			expectedSargKeys: []string{"type"},
 		},
 		{
 			queryStr: "t.type = 'hotel' AND t.id = 10",
 			expectedQueryStr: `{"query":{"conjuncts":[{"field":"type","term":"hotel"},` +
 				`{"field":"id","inclusive_max":true,"inclusive_min":true,"max":10,` +
-				`"min":10}]},"score":"none","ctl":{"timeout":120000}}`,
+				`"min":10}]},"score":"none"}`,
 			expectedSargKeys: []string{"type", "id"},
 		},
 		{
@@ -758,57 +757,52 @@ func TestSargableFlexIndex(t *testing.T) {
 			expectedQueryStr: `{"query":{"conjuncts":[{"field":"type","term":"hotel"},` +
 				`{"disjuncts":[{"field":"id","inclusive_max":true,"inclusive_min":true,` +
 				`"max":10,"min":10},{"field":"id","inclusive_max":true,` +
-				`"inclusive_min":true,"max":20,"min":20}]}]},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+				`"inclusive_min":true,"max":20,"min":20}]}]},"score":"none"}`,
 			expectedSargKeys: []string{"type", "id"},
 		},
 		{
-			queryStr: "t.type = 'hotel' AND t.id < 10",
-			expectedQueryStr: `{"query":{"field":"type","term":"hotel"},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+			queryStr:         "t.type = 'hotel' AND t.id < 10",
+			expectedQueryStr: `{"query":{"field":"type","term":"hotel"},"score":"none"}`,
 			expectedSargKeys: []string{"type"},
 		},
 		{
-			queryStr: "t.type = 'hotel' AND t.id <= 10",
-			expectedQueryStr: `{"query":{"field":"type","term":"hotel"},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+			queryStr:         "t.type = 'hotel' AND t.id <= 10",
+			expectedQueryStr: `{"query":{"field":"type","term":"hotel"},"score":"none"}`,
 			expectedSargKeys: []string{"type"},
 		},
 		{
-			queryStr: "t.type = 'hotel' AND t.id > 10",
-			expectedQueryStr: `{"query":{"field":"type","term":"hotel"},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+			queryStr:         "t.type = 'hotel' AND t.id > 10",
+			expectedQueryStr: `{"query":{"field":"type","term":"hotel"},"score":"none"}`,
 			expectedSargKeys: []string{"type"},
 		},
 		{
-			queryStr: "t.type = 'hotel' AND t.id >= 10",
-			expectedQueryStr: `{"query":{"field":"type","term":"hotel"},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+			queryStr:         "t.type = 'hotel' AND t.id >= 10",
+			expectedQueryStr: `{"query":{"field":"type","term":"hotel"},"score":"none"}`,
 			expectedSargKeys: []string{"type"},
 		},
 		{
 			queryStr: "t.id >= 0 and t.id < 20",
 			expectedQueryStr: `{"query":{"field":"id","min":0,"inclusive_min":true,` +
-				`"max":20,"inclusive_max":false},"score":"none","ctl":{"timeout":120000}}`,
+				`"max":20,"inclusive_max":false},"score":"none"}`,
 			expectedSargKeys: []string{"id"},
 		},
 		{
 			queryStr: "t.id >= -20 and t.id <= -5",
 			expectedQueryStr: `{"query":{"field":"id","min":-20,"inclusive_min":true,` +
-				`"max":-5,"inclusive_max":true},"score":"none","ctl":{"timeout":120000}}`,
+				`"max":-5,"inclusive_max":true},"score":"none"}`,
 			expectedSargKeys: []string{"id"},
 		},
 		{
 			queryStr: "t.type = 'hotel' AND t.id > 5 AND t.id < 10",
 			expectedQueryStr: `{"query":{"conjuncts":[{"field":"type","term":"hotel"},` +
 				`{"field":"id","min":5,"inclusive_min":false,"max":10,` +
-				`"inclusive_max":false}]},"score":"none","ctl":{"timeout":120000}}`,
+				`"inclusive_max":false}]},"score":"none"}`,
 			expectedSargKeys: []string{"type", "id"},
 		},
 		{
 			queryStr: "t.isOpen = true AND t.type = 'hotel'",
 			expectedQueryStr: `{"query":{"conjuncts":[{"field":"isOpen","bool":true},` +
-				`{"field":"type","term":"hotel"}]},"score":"none","ctl":{"timeout":120000}}`,
+				`{"field":"type","term":"hotel"}]},"score":"none"}`,
 			expectedSargKeys: []string{"isOpen", "type"},
 		},
 		{
@@ -816,7 +810,7 @@ func TestSargableFlexIndex(t *testing.T) {
 			expectedQueryStr: `{"query":{"conjuncts":[{"field":"type","term": "hotel"},` +
 				`{"field":"createdOn","start":"1985-04-12T23:20:50.52Z",` +
 				`"inclusive_start":true,"end":"1985-04-12T23:20:50.52Z",` +
-				`"inclusive_end":true}]},"score":"none","ctl":{"timeout":120000}}`,
+				`"inclusive_end":true}]},"score":"none"}`,
 			expectedSargKeys: []string{"type", "createdOn"},
 		},
 		{
@@ -824,8 +818,7 @@ func TestSargableFlexIndex(t *testing.T) {
 				"AND t.createdOn <= '2020-01-30T12:00:00.00Z'",
 			expectedQueryStr: `{"query":{"field":"createdOn",` +
 				`"start":"1985-04-12T23:20:50.52Z","inclusive_start":false,` +
-				`"end":"2020-01-30T12:00:00.00Z","inclusive_end":true},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+				`"end":"2020-01-30T12:00:00.00Z","inclusive_end":true},"score":"none"}`,
 			expectedSargKeys: []string{"createdOn"},
 		},
 		{
@@ -833,14 +826,14 @@ func TestSargableFlexIndex(t *testing.T) {
 			// query treated as sargable - although no results may be returned.
 			queryStr: "t.type = '1985-04-12T23:20:50.52Z'",
 			expectedQueryStr: `{"query":{"field":"type",` +
-				`"term":"1985-04-12T23:20:50.52Z"},"score":"none","ctl":{"timeout":120000}}`,
+				`"term":"1985-04-12T23:20:50.52Z"},"score":"none"}`,
 			expectedSargKeys: []string{"type"},
 		},
 		{
 			// createdOn is indexed as "datetime", so this query is partially sargable.
 			queryStr: "t.type = 'hotel' AND t.createdOn = 'crap'",
 			expectedQueryStr: `{"query":{"field":"type",` +
-				`"term":"hotel"},"score":"none","ctl":{"timeout":120000}}`,
+				`"term":"hotel"},"score":"none"}`,
 			expectedSargKeys: []string{"type"},
 		},
 		{
@@ -848,8 +841,7 @@ func TestSargableFlexIndex(t *testing.T) {
 			expectedQueryStr: `{"query":{"conjuncts":[{"disjuncts":[{"field":"type",` +
 				`"term":"airline"},{"field":"type","term":"airport"}]},` +
 				`{"field":"createdOn","start":"2020-05-18","end":"2020-05-18",` +
-				`"inclusive_start":true,"inclusive_end":true}]},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+				`"inclusive_start":true,"inclusive_end":true}]},"score":"none"}`,
 			expectedSargKeys: []string{"type", "createdOn"},
 		},
 	}
@@ -874,46 +866,44 @@ func TestSargableDynamicFlexIndex(t *testing.T) {
 		expectedSargKeys []string
 	}{
 		{
-			queryStr: "t.country = 'United States'",
-			expectedQueryStr: `{"query":{"field":"country","term":"United States"},` +
-				`"score":"none","ctl":{"timeout":120000}}`,
+			queryStr:         "t.country = 'United States'",
+			expectedQueryStr: `{"query":{"field":"country","term":"United States"},"score":"none"}`,
 			expectedSargKeys: []string{"country"},
 		},
 		{
 			queryStr: "t.type >= 'hot' AND t.type <= 'hotel'",
 			expectedQueryStr: `{"query": {"field":"type","min":"hot","inclusive_min":true,` +
-				`"max":"hotel","inclusive_max":true},"score":"none","ctl":{"timeout":120000}}`,
+				`"max":"hotel","inclusive_max":true},"score":"none"}`,
 			expectedSargKeys: []string{"type"},
 		},
 		{
 			queryStr: "t.id = 10",
 			expectedQueryStr: `{"query":{"field":"id","inclusive_max":true,"inclusive_min":true,` +
-				`"max":10,"min":10},"score":"none","ctl":{"timeout":120000}}`,
+				`"max":10,"min":10},"score":"none"}`,
 			expectedSargKeys: []string{"id"},
 		},
 		{
 			queryStr: "t.id >= 0 AND t.id < 20",
 			expectedQueryStr: `{"query":{"field":"id","min":0,"inclusive_min":true,` +
-				`"max":20,"inclusive_max":false},"score":"none","ctl":{"timeout":120000}}`,
+				`"max":20,"inclusive_max":false},"score":"none"}`,
 			expectedSargKeys: []string{"id"},
 		},
 		{
 			queryStr: "t.id > -25 AND t.id <= 10",
 			expectedQueryStr: `{"query":{"field":"id","min":-25,"inclusive_min":false,` +
-				`"max":10,"inclusive_max":true},"score":"none","ctl":{"timeout":120000}}`,
+				`"max":10,"inclusive_max":true},"score":"none"}`,
 			expectedSargKeys: []string{"id"},
 		},
 		{
-			queryStr: "t.isOpen = true",
-			expectedQueryStr: `{"query":{"field":"isOpen","bool":true},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+			queryStr:         "t.isOpen = true",
+			expectedQueryStr: `{"query":{"field":"isOpen","bool":true},"score":"none"}`,
 			expectedSargKeys: []string{"isOpen"},
 		},
 		{
 			queryStr: "t.createdOn = '1985-04-12T23:20:50.52Z'",
 			expectedQueryStr: `{"query":{"field":"createdOn","start":"1985-04-12T23:20:50.52Z",` +
 				`"inclusive_start":true,"end":"1985-04-12T23:20:50.52Z","inclusive_end":true},` +
-				`"score":"none","ctl":{"timeout":120000}}`,
+				`"score":"none"}`,
 			expectedSargKeys: []string{"createdOn"},
 		},
 		{
@@ -921,8 +911,7 @@ func TestSargableDynamicFlexIndex(t *testing.T) {
 				"AND t.createdOn <= '2020-01-30T12:00:00.00Z'",
 			expectedQueryStr: `{"query":{"field":"createdOn",` +
 				`"start":"1985-04-12T23:20:50.52Z","inclusive_start":false,` +
-				`"end":"2020-01-30T12:00:00.00Z","inclusive_end":true},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+				`"end":"2020-01-30T12:00:00.00Z","inclusive_end":true},"score":"none"}`,
 			expectedSargKeys: []string{"createdOn"},
 		},
 		{
@@ -930,15 +919,14 @@ func TestSargableDynamicFlexIndex(t *testing.T) {
 			expectedQueryStr: `{"query":{"disjuncts":[{"field":"createdOn","start":"2020-05-18",` +
 				`"end":"2020-05-18","inclusive_start":true,"inclusive_end":true},` +
 				`{"field":"createdOn","start":"2020-05-19","end":"2020-05-19",` +
-				`"inclusive_start":true,"inclusive_end":true}]},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+				`"inclusive_start":true,"inclusive_end":true}]},"score":"none"}`,
 			expectedSargKeys: []string{"createdOn"},
 		},
 		{
 			queryStr: "t.id IN [10] AND t.type = 'hotel'",
 			expectedQueryStr: `{"query":{"conjuncts":[{"field":"id","min":10,"max":10,` +
 				`"inclusive_min":true,"inclusive_max":true},{"field":"type","term":"hotel"}]}` +
-				`,"score":"none","ctl":{"timeout":120000}}`,
+				`,"score":"none"}`,
 			expectedSargKeys: []string{"id", "type"},
 		},
 	}
@@ -972,10 +960,9 @@ func TestComplexQuerySargabilityOverFlexIndexes(t *testing.T) {
 				queryStr: `t.type = "hotel"` +
 					` AND ANY r in t.reviews SATISFIES r.author = "Shaniya Wisoky" END`,
 				expectedQueryStrDefaultMapping: `{"query":{"conjuncts":[{"field":"type","term":"hotel"},` +
-					`{"field":"reviews.author","term":"Shaniya Wisoky"}]},"score":"none",` +
-					`"ctl":{"timeout":120000}}`,
+					`{"field":"reviews.author","term":"Shaniya Wisoky"}]},"score":"none"}`,
 				expectedQueryStrCustomMapping: `{"query":{"field":"reviews.author",` +
-					`"term":"Shaniya Wisoky"},"score":"none","ctl":{"timeout":120000}}`,
+					`"term":"Shaniya Wisoky"},"score":"none"}`,
 				expectedSargKeys: []string{"type", "reviews.author"},
 			},
 			{
@@ -986,14 +973,12 @@ func TestComplexQuerySargabilityOverFlexIndexes(t *testing.T) {
 					`{"disjuncts":[{"field":"reviews.ratings.Cleanliness","inclusive_max":true,` +
 					`"inclusive_min":true,"max":5,"min":5},{"field":"reviews.ratings.Overall",` +
 					`"inclusive_max":true,"inclusive_min":true,"max":4,"min":4}]},` +
-					`{"field":"public_likes","wildcard":"Raymundo Quigley"}]},"score":"none",` +
-					`"ctl":{"timeout":120000}}`,
+					`{"field":"public_likes","wildcard":"Raymundo Quigley"}]},"score":"none"}`,
 				expectedQueryStrCustomMapping: `{"query":{"conjuncts":[{"disjuncts":[` +
 					`{"field":"reviews.ratings.Cleanliness",` +
 					`"inclusive_max":true,"inclusive_min":true,"max":5,"min":5},` +
 					`{"field":"reviews.ratings.Overall","inclusive_max":true,"inclusive_min":true,` +
-					`"max":4,"min":4}]},{"field":"public_likes","wildcard":"Raymundo Quigley"}]},` +
-					`"score":"none","ctl":{"timeout":120000}}`,
+					`"max":4,"min":4}]},{"field":"public_likes","wildcard":"Raymundo Quigley"}]},"score":"none"}`,
 				expectedSargKeys: []string{
 					"type", "reviews.ratings.Cleanliness", "reviews.ratings.Overall", "public_likes",
 				},
@@ -1129,19 +1114,16 @@ func TestSargableFlexIndexWithMultipleTypeMappings(t *testing.T) {
 		expectedQueryStr string
 	}{
 		{
-			queryStr: `t.type = "airline" AND t.country = "US"`,
-			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+			queryStr:         `t.type = "airline" AND t.country = "US"`,
+			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
 		},
 		{
-			queryStr: `t.type = "airport" AND t.country = "US"`,
-			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+			queryStr:         `t.type = "airport" AND t.country = "US"`,
+			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
 		},
 		{
-			queryStr: `(t.type = "airline" OR t.type = "airport") AND t.country = "US"`,
-			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+			queryStr:         `(t.type = "airline" OR t.type = "airport") AND t.country = "US"`,
+			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
 		},
 		{
 			queryStr:         `t.type = "airline" OR t.type = "airport" AND t.country = "US"`,
@@ -1158,9 +1140,8 @@ func TestSargableFlexIndexWithMultipleTypeMappings(t *testing.T) {
 		{
 			// Expect this expression to be sargable, although filtering (non-covering index)
 			// will ensure that no results are returned.
-			queryStr: `t.type = "airport" AND t.type = "airline" AND t.country = "US"`,
-			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+			queryStr:         `t.type = "airport" AND t.type = "airline" AND t.country = "US"`,
+			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
 		},
 		{
 			// No "type" expressions provided.
@@ -1168,19 +1149,16 @@ func TestSargableFlexIndexWithMultipleTypeMappings(t *testing.T) {
 			expectedQueryStr: ``,
 		},
 		{
-			queryStr: `t.type IN ["airline"] AND t.country = "US"`,
-			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+			queryStr:         `t.type IN ["airline"] AND t.country = "US"`,
+			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
 		},
 		{
-			queryStr: `t.type IN ["airline", "airport"] AND t.country = "US"`,
-			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+			queryStr:         `t.type IN ["airline", "airport"] AND t.country = "US"`,
+			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
 		},
 		{
-			queryStr: `t.country = "US" AND t.type IN ["airline", "airport"]`,
-			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+			queryStr:         `t.country = "US" AND t.type IN ["airline", "airport"]`,
+			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
 		},
 		{
 			// "type" expression(s) not searchable.
@@ -1199,9 +1177,8 @@ func TestSargableFlexIndexWithMultipleTypeMappings(t *testing.T) {
 		},
 		{
 			// MB-39517: "city" indexed within "airport" type mapping
-			queryStr: `t.type = "airport" AND t.city = "SF"`,
-			expectedQueryStr: `{"query":{"field":"city","term":"SF"},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+			queryStr:         `t.type = "airport" AND t.city = "SF"`,
+			expectedQueryStr: `{"query":{"field":"city","term":"SF"},"score":"none"}`,
 		},
 		{
 			// MB-39517: "city" only indexed within "airport" type mapping
@@ -1215,14 +1192,13 @@ func TestSargableFlexIndexWithMultipleTypeMappings(t *testing.T) {
 		},
 		{
 			// MB-39517: "city" not indexed within "airline", but country is within both, so partially sargable
-			queryStr: `t.type IN ["airline", "airport"] AND t.country = "US" AND t.city = "SF"`,
-			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+			queryStr:         `t.type IN ["airline", "airport"] AND t.country = "US" AND t.city = "SF"`,
+			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
 		},
 		{
 			// MB-39517: "city" not indexed within "airline", but country is within both, so partially sargable
 			queryStr:         `(t.type = "airline" OR t.type = "airport") AND t.country = "US" AND t.city = "SF"`,
-			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none","ctl":{"timeout":120000}}`,
+			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
 		},
 		{
 			// MB-39517: "city" not indexed within "airline", although country is within both, it's a disjunction
@@ -1294,20 +1270,20 @@ func TestSargableFlexIndexDocIDPrefixWithMultipleTypeMappings(t *testing.T) {
 	}{
 		{
 			queryStr:         `meta().id LIKE "airline-%" AND t.country = "US"`,
-			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none","ctl":{"timeout":120000}}`,
+			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
 		},
 		{
 			queryStr:         `meta().id LIKE "airport-%" AND t.country = "US"`,
-			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none","ctl":{"timeout":120000}}`,
+			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
 		},
 		{
 			queryStr:         `(meta().id LIKE "airline-%" OR meta().id LIKE "airport-%") AND t.country = "US"`,
-			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none","ctl":{"timeout":120000}}`,
+			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
 		},
 		{
 			// MB-39517: "city" indexed within "airport" type mapping
 			queryStr:         `meta().id LIKE "airport-%" AND t.city = "SF"`,
-			expectedQueryStr: `{"query":{"field":"city","term":"SF"},"score":"none","ctl":{"timeout":120000}}`,
+			expectedQueryStr: `{"query":{"field":"city","term":"SF"},"score":"none"}`,
 		},
 		{
 			// MB-39517: "city" only indexed within "airport" type mapping
@@ -1373,24 +1349,20 @@ func TestSargableFlexIndexWithLikeExpressions(t *testing.T) {
 		expectedQueryStr string
 	}{
 		{
-			queryStr: `t.type LIKE "ho%l"`,
-			expectedQueryStr: `{"query":{"field":"type","wildcard":"ho*l"},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+			queryStr:         `t.type LIKE "ho%l"`,
+			expectedQueryStr: `{"query":{"field":"type","wildcard":"ho*l"},"score":"none"}`,
 		},
 		{
-			queryStr: `t.type LIKE "hot_l"`,
-			expectedQueryStr: `{"query":{"field":"type","wildcard":"hot?l"},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+			queryStr:         `t.type LIKE "hot_l"`,
+			expectedQueryStr: `{"query":{"field":"type","wildcard":"hot?l"},"score":"none"}`,
 		},
 		{
-			queryStr: `t.type LIKE "%t%"`,
-			expectedQueryStr: `{"query":{"field":"type","wildcard":"*t*"},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+			queryStr:         `t.type LIKE "%t%"`,
+			expectedQueryStr: `{"query":{"field":"type","wildcard":"*t*"},"score":"none"}`,
 		},
 		{
-			queryStr: `t.type LIKE "\\%@hot_l%"`,
-			expectedQueryStr: `{"query":{"field":"type","wildcard":"\\%@hot?l*"},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+			queryStr:         `t.type LIKE "\\%@hot_l%"`,
+			expectedQueryStr: `{"query":{"field":"type","wildcard":"\\%@hot?l*"},"score":"none"}`,
 		},
 	}
 

@@ -142,8 +142,7 @@ func TestCollectionIndexSargabilityEntireDefault(t *testing.T) {
 	}
 
 	queryStr := `t.country = "United States"`
-	expectQueryStr := `{"query":{"term":"United States","field":"country"},` +
-		`"score":"none","ctl":{"timeout":120000}}`
+	expectQueryStr := `{"query":{"term":"United States","field":"country"},"score":"none"}`
 	checkFlexQuerySargability(t, index, queryStr, expectQueryStr)
 }
 
@@ -208,8 +207,7 @@ func TestCollectionIndexSargabilityDefaultTypeField(t *testing.T) {
 	}
 
 	sargableQuery := `t.type = "airline" AND t.country = "United States"`
-	expectQueryStr := `{"query":{"term":"United States","field":"country"},` +
-		`"score":"none","ctl":{"timeout":120000}}`
+	expectQueryStr := `{"query":{"term":"United States","field":"country"},"score":"none"}`
 	checkFlexQuerySargability(t, index, sargableQuery, expectQueryStr)
 
 	unsargableQuery := `t.type = "airport" AND t.city = "SF"`
@@ -323,24 +321,20 @@ func TestCollectionIndexSargabilityTypeField(t *testing.T) {
 		expectQueryStr string
 	}{
 		{
-			queryStr: `t.type = "airline" AND t.country = "United States"`,
-			expectQueryStr: `{"query":{"term":"United States","field":"country"},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+			queryStr:       `t.type = "airline" AND t.country = "United States"`,
+			expectQueryStr: `{"query":{"term":"United States","field":"country"},"score":"none"}`,
 		},
 		{
-			queryStr: `t.type = "airport" AND t.country = "United States"`,
-			expectQueryStr: `{"query":{"term":"United States","field":"country"},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+			queryStr:       `t.type = "airport" AND t.country = "United States"`,
+			expectQueryStr: `{"query":{"term":"United States","field":"country"},"score":"none"}`,
 		},
 		{
-			queryStr: `(t.type = "airline" OR t.type = "airport") AND t.country = "United States"`,
-			expectQueryStr: `{"query":{"term":"United States","field":"country"},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+			queryStr:       `(t.type = "airline" OR t.type = "airport") AND t.country = "United States"`,
+			expectQueryStr: `{"query":{"term":"United States","field":"country"},"score":"none"}`,
 		},
 		{
-			queryStr: `t.type IN ["airline", "airport"] AND t.country = "United States"`,
-			expectQueryStr: `{"query":{"term":"United States","field":"country"},"score":"none",` +
-				`"ctl":{"timeout":120000}}`,
+			queryStr:       `t.type IN ["airline", "airport"] AND t.country = "United States"`,
+			expectQueryStr: `{"query":{"term":"United States","field":"country"},"score":"none"}`,
 		},
 		{
 			queryStr:       `t.country = "United States"`,
@@ -414,7 +408,6 @@ func TestCollectionIndexSargabilityDocidPrefix(t *testing.T) {
 	}
 
 	sargableQuery := `meta().id LIKE "airline_%" AND t.country = "United States"`
-	expectQueryStr := `{"query":{"term":"United States","field":"country"},` +
-		`"score":"none","ctl":{"timeout":120000}}`
+	expectQueryStr := `{"query":{"term":"United States","field":"country"},"score":"none"}`
 	checkFlexQuerySargability(t, index, sargableQuery, expectQueryStr)
 }

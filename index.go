@@ -232,7 +232,16 @@ func (i *FTSIndex) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 	var backfillSync int64
 	var rh *responseHandler
 	var err error
-	ctx, cancel := context.WithCancel(context.Background())
+
+	var ctx context.Context
+	var cancel context.CancelFunc
+
+	timeoutMS := conn.GetReqDeadline().Sub(time.Now()) * time.Millisecond
+	if timeoutMS > 0 {
+		ctx, cancel = context.WithTimeout(context.Background(), timeoutMS)
+	} else {
+		ctx, cancel = context.WithCancel(context.Background())
+	}
 
 	defer func() {
 		atomic.StoreInt64(&backfillSync, doneRequest)
@@ -754,9 +763,6 @@ func (i *FTSIndex) SargableFlex(requestId string,
 	searchRequest := map[string]interface{}{
 		"query": bleveQuery,
 		"score": "none",
-		"ctl": map[string]interface{}{
-			"timeout": 120000, // Default timeout for FLEX queries: 2 minutes
-		},
 	}
 
 	searchOptions := map[string]interface{}{
