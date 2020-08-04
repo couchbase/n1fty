@@ -125,6 +125,10 @@ func (s *WrapDatastore) GetSystemKeyspace() (datastore.Keyspace, errors.Error) {
 	return nil, nil
 }
 
+func (s *WrapDatastore) HasSystemKeyspace() (bool, errors.Error) {
+	return false, nil
+}
+
 // ------------------------------------------------------------------------
 
 type WrapNamespace struct {
