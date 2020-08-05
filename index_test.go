@@ -1413,3 +1413,51 @@ func TestSargableFlexIndexWithLikeExpressions(t *testing.T) {
 		}
 	}
 }
+
+func TestFlexPushDownForLimitOffsetOrder(t *testing.T) {
+	index, err := setupSampleIndex(
+		util.SampleIndexDefWithKeywordAnalyzerOverDefaultMapping)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	queryStr := `t.type = "hotel" AND t.id >= 10 AND t.id <= 20`
+	queryExpr, _ := parser.Parse(queryStr)
+	sortOnID, _ := parser.Parse("id")
+	flexRequest := &datastore.FTSFlexRequest{
+		Keyspace:      "t",
+		Pred:          queryExpr,
+		CheckPageable: true,
+		Order: []*datastore.SortTerm{
+			{
+				Expr:       sortOnID,
+				Descending: true,
+				NullsPos:   datastore.ORDER_NULLS_NONE,
+			},
+		},
+		Offset: 5,
+		Limit:  20,
+	}
+
+	resp, err := index.SargableFlex("0", flexRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if resp == nil {
+		t.Fatalf("Expected a response, but didn't get any")
+	}
+
+	var expectQuery, gotQuery map[string]interface{}
+	_ = json.Unmarshal([]byte(`{"query":{"conjuncts":[{"field":"type","term":"hotel"},`+
+		`{"field":"id","inclusive_max":true,"inclusive_min":true,"max":20,`+
+		`"min":10}]},"score":"none", "size": 20, "from": 5, "sort": ["-id"]}`),
+		&expectQuery)
+	if err = json.Unmarshal([]byte(resp.SearchQuery), &gotQuery); err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(expectQuery, gotQuery) {
+		t.Fatalf("Expected query: %v, Got Query: %v", expectQuery, gotQuery)
+	}
+}

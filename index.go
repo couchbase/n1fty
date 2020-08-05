@@ -774,10 +774,12 @@ func (i *FTSIndex) SargableFlex(requestId string,
 	res := &datastore.FTSFlexResponse{}
 	res.SearchOptions = stringer.Visit(expression.NewConstant(value.NewValue(searchOptions)))
 	res.StaticSargKeys = make(map[string]expression.Expression, 8)
+
 	for s := range fieldTracks {
 		e, _ := parser.Parse(string(s))
 		res.StaticSargKeys[string(s)] = e
 	}
+
 	if !needsFiltering && !i.multipleTypeStrs {
 		res.RespFlags |= datastore.FTS_FLEXINDEX_EXACT
 
@@ -785,22 +787,72 @@ func (i *FTSIndex) SargableFlex(requestId string,
 			// Check for pageability of the index, only if EXACT
 			// Set Offset, Limit settings only if:
 			//     - they fall within the BleveMaxResultWindow
-			//     - ORDER BY is not requested (for now)
-			if req.Offset+req.Limit <= util.GetBleveMaxResultWindow() &&
-				len(req.Order) == 0 {
-				// Update searchRequest settings
-				searchRequest["size"] = req.Limit
-				searchRequest["from"] = req.Offset
+			//     - ORDER BY is requested over fields that are indexed
+			if req.Offset+req.Limit <= util.GetBleveMaxResultWindow() {
+				sortable := true
+				var sortOrder []string
+				var sortOrderVals []value.Value
 
-				// FTS index can handle LIMIT and OFFSET settings
-				res.RespFlags |= datastore.FTS_FLEXINDEX_LIMIT
-				res.RespFlags |= datastore.FTS_FLEXINDEX_OFFSET
+				metaIdExpr := expression.NewField(expression.NewMeta(),
+					expression.NewFieldName("id", false))
+				for i := range req.Order {
+					if req.Order[i].NullsPos != datastore.ORDER_NULLS_NONE {
+						// FTS does NOT index NULL or MISSING values
+						sortable = false
+						break
+					}
+
+					var exists bool
+					var sortStr string
+					for str, expr := range res.StaticSargKeys {
+						if req.Order[i].Expr.EquivalentTo(expr) {
+							sortStr = str
+							exists = true
+							break
+						}
+					}
+
+					if !exists {
+						// - Field is NOT indexed
+						// - Next, check if it's the meta().id field and if that's
+						//   the case the sortStr is the "_id" field indexed by FTS
+						// - Order by score is NOT supported
+						if !req.Order[i].Expr.EquivalentTo(metaIdExpr) {
+							sortable = false
+							break
+						}
+
+						sortStr = "_id"
+					}
+
+					if req.Order[i].Descending {
+						sortStr = "-" + sortStr
+					}
+
+					sortOrder = append(sortOrder, sortStr)
+					sortOrderVals = append(sortOrderVals, value.NewValue(sortStr))
+				}
+
+				if sortable {
+					// Update searchRequest settings
+					searchRequest["size"] = req.Limit
+					searchRequest["from"] = req.Offset
+					if len(sortOrder) > 0 {
+						searchRequest["sort"] = sortOrderVals
+					}
+
+					// FTS index can handle LIMIT and OFFSET settings
+					res.RespFlags |= datastore.FTS_FLEXINDEX_LIMIT
+					res.RespFlags |= datastore.FTS_FLEXINDEX_OFFSET
+					res.RespFlags |= datastore.FTS_FLEXINDEX_ORDER
+
+					res.SearchOrders = sortOrder
+				}
 			}
 		}
 	}
 
 	res.SearchQuery = stringer.Visit(expression.NewConstant(value.NewValue(searchRequest)))
-	res.SearchOrders = nil
 
 	return res, nil
 }
