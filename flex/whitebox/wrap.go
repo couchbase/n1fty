@@ -119,6 +119,26 @@ func (s *WrapDatastore) StatUpdater() (datastore.StatUpdater, errors.Error) {
 func (s *WrapDatastore) SetConnectionSecurityConfig(config *datastore.ConnectionSecurityConfig) {
 }
 
+func (s *WrapDatastore) StartTransaction(stmtAtomicity bool, context datastore.QueryContext) (map[string]bool, errors.Error) {
+	return nil, errors.NewTranDatastoreNotSupportedError("file")
+}
+
+func (s *WrapDatastore) CommitTransaction(stmtAtomicity bool, context datastore.QueryContext) errors.Error {
+	return errors.NewTranDatastoreNotSupportedError("file")
+}
+
+func (s *WrapDatastore) RollbackTransaction(stmtAtomicity bool, context datastore.QueryContext, sname string) errors.Error {
+	return errors.NewTranDatastoreNotSupportedError("file")
+}
+
+func (s *WrapDatastore) SetSavepoint(stmtAtomicity bool, context datastore.QueryContext, sname string) errors.Error {
+	return errors.NewTranDatastoreNotSupportedError("file")
+}
+
+func (s *WrapDatastore) TransactionDeltaKeyScan(keyspace string, conn *datastore.IndexConnection) {
+	defer conn.Sender().Close()
+}
+
 func (s *WrapDatastore) CreateSystemCBOStats(requestId string) errors.Error {
 	return nil
 }
@@ -258,24 +278,24 @@ func (b *WrapKeyspace) Fetch(keys []string, keysMap map[string]value.AnnotatedVa
 	return b.W.Fetch(keys, keysMap, context, subPaths)
 }
 
-func (b *WrapKeyspace) Insert(inserts []value.Pair) ([]value.Pair, errors.Error) {
-	return b.W.Insert(inserts)
+func (b *WrapKeyspace) Insert(inserts []value.Pair, context datastore.QueryContext) ([]value.Pair, errors.Error) {
+	return b.W.Insert(inserts, context)
 }
 
-func (b *WrapKeyspace) Update(updates []value.Pair) ([]value.Pair, errors.Error) {
-	return b.W.Update(updates)
+func (b *WrapKeyspace) Update(updates []value.Pair, context datastore.QueryContext) ([]value.Pair, errors.Error) {
+	return b.W.Update(updates, context)
 }
 
-func (b *WrapKeyspace) Upsert(upserts []value.Pair) ([]value.Pair, errors.Error) {
-	return b.W.Upsert(upserts)
+func (b *WrapKeyspace) Upsert(upserts []value.Pair, context datastore.QueryContext) ([]value.Pair, errors.Error) {
+	return b.W.Upsert(upserts, context)
 }
 
-func (b *WrapKeyspace) Delete(deletes []string, context datastore.QueryContext) ([]string, errors.Error) {
+func (b *WrapKeyspace) Delete(deletes []value.Pair, context datastore.QueryContext) ([]value.Pair, errors.Error) {
 	return b.W.Delete(deletes, context)
 }
 
-func (b *WrapKeyspace) Release() {
-	b.W.Release()
+func (b *WrapKeyspace) Release(close bool) {
+	b.W.Release(close)
 }
 
 func (b *WrapKeyspace) IsBucket() bool {

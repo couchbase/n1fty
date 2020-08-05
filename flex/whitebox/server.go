@@ -71,7 +71,7 @@ func (this *Request) Output() execution.Output {
 	return this
 }
 
-func (this *Request) Execute(s *server.Server, signature value.Value) {
+func (this *Request) Execute(s *server.Server, context *execution.Context, reqType string, signature value.Value) {
 	select {
 	case <-this.Results():
 	case <-this.StopExecute():
