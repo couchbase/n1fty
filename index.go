@@ -841,7 +841,7 @@ func (i *FTSIndex) SargableFlex(requestId string,
 						searchRequest["sort"] = sortOrderVals
 					}
 
-					// FTS index can handle LIMIT and OFFSET settings
+					// FTS index can handle LIMIT, OFFSET, ORDER settings
 					res.RespFlags |= datastore.FTS_FLEXINDEX_LIMIT
 					res.RespFlags |= datastore.FTS_FLEXINDEX_OFFSET
 					res.RespFlags |= datastore.FTS_FLEXINDEX_ORDER
