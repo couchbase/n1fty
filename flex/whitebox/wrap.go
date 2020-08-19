@@ -114,18 +114,17 @@ func (s *WrapDatastore) StatUpdater() (datastore.StatUpdater, errors.Error) {
 }
 
 func (s *WrapDatastore) SetConnectionSecurityConfig(config *datastore.ConnectionSecurityConfig) {
-	// TODO
 }
 
-func (s *WrapDatastore) CreateSystemCollection() errors.Error {
+func (s *WrapDatastore) CreateSystemCBOStats(requestId string) errors.Error {
 	return nil
 }
 
-func (s *WrapDatastore) GetSystemKeyspace() (datastore.Keyspace, errors.Error) {
+func (s *WrapDatastore) GetSystemCBOStats() (datastore.Keyspace, errors.Error) {
 	return nil, nil
 }
 
-func (s *WrapDatastore) HasSystemKeyspace() (bool, errors.Error) {
+func (s *WrapDatastore) HasSystemCBOStats() (bool, errors.Error) {
 	return false, nil
 }
 
