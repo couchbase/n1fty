@@ -68,6 +68,9 @@ func (s *WrapDatastore) Authorize(p *auth.Privileges, c *auth.Credentials) (auth
 	return s.W.Authorize(p, c)
 }
 
+func (s *WrapDatastore) PreAuthorize(p *auth.Privileges) {
+}
+
 func (s *WrapDatastore) CredsString(r *http.Request) string {
 	return s.W.CredsString(r)
 }
