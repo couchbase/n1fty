@@ -41,7 +41,7 @@ func extractScopeCollTypeNames(t string) (string, string, string) {
 
 // BleveToCondFlexIndexes translates a bleve index into CondFlexIndexes.
 // NOTE: checking for DocConfig.Mode should be done beforehand.
-func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl,
+func BleveToCondFlexIndexes(name, uuid string, im *mapping.IndexMappingImpl,
 	docConfig *cbft.BleveDocumentConfig, scope, collection string) (
 	rv CondFlexIndexes, err error) {
 	if im == nil {
@@ -74,6 +74,8 @@ func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl,
 	sort.Strings(types) // For output stability.
 
 	fi := &FlexIndex{
+		Name:           name,
+		UUID:           uuid,
 		IndexedFields:  FieldInfos{},
 		SupportedExprs: []SupportedExpr{},
 	}
@@ -176,6 +178,9 @@ func BleveToCondFlexIndexes(im *mapping.IndexMappingImpl,
 	if len(fi.SupportedExprs) > 0 {
 		// Add CondFlexIndex over all the types, iff at least one type mapping
 		// is enabled
+		if len(values) > 1 {
+			fi.MultipleTypeStrs = true
+		}
 		rv = append(rv, &CondFlexIndex{
 			Cond:      MakeCondFuncEqVals(typeFieldPath, values, skipCondFuncEqCheck),
 			FlexIndex: fi,
@@ -617,6 +622,11 @@ func FlexBuildToBleveQuery(fb *FlexBuild, prevSibling map[string]interface{}) (
 				}
 			}
 		}
+	} else if fb.Kind == "searchQuery" {
+		if data, ok := fb.Data.(map[string]interface{}); ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf("incorrect expression: %v", fb.Data)
 	}
 
 	return nil, fmt.Errorf("FlexBuildToBleveQuery: could not convert: %+v", fb)

@@ -10,7 +10,11 @@
 package flex
 
 import (
+	"encoding/json"
+
+	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/expression"
+	"github.com/couchbase/query/expression/search"
 )
 
 // FlexIndex represents the subset of a flexible index definition
@@ -21,10 +25,100 @@ import (
 // default dynamic with default_analyzer: keyword, in which case
 // SupportedExprs for multiple types will be made available.
 type FlexIndex struct {
-	IndexedFields   FieldInfos // Ex: "hireDate", "city", "salary".
-	SupportedExprs  []SupportedExpr
-	FieldTrackTypes map[FieldTrack]map[string]struct{} // Ex: {"city":{{"airport":..}}}
-	Dynamic         bool
+	Name             string
+	UUID             string
+	IndexedFields    FieldInfos // Ex: "hireDate", "city", "salary".
+	SupportedExprs   []SupportedExpr
+	FieldTrackTypes  map[FieldTrack]map[string]struct{} // Ex: {"city":{{"airport":..}}}
+	MultipleTypeStrs bool
+	Dynamic          bool
+}
+
+// This API interprets a search expression for the FlexIndex.
+func (fi *FlexIndex) interpretSearchFunc(s *search.Search) (
+	bool, FieldTracks, *FlexBuild) {
+	if fi.MultipleTypeStrs {
+		// Do NOT interpret a SEARCH(..) function for an FTS index that
+		// has multiple type mappings (to avoid possibility of false negatives).
+		return false, nil, nil
+	}
+
+	// Firstly - validate options provided within the Search expression.
+	if s.Options() != nil {
+		if optionsVal := s.Options().Value(); optionsVal != nil {
+			for k, v := range optionsVal.Fields() {
+				if k == "index" {
+					vStr, ok := v.(string)
+					// only string value for "index" supported for push down
+					if !ok || fi.Name != vStr {
+						return false, nil, nil
+					}
+				} else if k == "indexUUID" {
+					vStr, ok := v.(string)
+					// "indexUUID" to be a string
+					if !ok || fi.UUID != vStr {
+						return false, nil, nil
+					}
+				} else {
+					// if other options present, do not push down SEARCH(..)
+					return false, nil, nil
+				}
+			}
+		}
+	}
+
+	// Next - look into the Query part of the search expression.
+	if s.Query() == nil || s.Query().Value() == nil {
+		return false, nil, nil
+	}
+
+	queryVal := s.Query().Value()
+	field := util.CleanseField(s.FieldName())
+	if srq, ok := queryVal.Field("query"); ok {
+		// This is a bleve SearchRequest.
+		// Continue only if it doesn't carry any other settings.
+		// This is so FLEX would not have to handle various pagination
+		// and timeout settings that could be provided within the
+		// SEARCH function for only a part of the query.
+
+		if len(queryVal.Fields()) > 1 {
+			return false, nil, nil
+		}
+
+		queryVal = srq
+	}
+
+	q, err := util.BuildQuery(field, queryVal)
+	if err != nil {
+		return false, nil, nil
+	}
+
+	queryFields, err := util.FetchFieldsToSearchFromQuery(q)
+	if err != nil {
+		return false, nil, nil
+	}
+
+	qBytes, _ := json.Marshal(q)
+	var qInterface map[string]interface{}
+	json.Unmarshal(qBytes, &qInterface)
+
+	fieldTracks := FieldTracks{}
+	for f := range queryFields {
+		// Check if the query field is either indexed or the flex index
+		// is dynamic for the query to be sargable.
+		if !fi.IndexedFields.Contains(f.Name, f.Type, f.Analyzer) &&
+			!fi.Dynamic {
+			return false, nil, nil
+		}
+	}
+
+	// Search expression supported only if all fields requested
+	// for are indexed within the FTS index.
+	fieldTracks[FieldTrack(s.String())] = 1
+	return true, fieldTracks, &FlexBuild{
+		Kind: "searchQuery",
+		Data: qInterface,
+	}
 }
 
 // Sargable() checks if expression (e) is amenable to a FlexIndex scan.
@@ -48,6 +142,13 @@ type FlexIndex struct {
 func (fi *FlexIndex) Sargable(ids Identifiers, e expression.Expression,
 	requestedTypes []string, eFTs FieldTypes) (
 	FieldTracks, bool, *FlexBuild, error) {
+	// Check if the expression is a Search expression.
+	if searchFunc, ok := e.(*search.Search); ok {
+		if canDo, ft, fb := fi.interpretSearchFunc(searchFunc); canDo {
+			return ft, false, fb, nil
+		}
+	}
+
 	// Check if matches one of the supported expressions.
 	for _, se := range fi.SupportedExprs {
 		matches, ft, needsFiltering, fb, err := se.Supports(fi, ids, e, requestedTypes, eFTs)

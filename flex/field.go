@@ -10,6 +10,8 @@
 package flex
 
 import (
+	"strings"
+
 	"github.com/couchbase/query/expression"
 )
 
@@ -91,6 +93,18 @@ type FieldInfo struct {
 type FieldInfos []*FieldInfo
 
 // ---------------------------------------------------------------
+
+func (fieldInfos FieldInfos) Contains(fieldName, fieldType, analyzer string) bool {
+	for _, fieldInfo := range fieldInfos {
+		if fieldName == strings.Join(fieldInfo.FieldPath, ".") &&
+			fieldType == fieldInfo.FieldType &&
+			(len(analyzer) == 0 || analyzer == "keyword") {
+			return true
+		}
+	}
+
+	return false
+}
 
 // Given an expression.Field, finds the first FieldInfo that has a
 // matching field-path prefix.  The suffixOut enables slice reuse.

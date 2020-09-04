@@ -23,6 +23,7 @@ import (
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/expression"
 	"github.com/couchbase/query/expression/parser"
+	"github.com/couchbase/query/expression/search"
 )
 
 func setupSampleIndex(idef []byte) (*FTSIndex, error) {
@@ -1459,5 +1460,210 @@ func TestFlexPushDownForLimitOffsetOrder(t *testing.T) {
 
 	if !reflect.DeepEqual(expectQuery, gotQuery) {
 		t.Fatalf("Expected query: %v, Got Query: %v", expectQuery, gotQuery)
+	}
+}
+
+func TestFlexPushDownSearchFunc1(t *testing.T) {
+	index, err := setupSampleIndex(
+		util.SampleIndexDefDynamicWithAnalyzerKeyword)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	flexExpr, _ := parser.Parse(`t.country = "United States"`)
+
+	tests := []struct {
+		searchExpr expression.Expression
+	}{
+		{
+			searchExpr: search.NewSearch(expression.NewConstant(``),
+				expression.NewConstant(map[string]interface{}{
+					"match": "Salt Lake City",
+					"field": "city",
+				})),
+		},
+		{
+			searchExpr: search.NewSearch(expression.NewConstant(``),
+				expression.NewConstant(map[string]interface{}{
+					"query": map[string]interface{}{
+						"match": "Salt Lake City",
+						"field": "city",
+					},
+				})),
+		},
+	}
+
+	var expectQuery map[string]interface{}
+	_ = json.Unmarshal([]byte(`{"query":{"conjuncts":[{"field":"country",`+
+		`"term":"United States"},{"field":"city","match":"Salt Lake City",`+
+		`"fuzziness": 0,"prefix_length": 0}]},"score":"none"}`),
+		&expectQuery)
+
+	for testi, test := range tests {
+		finalExpr := expression.NewAnd(flexExpr, test.searchExpr)
+
+		flexRequest := &datastore.FTSFlexRequest{
+			Keyspace: "t",
+			Pred:     finalExpr,
+		}
+
+		resp, n1qlErr := index.SargableFlex("0", flexRequest)
+		if n1qlErr != nil {
+			t.Fatal(n1qlErr)
+		}
+
+		expectedSargKeys := []string{test.searchExpr.String(), "country"}
+
+		if resp == nil || len(resp.StaticSargKeys) != len(expectedSargKeys) {
+			t.Fatalf("[%d] Resp: %#v", testi+1, resp)
+		}
+
+		for _, key := range expectedSargKeys {
+			if resp.StaticSargKeys[key] == nil {
+				t.Fatalf("[%d] ExpectedSargKeys: %v, Got StaticSargKeys: %v",
+					testi+1, expectedSargKeys, resp.StaticSargKeys)
+			}
+		}
+
+		var gotQuery map[string]interface{}
+		if err := json.Unmarshal([]byte(resp.SearchQuery), &gotQuery); err != nil {
+			t.Fatal(err)
+		}
+
+		if !reflect.DeepEqual(expectQuery, gotQuery) {
+			t.Fatalf("[%d] Expected query: %v, Got query: %v",
+				testi+1, expectQuery, gotQuery)
+		}
+	}
+}
+
+func TestFlexPushDownSearchFunc2(t *testing.T) {
+	index, err := setupSampleIndex(
+		util.SampleIndexDefWithSeveralNestedFieldsUnderHotelMapping)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	condExpr, _ := parser.Parse(`t.type = "hotel"`)
+	flexExpr, _ := parser.Parse(
+		`ANY p IN t.public_likes SATISFIES p LIKE "ABC" END`)
+
+	tests := []struct {
+		searchExpr       expression.Expression
+		expectQuery      string
+		expectedSargKeys []string
+		expectSearchExpr bool
+	}{
+		{
+			searchExpr: search.NewSearch(expression.NewConstant(``),
+				expression.NewConstant(`reviews.author:XYZ`),
+				expression.NewConstant(map[string]interface{}{
+					"index": "SampleIndexDefWithSeveralNestedFieldsUnderHotelMapping",
+				})),
+			expectQuery: `{"query":{"conjuncts":[{"field":"public_likes",` +
+				`"wildcard":"ABC"},{"must":{"conjuncts":[]},"must_not":{"disjuncts":[],` +
+				`"min": 0},"should":{"disjuncts":[{"field":"reviews.author","fuzziness":0,` +
+				`"match":"XYZ","prefix_length":0}],"min":0}}]},"score":"none"}`,
+			expectedSargKeys: []string{"type", "public_likes"},
+			expectSearchExpr: true,
+		},
+		{
+			searchExpr: search.NewSearch(expression.NewConstant(``),
+				expression.NewConstant(`reviews.author:XYZ`),
+				expression.NewConstant(map[string]interface{}{
+					"index": "Incorrect Name",
+				})),
+			expectQuery: `{"query":{"field":"public_likes",` +
+				`"wildcard":"ABC"},"score":"none"}`,
+			expectedSargKeys: []string{"type", "public_likes"},
+			expectSearchExpr: false,
+		},
+	}
+
+	for testi, test := range tests {
+		expr := expression.NewAnd(condExpr, flexExpr, test.searchExpr)
+
+		flexRequest := &datastore.FTSFlexRequest{
+			Keyspace: "t",
+			Pred:     expr,
+		}
+
+		resp, n1qlErr := index.SargableFlex("0", flexRequest)
+		if n1qlErr != nil {
+			t.Fatal(n1qlErr)
+		}
+
+		if test.expectSearchExpr {
+			test.expectedSargKeys = append(test.expectedSargKeys,
+				test.searchExpr.String())
+		}
+
+		if resp == nil || len(resp.StaticSargKeys) != len(test.expectedSargKeys) {
+			t.Fatalf("[%d] Resp: %#v", testi+1, resp)
+		}
+
+		for _, key := range test.expectedSargKeys {
+			if resp.StaticSargKeys[key] == nil {
+				t.Fatalf("ExpectedSargKeys: %v, Got StaticSargKeys: %v",
+					test.expectedSargKeys, resp.StaticSargKeys)
+			}
+		}
+
+		var expectQuery, gotQuery map[string]interface{}
+		if err := json.Unmarshal([]byte(test.expectQuery), &expectQuery); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal([]byte(resp.SearchQuery), &gotQuery); err != nil {
+			t.Fatal(err)
+		}
+
+		if !reflect.DeepEqual(expectQuery, gotQuery) {
+			t.Fatalf("[%d] Expected query: %v, Got query: %v", testi+1, expectQuery, gotQuery)
+		}
+	}
+}
+
+func TestFlexPushDownSearchFunc3(t *testing.T) {
+	index, err := setupSampleIndex(
+		util.SampleIndexDefWithMultipleTypeMappings)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	condExpr, _ := parser.Parse(`t.type = "airport"`)
+	flexExpr, _ := parser.Parse(`t.country = "United States"`)
+	searchExpr := search.NewSearch(expression.NewConstant(``),
+		expression.NewConstant(`city:"Salt Lake City"`))
+
+	finalExpr := expression.NewAnd(condExpr, flexExpr, searchExpr)
+	flexRequest := &datastore.FTSFlexRequest{
+		Keyspace: "t",
+		Pred:     finalExpr,
+	}
+
+	resp, n1qlErr := index.SargableFlex("0", flexRequest)
+	if n1qlErr != nil {
+		t.Fatal(n1qlErr)
+	}
+
+	// searchExpr not supported because FTS index has multiple
+	// type mappings
+	expectedSargKeys := []string{"type", "country"}
+
+	if resp == nil || len(resp.StaticSargKeys) != len(expectedSargKeys) {
+		t.Fatalf("Resp: %#v", resp)
+	}
+
+	var expectQuery, gotQuery map[string]interface{}
+	_ = json.Unmarshal([]byte(`{"query":{"field":"country","term":"United States"},`+
+		`"score":"none"}`),
+		&expectQuery)
+
+	if err := json.Unmarshal([]byte(resp.SearchQuery), &gotQuery); err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(expectQuery, gotQuery) {
+		t.Fatalf("Expected query: %v, Got query: %v", expectQuery, gotQuery)
 	}
 }
