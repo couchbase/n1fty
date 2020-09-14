@@ -13,7 +13,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/couchbase/query/planner"
+	"github.com/couchbase/query/plannerbase"
 )
 
 func TestLearnConjunctFieldTypes(t *testing.T) {
@@ -238,7 +238,7 @@ func TestLearnConjunctFieldTypes(t *testing.T) {
 		exprWhere := s.Where()
 
 		exprWhereSimplified, _ :=
-			planner.NewDNF(exprWhere, false, false /* doDNF */).Map(exprWhere)
+			plannerbase.NewDNF(exprWhere, false, false /* doDNF */).Map(exprWhere)
 
 		outExprs, outFieldTypes, outOk :=
 			LearnConjunctFieldTypes(

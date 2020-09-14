@@ -19,7 +19,7 @@ import (
 	"github.com/couchbase/query/algebra"
 	"github.com/couchbase/query/expression"
 	"github.com/couchbase/query/parser/n1ql"
-	"github.com/couchbase/query/planner"
+	"github.com/couchbase/query/plannerbase"
 )
 
 func parseStatement(t *testing.T, stmt string) *algebra.Subselect {
@@ -70,7 +70,7 @@ func TestParseStatement(t *testing.T) {
 	fmt.Printf("s: %v\n", s.Where()) // Not flattened.
 
 	expr := s.Where()
-	expr, _ = planner.NewDNF(expr, false, true).Map(expr)
+	expr, _ = plannerbase.NewDNF(expr, false, true).Map(expr)
 
 	// issue: the LET bindings are not incorporated into the WHERE.
 
@@ -2681,7 +2681,7 @@ func TestFlexSargable(t *testing.T) {
 
 		exprWhere := s.Where()
 
-		exprWhereSimplified, _ := planner.NewDNF(exprWhere,
+		exprWhereSimplified, _ := plannerbase.NewDNF(exprWhere,
 			true /* like */, false /* doDNF */).Map(exprWhere)
 
 		identifiers := Identifiers{Identifier{Name: from0}}

@@ -27,7 +27,7 @@ import (
 	"github.com/couchbase/query/expression"
 	"github.com/couchbase/query/expression/parser"
 	"github.com/couchbase/query/parser/n1ql"
-	"github.com/couchbase/query/planner"
+	"github.com/couchbase/query/plannerbase"
 	"github.com/couchbase/query/server"
 
 	"github.com/couchbase/n1fty/flex"
@@ -115,7 +115,7 @@ func emitExpr(t *testing.T, e expression.Expression) {
 
 	fmt.Printf(" f.Name(): %v\n", f.Name())
 
-	dnf := planner.NewDNF(e, false, true)
+	dnf := plannerbase.NewDNF(e, false, true)
 	eDNF, err := dnf.Map(e)
 	if err != nil {
 		t.Errorf("did not expect dnf err: %v", err)
