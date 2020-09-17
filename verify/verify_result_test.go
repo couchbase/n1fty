@@ -247,6 +247,31 @@ func TestMB39592(t *testing.T) {
 	}
 }
 
+func TestMB41536(t *testing.T) {
+	item := value.NewAnnotatedValue([]byte(`{"name":"xyz","dept":"Engineering"}`))
+	item.SetAttachment("meta", map[string]interface{}{"id": "key"})
+	item.SetId("key")
+
+	for _, q := range []map[string]interface{}{
+		{"wildcard": "Eng?neer?ng"},
+	} {
+		queryVal := value.NewValue(q)
+		v, err := NewVerify("`temp_keyspace`", "", queryVal, nil)
+		if err != nil {
+			t.Fatal(queryVal, err)
+		}
+
+		ret, err := v.Evaluate(item)
+		if err != nil {
+			t.Fatal(queryVal, err)
+		}
+
+		if !ret {
+			t.Fatalf("Expected evaluation for key to succeed for `%v`", queryVal)
+		}
+	}
+}
+
 func TestVerifyEvalWithScopeCollectionMapping(t *testing.T) {
 	indexParams := []byte(`{
 		"doc_config": {
