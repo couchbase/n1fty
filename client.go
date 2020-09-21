@@ -132,6 +132,14 @@ OUTER:
 	return nil
 }
 
+func (c *ftsClient) Close() {
+	for _, conns := range c.gRPCConnMap {
+		for i := 0; i < len(conns); i++ {
+			conns[i].Close()
+		}
+	}
+}
+
 // -----------------------------------------------------------------------------
 
 // basicAuthCreds is an implementation of credentials.PerRPCCredentials
