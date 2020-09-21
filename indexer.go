@@ -484,6 +484,10 @@ func (i *FTSIndexer) initClient(nodeDefs *cbgt.NodeDefs, force bool) error {
 		return err
 	}
 
+	if i.client != nil {
+		i.client.Close()
+	}
+
 	i.client = client
 	i.nodeDefs = nodeDefs
 
