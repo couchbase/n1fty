@@ -361,7 +361,7 @@ func (i *FTSIndexer) refresh(configMutexAcquired bool) errors.Error {
 		return util.N1QLError(err, "refresh failed")
 	}
 
-	err = i.initClient(nodeDefs, true)
+	err = i.initClient(nodeDefs)
 	if err != nil {
 		if err == ErrFeatureUnavailable {
 			return nil
@@ -471,10 +471,10 @@ func (i *FTSIndexer) nodeDefsUnchangedLOCKED(newNodeDefs *cbgt.NodeDefs) bool {
 	return i.nodeDefs.UUID == newNodeDefs.UUID
 }
 
-func (i *FTSIndexer) initClient(nodeDefs *cbgt.NodeDefs, force bool) error {
+func (i *FTSIndexer) initClient(nodeDefs *cbgt.NodeDefs) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	if !force && i.client != nil && i.nodeDefsUnchangedLOCKED(nodeDefs) {
+	if i.client != nil && i.nodeDefsUnchangedLOCKED(nodeDefs) {
 		return nil
 	}
 
