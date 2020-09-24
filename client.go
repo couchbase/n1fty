@@ -76,17 +76,17 @@ func init() {
 
 type ftsClient struct {
 	gRPCConnMap map[string][]*grpc.ClientConn
-	serverMap   map[int]string
+	servers     []string
 }
 
 func (c *ftsClient) getGrpcClient() pb.SearchServiceClient {
-	if len(c.serverMap) == 0 {
+	if len(c.servers) == 0 {
 		return nil
 	}
 	// pick a random fts node
-	randomNodeIndex := r1.Intn(len(c.serverMap))
+	randomNodeIndex := r1.Intn(len(c.servers))
 	// pick its conn pool
-	connPool := c.gRPCConnMap[c.serverMap[randomNodeIndex]]
+	connPool := c.gRPCConnMap[c.servers[randomNodeIndex]]
 	if len(connPool) == 0 {
 		return nil
 	}
@@ -102,7 +102,7 @@ func (c *ftsClient) initConnections(hosts []string,
 	}
 
 OUTER:
-	for i, hostPort := range hosts {
+	for _, hostPort := range hosts {
 		cbUser, cbPasswd, err := cbauth.GetHTTPServiceAuth(hostPort)
 		if err != nil {
 			// it is possible that some hosts may be unreachable during
@@ -126,8 +126,8 @@ OUTER:
 			logging.Infof("client: grpc client connection #%d created for host: %v", j, hostPort)
 			c.gRPCConnMap[hostPort] = append(c.gRPCConnMap[hostPort], conn)
 		}
-		// after making the connections ready, update the serverInfo in map
-		c.serverMap[i] = hostPort
+		// after the connections are ready, add the server to the servers list
+		c.servers = append(c.servers, hostPort)
 	}
 	return nil
 }
@@ -179,7 +179,7 @@ func setupFTSClient(nodeDefs *cbgt.NodeDefs) (*ftsClient, error) {
 
 	client := &ftsClient{
 		gRPCConnMap: make(map[string][]*grpc.ClientConn),
-		serverMap:   make(map[int]string),
+		servers:     []string{},
 	}
 
 	hosts, sslHosts := extractHosts(nodeDefs)
