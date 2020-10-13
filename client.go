@@ -173,7 +173,7 @@ func basicAuth(username, password string) string {
 // -----------------------------------------------------------------------------
 
 func setupFTSClient(nodeDefs *cbgt.NodeDefs) (*ftsClient, error) {
-	if nodeDefs == nil {
+	if nodeDefs == nil || len(nodeDefs.NodeDefs) == 0 {
 		return nil, nil
 	}
 

@@ -361,6 +361,18 @@ func (i *FTSIndexer) refresh(configMutexAcquired bool) errors.Error {
 		return util.N1QLError(err, "refresh failed")
 	}
 
+
+	// even with a forced refresh, if index/node definitions are nil,
+	// then no need to spin supporting routines or
+	// fetch the bleve max result window.
+	if len(mapIndexesByID) == 0 ||
+		nodeDefs == nil || len(nodeDefs.NodeDefs) == 0 {
+		// initialize the cfg (in case it hasn't been already)
+		// before returning so that the metakv changes will be subscribed
+		i.cfg.initConfig()
+		return nil
+	}
+
 	err = i.initClient(nodeDefs)
 	if err != nil {
 		if err == ErrFeatureUnavailable {
@@ -391,17 +403,6 @@ func (i *FTSIndexer) refresh(configMutexAcquired bool) errors.Error {
 	i.mapIndexesByName = mapIndexesByName
 	i.cfgVersion = cfgVersion
 	i.m.Unlock()
-
-	// even with a forced refresh, if both indexes and
-	// node definitions are nil, then no need to spin
-	// supporting routines or fetch the bleve max
-	// result window.
-	if mapIndexesByID == nil && nodeDefs == nil {
-		// initialise the cfg before returning so that
-		// the metakv changes will be subscribed
-		i.cfg.initConfig()
-		return nil
-	}
 
 	// as it reaches here for the first time, all initialisations
 	// looks good for the given FTSIndexer and hence spin off the
@@ -560,6 +561,10 @@ func (i *FTSIndexer) fetchBleveMaxResultWindow() (int, error) {
 // datastore.FTSIndex
 func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 	map[string]datastore.Index, error) {
+	if indexDefs == nil {
+		return nil, nil
+	}
+
 	rv := map[string]datastore.Index{}
 	for _, indexDef := range indexDefs.IndexDefs {
 		if !i.collectionAware {
