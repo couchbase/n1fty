@@ -25,21 +25,20 @@ import (
 	"github.com/couchbase/cbauth"
 	"github.com/couchbase/cbft"
 	"github.com/couchbase/cbgt"
+	"github.com/couchbase/gocbcore/v9"
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/expression"
 	"github.com/couchbase/query/logging"
 	"github.com/couchbase/query/value"
-
-	"gopkg.in/couchbase/gocbcore.v7"
 )
 
 const VERSION = 1
 
-var ConnectTimeoutMS = 60000      // 60s
-var ServerConnectTimeoutMS = 7000 // 7s
-var NmvRetryDelayMS = 100         // 0.1s
+var ConnectTimeoutMS = 60000  // 60s
+var KVConnectTimeoutMS = 7000 // 7s
+var NmvRetryDelayMS = 100     // 0.1s
 
 var BackfillMonitoringIntervalMS = 1000 // 1s
 var StatsLoggingIntervalMS = 60000      // 60s
@@ -116,13 +115,11 @@ func newFTSIndexer(serverIn, namespace, bucket, scope, collection, keyspace stri
 		cbgt.CouchbaseParseSourceName(serverIn, "default", bucket)
 
 	conf := &gocbcore.AgentConfig{
-		UserString:           "n1fty",
-		BucketName:           bucketName,
-		ConnectTimeout:       time.Duration(ConnectTimeoutMS) * time.Millisecond,
-		ServerConnectTimeout: time.Duration(ServerConnectTimeoutMS) * time.Millisecond,
-		NmvRetryDelay:        time.Duration(NmvRetryDelayMS) * time.Millisecond,
-		UseKvErrorMaps:       true,
-		Auth:                 &Authenticator{},
+		UserAgent:        "n1fty",
+		BucketName:       bucketName,
+		ConnectTimeout:   time.Duration(ConnectTimeoutMS) * time.Millisecond,
+		KVConnectTimeout: time.Duration(KVConnectTimeoutMS) * time.Millisecond,
+		Auth:             &Authenticator{},
 	}
 
 	svrs := strings.Split(server, ";")
@@ -176,6 +173,19 @@ func (a *Authenticator) Credentials(req gocbcore.AuthCredsRequest) (
 		Username: username,
 		Password: password,
 	}}, nil
+}
+
+func (a *Authenticator) Certificate(req gocbcore.AuthCertRequest) (
+	*tls.Certificate, error) {
+	return nil, nil
+}
+
+func (a *Authenticator) SupportsTLS() bool {
+	return true
+}
+
+func (a *Authenticator) SupportsNonTLS() bool {
+	return true
 }
 
 // -----------------------------------------------------------------------------
@@ -516,7 +526,7 @@ func (i *FTSIndexer) fetchBleveMaxResultWindow() (int, error) {
 		return 0, err
 	}
 
-	httpClient := i.agent.HttpClient()
+	httpClient := i.agent.HTTPClient()
 	if httpClient == nil {
 		return 0, fmt.Errorf("client not available")
 	}
