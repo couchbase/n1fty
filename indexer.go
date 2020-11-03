@@ -36,9 +36,9 @@ import (
 
 const VERSION = 1
 
-var ConnectTimeoutMS = 60000  // 60s
-var KVConnectTimeoutMS = 7000 // 7s
-var NmvRetryDelayMS = 100     // 0.1s
+var ConnectTimeoutMS = time.Duration(60000 * time.Millisecond)
+var KVConnectTimeoutMS = time.Duration(7000 * time.Millisecond)
+var AgentSetupTimeoutMS = time.Duration(10000 * time.Millisecond)
 
 var BackfillMonitoringIntervalMS = 1000 // 1s
 var StatsLoggingIntervalMS = 60000      // 60s
@@ -109,6 +109,19 @@ func NewFTSIndexer2(serverIn, namespace, bucket, scope, keyspace string) (
 
 // -----------------------------------------------------------------------------
 
+type retryStrategy struct{}
+
+func (rs *retryStrategy) RetryAfter(req gocbcore.RetryRequest,
+	reason gocbcore.RetryReason) gocbcore.RetryAction {
+	if reason == gocbcore.BucketNotReadyReason {
+		return &gocbcore.WithDurationRetryAction{
+			WithDuration: gocbcore.ControlledBackoff(req.RetryAttempts()),
+		}
+	}
+
+	return &gocbcore.NoRetryRetryAction{}
+}
+
 func newFTSIndexer(serverIn, namespace, bucket, scope, collection, keyspace string) (
 	datastore.Indexer, errors.Error) {
 	server, _, bucketName :=
@@ -117,8 +130,8 @@ func newFTSIndexer(serverIn, namespace, bucket, scope, collection, keyspace stri
 	conf := &gocbcore.AgentConfig{
 		UserAgent:        "n1fty",
 		BucketName:       bucketName,
-		ConnectTimeout:   time.Duration(ConnectTimeoutMS) * time.Millisecond,
-		KVConnectTimeout: time.Duration(KVConnectTimeoutMS) * time.Millisecond,
+		ConnectTimeout:   ConnectTimeoutMS,
+		KVConnectTimeout: KVConnectTimeoutMS,
 		Auth:             &Authenticator{},
 	}
 
@@ -135,6 +148,27 @@ func newFTSIndexer(serverIn, namespace, bucket, scope, collection, keyspace stri
 
 	agent, err := gocbcore.CreateAgent(conf)
 	if err != nil {
+		return nil, util.N1QLError(err, "")
+	}
+
+	options := gocbcore.WaitUntilReadyOptions{
+		DesiredState:  gocbcore.ClusterStateOnline,
+		ServiceTypes:  []gocbcore.ServiceType{gocbcore.MemdService},
+		RetryStrategy: &retryStrategy{},
+	}
+
+	signal := make(chan error, 1)
+	_, err = agent.WaitUntilReady(time.Now().Add(AgentSetupTimeoutMS),
+		options, func(res *gocbcore.WaitUntilReadyResult, er error) {
+			signal <- er
+		})
+
+	if err == nil {
+		err = <-signal
+	}
+
+	if err != nil {
+		go agent.Close()
 		return nil, util.N1QLError(err, "")
 	}
 
@@ -224,11 +258,12 @@ func (i *FTSIndexer) SetConnectionSecurityConfig(
 }
 
 // Close is an implementation of io.Closer interface
-// It is recommended that query calls Close on the FTSIndexer
+// It is recommended that query call Close on the FTSIndexer
 // object once its usage is over, for a graceful cleanup.
 func (i *FTSIndexer) Close() error {
 	i.cfg.unSubscribe(i.namespace + "$" + i.bucket + "$" + i.scope + "$" + i.keyspace)
 	close(i.closeCh)
+	go i.agent.Close()
 	return nil
 }
 
@@ -370,7 +405,6 @@ func (i *FTSIndexer) refresh(configMutexAcquired bool) errors.Error {
 	if err != nil {
 		return util.N1QLError(err, "refresh failed")
 	}
-
 
 	// even with a forced refresh, if index/node definitions are nil,
 	// then no need to spin supporting routines or
