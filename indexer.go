@@ -25,23 +25,23 @@ import (
 	"github.com/couchbase/cbauth"
 	"github.com/couchbase/cbft"
 	"github.com/couchbase/cbgt"
-	"github.com/couchbase/gocbcore/v9"
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/expression"
 	"github.com/couchbase/query/logging"
 	"github.com/couchbase/query/value"
+	"gopkg.in/couchbase/gocbcore.v7"
 )
 
 const VERSION = 1
 
 var ConnectTimeoutMS = time.Duration(60000 * time.Millisecond)
-var KVConnectTimeoutMS = time.Duration(7000 * time.Millisecond)
-var AgentSetupTimeoutMS = time.Duration(10000 * time.Millisecond)
+var ServerConnectTimeoutMS = time.Duration(7000 * time.Millisecond)
+var NmvRetryDelayMS = time.Duration(100 * time.Millisecond)
 
-var BackfillMonitoringIntervalMS = 1000 // 1s
-var StatsLoggingIntervalMS = 60000      // 60s
+var BackfillMonitoringIntervalMS = time.Duration(1000 * time.Millisecond)
+var StatsLoggingIntervalMS = time.Duration(60000 * time.Millisecond)
 
 // FTSIndexer implements datastore.Indexer interface
 type FTSIndexer struct {
@@ -109,30 +109,19 @@ func NewFTSIndexer2(serverIn, namespace, bucket, scope, keyspace string) (
 
 // -----------------------------------------------------------------------------
 
-type retryStrategy struct{}
-
-func (rs *retryStrategy) RetryAfter(req gocbcore.RetryRequest,
-	reason gocbcore.RetryReason) gocbcore.RetryAction {
-	if reason == gocbcore.BucketNotReadyReason {
-		return &gocbcore.WithDurationRetryAction{
-			WithDuration: gocbcore.ControlledBackoff(req.RetryAttempts()),
-		}
-	}
-
-	return &gocbcore.NoRetryRetryAction{}
-}
-
 func newFTSIndexer(serverIn, namespace, bucket, scope, collection, keyspace string) (
 	datastore.Indexer, errors.Error) {
 	server, _, bucketName :=
 		cbgt.CouchbaseParseSourceName(serverIn, "default", bucket)
 
 	conf := &gocbcore.AgentConfig{
-		UserAgent:        "n1fty",
-		BucketName:       bucketName,
-		ConnectTimeout:   ConnectTimeoutMS,
-		KVConnectTimeout: KVConnectTimeoutMS,
-		Auth:             &Authenticator{},
+		UserString:           "n1fty",
+		BucketName:           bucketName,
+		ConnectTimeout:       ConnectTimeoutMS,
+		ServerConnectTimeout: ServerConnectTimeoutMS,
+		NmvRetryDelay:        NmvRetryDelayMS,
+		UseKvErrorMaps:       true,
+		Auth:                 &Authenticator{},
 	}
 
 	svrs := strings.Split(server, ";")
@@ -148,27 +137,6 @@ func newFTSIndexer(serverIn, namespace, bucket, scope, collection, keyspace stri
 
 	agent, err := gocbcore.CreateAgent(conf)
 	if err != nil {
-		return nil, util.N1QLError(err, "")
-	}
-
-	options := gocbcore.WaitUntilReadyOptions{
-		DesiredState:  gocbcore.ClusterStateOnline,
-		ServiceTypes:  []gocbcore.ServiceType{gocbcore.MemdService},
-		RetryStrategy: &retryStrategy{},
-	}
-
-	signal := make(chan error, 1)
-	_, err = agent.WaitUntilReady(time.Now().Add(AgentSetupTimeoutMS),
-		options, func(res *gocbcore.WaitUntilReadyResult, er error) {
-			signal <- er
-		})
-
-	if err == nil {
-		err = <-signal
-	}
-
-	if err != nil {
-		go agent.Close()
 		return nil, util.N1QLError(err, "")
 	}
 
@@ -207,19 +175,6 @@ func (a *Authenticator) Credentials(req gocbcore.AuthCredsRequest) (
 		Username: username,
 		Password: password,
 	}}, nil
-}
-
-func (a *Authenticator) Certificate(req gocbcore.AuthCertRequest) (
-	*tls.Certificate, error) {
-	return nil, nil
-}
-
-func (a *Authenticator) SupportsTLS() bool {
-	return true
-}
-
-func (a *Authenticator) SupportsNonTLS() bool {
-	return true
 }
 
 // -----------------------------------------------------------------------------
@@ -453,10 +408,9 @@ func (i *FTSIndexer) refresh(configMutexAcquired bool) errors.Error {
 	// supporting go routines.
 	i.init.Do(func() {
 
-		go backfillMonitor(
-			time.Duration(BackfillMonitoringIntervalMS)*time.Millisecond, i)
+		go backfillMonitor(BackfillMonitoringIntervalMS, i)
 
-		go logStats(time.Duration(StatsLoggingIntervalMS)*time.Millisecond, i)
+		go logStats(StatsLoggingIntervalMS, i)
 
 		i.cfg.initConfig()
 
@@ -560,7 +514,7 @@ func (i *FTSIndexer) fetchBleveMaxResultWindow() (int, error) {
 		return 0, err
 	}
 
-	httpClient := i.agent.HTTPClient()
+	httpClient := i.agent.HttpClient()
 	if httpClient == nil {
 		return 0, fmt.Errorf("client not available")
 	}
