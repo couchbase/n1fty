@@ -208,7 +208,7 @@ func (p *WrapNamespace) BucketByName(name string) (datastore.Bucket, errors.Erro
 	return p.W.BucketByName(name)
 }
 
-func (p *WrapNamespace) Objects() ([]datastore.Object, errors.Error) {
+func (p *WrapNamespace) Objects(x bool) ([]datastore.Object, errors.Error) {
 	return nil, nil
 }
 
@@ -309,4 +309,8 @@ func (b *WrapKeyspace) Size(ctx datastore.QueryContext) (int64, errors.Error) {
 
 func (b *WrapKeyspace) Flush() errors.Error {
 	return nil
+}
+
+func (b *WrapKeyspace) Uid() string {
+	return ""
 }
