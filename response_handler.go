@@ -18,9 +18,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -323,72 +321,8 @@ func (r *responseHandler) sendEntries(hits []byte, conn *datastore.IndexConnecti
 	return true
 }
 
-func logStats(logtick time.Duration, i *FTSIndexer) {
-	tick := time.NewTicker(logtick)
-	defer tick.Stop()
-
-	var sofar int64
-	for {
-		select {
-		case <-i.closeCh:
-			return
-
-		case <-tick.C:
-			searchDur := atomic.LoadInt64(&i.stats.TotalSearchDuration)
-			n1qlDur := atomic.LoadInt64(&i.stats.TotalThrottledN1QLDuration)
-			ftsDur := atomic.LoadInt64(&i.stats.TotalThrottledFtsDuration)
-			ttfbDur := atomic.LoadInt64(&i.stats.TotalTTFBDuration)
-			totalSearch := atomic.LoadInt64(&i.stats.TotalSearch)
-			totalBackfills := atomic.LoadInt64(&i.stats.TotalBackFills)
-
-			if totalSearch > sofar {
-				fmsg := `n1fty keyspace: %q {` +
-					`"n1fty_search_count":%v,"n1fty_search_duration":%v,` +
-					`"n1fty_fts_duration":%v,` +
-					`"n1fty_ttfb_duration":%v,"n1fty_n1ql_duration":%v,` +
-					`"n1fty_totalbackfills":%v}`
-				logging.Infof(
-					fmsg, i.keyspace, totalSearch, searchDur,
-					ftsDur, ttfbDur, n1qlDur, totalBackfills)
-			}
-			sofar = totalSearch
-		}
-	}
-}
-
-func backfillMonitor(period time.Duration, i *FTSIndexer) {
-	tick := time.NewTicker(period)
-	defer tick.Stop()
-
-	for {
-		select {
-		case <-i.closeCh:
-			return
-
-		case <-tick.C:
-			backfillDir := getBackfillSpaceDir()
-
-			files, err := ioutil.ReadDir(backfillDir)
-			if err != nil {
-				return
-			}
-
-			var size int64
-			for _, file := range files {
-				fname := path.Join(backfillDir, file.Name())
-				if strings.Contains(fname, backfillPrefix) {
-					size += file.Size()
-				}
-			}
-
-			atomic.StoreInt64(&i.stats.CurBackFillSize, size)
-		}
-	}
-}
-
 // TODO: need to cleanup any orphaned backfill subdirs from last time
 // if there was a process crash and restart?
-
 func initBackFill(logPrefix, requestID string, rh *responseHandler) (*gob.Encoder,
 	*gob.Decoder, *os.File, error) {
 	prefix := backfillPrefix + strconv.Itoa(os.Getpid())

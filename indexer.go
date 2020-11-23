@@ -40,9 +40,6 @@ var ConnectTimeoutMS = time.Duration(60000 * time.Millisecond)
 var ServerConnectTimeoutMS = time.Duration(7000 * time.Millisecond)
 var NmvRetryDelayMS = time.Duration(100 * time.Millisecond)
 
-var BackfillMonitoringIntervalMS = time.Duration(1000 * time.Millisecond)
-var StatsLoggingIntervalMS = time.Duration(60000 * time.Millisecond)
-
 // FTSIndexer implements datastore.Indexer interface
 type FTSIndexer struct {
 	serverURL  string
@@ -217,6 +214,7 @@ func (i *FTSIndexer) SetConnectionSecurityConfig(
 // object once its usage is over, for a graceful cleanup.
 func (i *FTSIndexer) Close() error {
 	i.cfg.unSubscribe(i.namespace + "$" + i.bucket + "$" + i.scope + "$" + i.keyspace)
+	mr.unregisterIndexer(i)
 	close(i.closeCh)
 	go i.agent.Close()
 	return nil
@@ -407,10 +405,7 @@ func (i *FTSIndexer) refresh(configMutexAcquired bool) errors.Error {
 	// looks good for the given FTSIndexer and hence spin off the
 	// supporting go routines.
 	i.init.Do(func() {
-
-		go backfillMonitor(BackfillMonitoringIntervalMS, i)
-
-		go logStats(StatsLoggingIntervalMS, i)
+		mr.registerIndexer(i)
 
 		i.cfg.initConfig()
 
