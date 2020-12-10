@@ -314,3 +314,8 @@ func (b *WrapKeyspace) Flush() errors.Error {
 func (b *WrapKeyspace) Uid() string {
 	return ""
 }
+
+func (b *WrapKeyspace) Stats(ctx datastore.QueryContext,
+	which []datastore.KeyspaceStats) ([]int64, errors.Error) {
+	return []int64{}, nil
+}
