@@ -22,7 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/couchbase/cbauth"
 	"github.com/couchbase/cbft"
 	"github.com/couchbase/cbgt"
 	"github.com/couchbase/n1fty/util"
@@ -35,10 +34,6 @@ import (
 )
 
 const VERSION = 1
-
-var ConnectTimeoutMS = time.Duration(60000 * time.Millisecond)
-var ServerConnectTimeoutMS = time.Duration(7000 * time.Millisecond)
-var NmvRetryDelayMS = time.Duration(100 * time.Millisecond)
 
 // FTSIndexer implements datastore.Indexer interface
 type FTSIndexer struct {
@@ -111,28 +106,13 @@ func newFTSIndexer(serverIn, namespace, bucket, scope, collection, keyspace stri
 	server, _, bucketName :=
 		cbgt.CouchbaseParseSourceName(serverIn, "default", bucket)
 
-	conf := &gocbcore.AgentConfig{
-		UserString:           "n1fty",
-		BucketName:           bucketName,
-		ConnectTimeout:       ConnectTimeoutMS,
-		ServerConnectTimeout: ServerConnectTimeoutMS,
-		NmvRetryDelay:        NmvRetryDelayMS,
-		UseKvErrorMaps:       true,
-		Auth:                 &Authenticator{},
-	}
-
 	svrs := strings.Split(server, ";")
 	if len(svrs) <= 0 {
 		return nil, util.N1QLError(fmt.Errorf(
 			"NewFTSIndexer2, no servers provided"), "")
 	}
 
-	err := conf.FromConnStr(svrs[0])
-	if err != nil {
-		return nil, util.N1QLError(err, "")
-	}
-
-	agent, err := gocbcore.CreateAgent(conf)
+	agent, err := agentMap.acquireAgent(svrs[0], bucketName)
 	if err != nil {
 		return nil, util.N1QLError(err, "")
 	}
@@ -141,7 +121,7 @@ func newFTSIndexer(serverIn, namespace, bucket, scope, collection, keyspace stri
 		serverURL:       svrs[0],
 		namespace:       namespace,
 		keyspace:        keyspace,
-		bucket:          bucket,
+		bucket:          bucketName,
 		scope:           scope,
 		collection:      collection,
 		collectionAware: collection == keyspace,
@@ -152,26 +132,6 @@ func newFTSIndexer(serverIn, namespace, bucket, scope, collection, keyspace stri
 	}
 
 	return indexer, nil
-}
-
-type Authenticator struct{}
-
-func (a *Authenticator) Credentials(req gocbcore.AuthCredsRequest) (
-	[]gocbcore.UserPassPair, error) {
-	endpoint := req.Endpoint
-
-	// get rid of the http:// or https:// prefix from the endpoint
-	endpoint = strings.TrimPrefix(strings.TrimPrefix(
-		endpoint, "http://"), "https://")
-	username, password, err := cbauth.GetMemcachedServiceAuth(endpoint)
-	if err != nil {
-		return []gocbcore.UserPassPair{{}}, err
-	}
-
-	return []gocbcore.UserPassPair{{
-		Username: username,
-		Password: password,
-	}}, nil
 }
 
 // -----------------------------------------------------------------------------
@@ -216,7 +176,7 @@ func (i *FTSIndexer) Close() error {
 	i.cfg.unSubscribe(i.namespace + "$" + i.bucket + "$" + i.scope + "$" + i.keyspace)
 	mr.unregisterIndexer(i)
 	close(i.closeCh)
-	go i.agent.Close()
+	agentMap.releaseAgent(i.bucket)
 	return nil
 }
 
