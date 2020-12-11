@@ -56,6 +56,8 @@ type FTSIndexer struct {
 	// sync RWMutex protects following fields
 	m sync.RWMutex
 
+	closed bool
+
 	client   *ftsClient
 	nodeDefs *cbgt.NodeDefs
 
@@ -173,6 +175,14 @@ func (i *FTSIndexer) SetConnectionSecurityConfig(
 // It is recommended that query call Close on the FTSIndexer
 // object once its usage is over, for a graceful cleanup.
 func (i *FTSIndexer) Close() error {
+	i.m.Lock()
+	if i.closed {
+		i.m.Unlock()
+		return nil
+	}
+	i.closed = true
+	i.m.Unlock()
+
 	i.cfg.unSubscribe(i.namespace + "$" + i.bucket + "$" + i.scope + "$" + i.keyspace)
 	mr.unregisterIndexer(i)
 	close(i.closeCh)
