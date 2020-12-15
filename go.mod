@@ -12,6 +12,8 @@ replace github.com/couchbase/eventing-ee => ../eventing-ee
 
 replace github.com/couchbase/go-couchbase => ../go-couchbase
 
+replace github.com/couchbase/gomemcached => ../gomemcached
+
 replace github.com/couchbase/go_json => ../go_json
 
 replace github.com/couchbase/indexing => ../indexing
