@@ -24,13 +24,13 @@ import (
 
 	"github.com/couchbase/cbft"
 	"github.com/couchbase/cbgt"
+	"github.com/couchbase/gocbcore/v9"
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/expression"
 	"github.com/couchbase/query/logging"
 	"github.com/couchbase/query/value"
-	"gopkg.in/couchbase/gocbcore.v7"
 )
 
 const VERSION = 1
@@ -479,7 +479,7 @@ func (i *FTSIndexer) fetchBleveMaxResultWindow() (int, error) {
 		return 0, err
 	}
 
-	httpClient := i.agent.HttpClient()
+	httpClient := i.agent.HTTPClient()
 	if httpClient == nil {
 		return 0, fmt.Errorf("client not available")
 	}

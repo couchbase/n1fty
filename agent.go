@@ -12,18 +12,19 @@
 package n1fty
 
 import (
+	"crypto/tls"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/couchbase/cbauth"
-	"github.com/couchbase/n1fty/util"
-	"gopkg.in/couchbase/gocbcore.v7"
+	"github.com/couchbase/gocbcore/v9"
 )
 
 var ConnectTimeoutMS = time.Duration(60000 * time.Millisecond)
-var ServerConnectTimeoutMS = time.Duration(7000 * time.Millisecond)
-var NmvRetryDelayMS = time.Duration(100 * time.Millisecond)
+var KVConnectTimeoutMS = time.Duration(7000 * time.Millisecond)
+var AgentSetupTimeoutMS = time.Duration(10000 * time.Millisecond)
 
 // -----------------------------------------------------------------------------
 
@@ -86,23 +87,72 @@ func (am *gocbcoreAgentMap) releaseAgent(bucket string) {
 
 // -----------------------------------------------------------------------------
 
+
+type retryStrategy struct{}
+
+func (rs *retryStrategy) RetryAfter(req gocbcore.RetryRequest,
+	reason gocbcore.RetryReason) gocbcore.RetryAction {
+	if reason == gocbcore.BucketNotReadyReason {
+		return &gocbcore.WithDurationRetryAction{
+			WithDuration: gocbcore.ControlledBackoff(req.RetryAttempts()),
+		}
+	}
+
+	return &gocbcore.NoRetryRetryAction{}
+}
+
 func setupAgent(server, bucket string) (*gocbcore.Agent, error) {
 	conf := &gocbcore.AgentConfig{
-		UserString:           "n1fty",
-		BucketName:           bucket,
-		ConnectTimeout:       ConnectTimeoutMS,
-		ServerConnectTimeout: ServerConnectTimeoutMS,
-		NmvRetryDelay:        NmvRetryDelayMS,
-		UseKvErrorMaps:       true,
-		Auth:                 &Authenticator{},
+		UserAgent:        "n1fty",
+		BucketName:       bucket,
+		ConnectTimeout:   ConnectTimeoutMS,
+		KVConnectTimeout: KVConnectTimeoutMS,
+		Auth:             &Authenticator{},
 	}
 
-	err := conf.FromConnStr(server)
+	connStr := server
+	if connURL, err := url.Parse(server); err == nil {
+		if strings.HasPrefix(connURL.Scheme, "http") {
+			// tack on an option: bootstrap_on=http for gocbcore SDK
+			// connections to force HTTP config polling
+			if ret, err := connURL.Parse("?bootstrap_on=http"); err == nil {
+				connStr = ret.String()
+			}
+		}
+	}
+
+	err := conf.FromConnStr(connStr)
 	if err != nil {
-		return nil, util.N1QLError(err, "")
+		return nil, err
 	}
 
-	return gocbcore.CreateAgent(conf)
+	agent, err := gocbcore.CreateAgent(conf)
+	if err != nil {
+		return nil, err
+	}
+
+	options := gocbcore.WaitUntilReadyOptions{
+		DesiredState:  gocbcore.ClusterStateOnline,
+		ServiceTypes:  []gocbcore.ServiceType{gocbcore.MemdService},
+		RetryStrategy: &retryStrategy{},
+	}
+
+	signal := make(chan error, 1)
+	_, err = agent.WaitUntilReady(time.Now().Add(AgentSetupTimeoutMS),
+		options, func(res *gocbcore.WaitUntilReadyResult, er error) {
+			signal <- er
+		})
+
+	if err == nil {
+		err = <-signal
+	}
+
+	if err != nil {
+		go agent.Close()
+		return nil, err
+	}
+
+	return agent, nil
 }
 
 type Authenticator struct{}
@@ -123,4 +173,17 @@ func (a *Authenticator) Credentials(req gocbcore.AuthCredsRequest) (
 		Username: username,
 		Password: password,
 	}}, nil
+}
+
+func (a *Authenticator) Certificate(req gocbcore.AuthCertRequest) (
+	*tls.Certificate, error) {
+	return nil, nil
+}
+
+func (a *Authenticator) SupportsTLS() bool {
+	return true
+}
+
+func (a *Authenticator) SupportsNonTLS() bool {
+	return true
 }
