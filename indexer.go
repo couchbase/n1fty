@@ -609,15 +609,3 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 
 	return rv, nil
 }
-
-func (i *FTSIndexer) supportedByCluster() bool {
-	i.m.RLock()
-	defer i.m.RUnlock()
-
-	if i.collectionAware {
-		return (cbgt.IsFeatureSupportedByCluster(cbft.FeatureGRPC, i.nodeDefs) &&
-			cbgt.IsFeatureSupportedByCluster(cbft.FeatureCollections, i.nodeDefs))
-	}
-
-	return cbgt.IsFeatureSupportedByCluster(cbft.FeatureGRPC, i.nodeDefs)
-}

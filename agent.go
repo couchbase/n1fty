@@ -87,7 +87,6 @@ func (am *gocbcoreAgentMap) releaseAgent(bucket string) {
 
 // -----------------------------------------------------------------------------
 
-
 type retryStrategy struct{}
 
 func (rs *retryStrategy) RetryAfter(req gocbcore.RetryRequest,
