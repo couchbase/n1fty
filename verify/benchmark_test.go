@@ -14,12 +14,12 @@ package verify
 import (
 	"testing"
 
-	"github.com/blevesearch/bleve"
-	"github.com/blevesearch/bleve/document"
-	"github.com/blevesearch/bleve/index/store/gtreap"
-	"github.com/blevesearch/bleve/index/store/moss"
-	"github.com/blevesearch/bleve/index/upsidedown"
-	"github.com/blevesearch/bleve/mapping"
+	"github.com/blevesearch/bleve/v2"
+	"github.com/blevesearch/bleve/v2/document"
+	"github.com/blevesearch/bleve/v2/index/upsidedown"
+	"github.com/blevesearch/bleve/v2/index/upsidedown/store/gtreap"
+	"github.com/blevesearch/bleve/v2/index/upsidedown/store/moss"
+	"github.com/blevesearch/bleve/v2/mapping"
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/value"
 
@@ -171,8 +171,9 @@ func benchmarkMossOptimizable(b *testing.B,
 	idx, m, docs := initIndexAndDocs(moss.Name, kvConfig, b)
 	sr := fetchSearchRequest(b)
 
-	bleveIndex, kvstore, _ := idx.Advanced()
+	bleveIndex, _ := idx.Advanced()
 	udc := bleveIndex.(*upsidedown.UpsideDownCouch)
+	kvstore, _ := udc.Advanced()
 	collh := kvstore.(CollectionHolder)
 	coll := collh.Collection()
 

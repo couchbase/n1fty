@@ -16,7 +16,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/blevesearch/bleve/mapping"
+	"github.com/blevesearch/bleve/v2/mapping"
 
 	"github.com/couchbase/n1fty/util"
 )

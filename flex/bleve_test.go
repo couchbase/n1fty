@@ -14,7 +14,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/blevesearch/bleve/mapping"
+	"github.com/blevesearch/bleve/v2/mapping"
 )
 
 func TestBleveToCondFlexIndexesSimple(t *testing.T) {

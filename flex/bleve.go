@@ -16,7 +16,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/blevesearch/bleve/mapping"
+	"github.com/blevesearch/bleve/v2/mapping"
 	"github.com/couchbase/cbft"
 	"github.com/couchbase/query/expression"
 	"github.com/couchbase/query/value"

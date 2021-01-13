@@ -15,11 +15,11 @@ import (
 	"math"
 	"sync"
 
-	"github.com/blevesearch/bleve"
-	"github.com/blevesearch/bleve/document"
-	"github.com/blevesearch/bleve/index/store/moss"
-	"github.com/blevesearch/bleve/index/upsidedown"
-	"github.com/blevesearch/bleve/mapping"
+	"github.com/blevesearch/bleve/v2"
+	"github.com/blevesearch/bleve/v2/document"
+	"github.com/blevesearch/bleve/v2/index/upsidedown"
+	"github.com/blevesearch/bleve/v2/index/upsidedown/store/moss"
+	"github.com/blevesearch/bleve/v2/mapping"
 
 	"github.com/couchbase/cbft"
 	mo "github.com/couchbase/moss"
@@ -146,7 +146,7 @@ func (v *VerifyCtx) initVerifyCtx() errors.Error {
 	}
 
 	// fetch upsidedown & moss collection associated with underlying store
-	bleveIndex, kvstore, err := idx.Advanced()
+	bleveIndex, err := idx.Advanced()
 	if err != nil {
 		return util.N1QLError(err, "idx.Advanced error")
 	}
@@ -154,6 +154,11 @@ func (v *VerifyCtx) initVerifyCtx() errors.Error {
 	udc, ok := bleveIndex.(*upsidedown.UpsideDownCouch)
 	if !ok {
 		return util.N1QLError(nil, "expected UpsideDownCouch")
+	}
+
+	kvstore, err := udc.Advanced()
+	if err != nil {
+		return util.N1QLError(err, "upsidedown idx.Advanced error")
 	}
 
 	collh, ok := kvstore.(CollectionHolder)

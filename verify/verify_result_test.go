@@ -15,8 +15,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/blevesearch/bleve"
-	"github.com/blevesearch/bleve/mapping"
+	"github.com/blevesearch/bleve/v2"
+	"github.com/blevesearch/bleve/v2/mapping"
 	"github.com/couchbase/cbft"
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/value"

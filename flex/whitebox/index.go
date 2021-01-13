@@ -15,7 +15,7 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
-	"github.com/blevesearch/bleve/mapping"
+	"github.com/blevesearch/bleve/v2/mapping"
 
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
@@ -25,12 +25,8 @@ import (
 	"github.com/couchbase/n1fty/flex"
 	"github.com/couchbase/n1fty/util"
 
-	"github.com/blevesearch/bleve"
-	"github.com/blevesearch/bleve/search/query"
-
-	_ "github.com/blevesearch/bleve/config"
-	_ "github.com/blevesearch/bleve/index/store/gtreap"
-	_ "github.com/blevesearch/bleve/index/store/moss"
+	"github.com/blevesearch/bleve/v2"
+	"github.com/blevesearch/bleve/v2/search/query"
 )
 
 type LastSargableFlex struct {

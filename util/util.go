@@ -19,9 +19,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/blevesearch/bleve"
-	"github.com/blevesearch/bleve/mapping"
-	"github.com/blevesearch/bleve/search/query"
+	"github.com/blevesearch/bleve/v2"
+	"github.com/blevesearch/bleve/v2/mapping"
+	"github.com/blevesearch/bleve/v2/search/query"
 	"github.com/couchbase/cbft"
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/value"
