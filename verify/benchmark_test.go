@@ -20,17 +20,18 @@ import (
 	"github.com/blevesearch/bleve/v2/index/upsidedown/store/gtreap"
 	"github.com/blevesearch/bleve/v2/index/upsidedown/store/moss"
 	"github.com/blevesearch/bleve/v2/mapping"
+	"github.com/blevesearch/sear"
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/value"
 
 	mo "github.com/couchbase/moss"
 )
 
-func initIndexAndDocs(index string, kvConfig map[string]interface{},
+func initIndexAndDocs(indexType, kvstore string, kvConfig map[string]interface{},
 	b *testing.B) (bleve.Index, mapping.IndexMapping, []value.Value) {
 	idxMapping := bleve.NewIndexMapping()
 
-	idx, err := bleve.NewUsing("", idxMapping, upsidedown.Name, index, kvConfig)
+	idx, err := bleve.NewUsing("", idxMapping, indexType, kvstore, kvConfig)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -72,31 +73,43 @@ func fetchSearchRequest(b *testing.B) *bleve.SearchRequest {
 }
 
 func BenchmarkInMemGtreapUpdates(b *testing.B) {
-	benchmarkUpdates(gtreap.Name, b)
+	benchmarkUpdates(upsidedown.Name, gtreap.Name, b)
 }
 
 func BenchmarkInMemGtreapUpdateAndSearch(b *testing.B) {
-	benchmarkUpdateAndSearch(gtreap.Name, b)
+	benchmarkUpdateAndSearch(upsidedown.Name, gtreap.Name, b)
 }
 
 func BenchmarkInMemGtreapUpdateSearchAndDelete(b *testing.B) {
-	benchmarkUpdateSearchAndDelete(gtreap.Name, b)
+	benchmarkUpdateSearchAndDelete(upsidedown.Name, gtreap.Name, b)
 }
 
 func BenchmarkInMemMossIndexUpdates(b *testing.B) {
-	benchmarkUpdates(moss.Name, b)
+	benchmarkUpdates(upsidedown.Name, moss.Name, b)
 }
 
 func BenchmarkInMemMossIndexUpdateAndSearch(b *testing.B) {
-	benchmarkUpdateAndSearch(moss.Name, b)
+	benchmarkUpdateAndSearch(upsidedown.Name, moss.Name, b)
 }
 
 func BenchmarkInMemMossIndexUpdateSearchAndDelete(b *testing.B) {
-	benchmarkUpdateSearchAndDelete(moss.Name, b)
+	benchmarkUpdateSearchAndDelete(upsidedown.Name, moss.Name, b)
 }
 
-func benchmarkUpdates(index string, b *testing.B) {
-	idx, _, docs := initIndexAndDocs(index, nil, b)
+func BenchmarkSearIndexUpdates(b *testing.B) {
+	benchmarkUpdates(sear.Name, sear.Name, b)
+}
+
+func BenchmarkSearIndexUpdateAndSearch(b *testing.B) {
+	benchmarkUpdateAndSearch(sear.Name, sear.Name, b)
+}
+
+func BenchmarkSearIndexUpdateSearchAndDelete(b *testing.B) {
+	benchmarkUpdateSearchAndDelete(sear.Name, sear.Name, b)
+}
+
+func benchmarkUpdates(indexType, kvstore string, b *testing.B) {
+	idx, _, docs := initIndexAndDocs(indexType, kvstore, nil, b)
 
 	b.ResetTimer()
 
@@ -108,8 +121,8 @@ func benchmarkUpdates(index string, b *testing.B) {
 	}
 }
 
-func benchmarkUpdateAndSearch(index string, b *testing.B) {
-	idx, _, docs := initIndexAndDocs(index, nil, b)
+func benchmarkUpdateAndSearch(indexType, kvstore string, b *testing.B) {
+	idx, _, docs := initIndexAndDocs(indexType, kvstore, nil, b)
 	sr := fetchSearchRequest(b)
 
 	b.ResetTimer()
@@ -127,8 +140,8 @@ func benchmarkUpdateAndSearch(index string, b *testing.B) {
 	}
 }
 
-func benchmarkUpdateSearchAndDelete(index string, b *testing.B) {
-	idx, _, docs := initIndexAndDocs(index, nil, b)
+func benchmarkUpdateSearchAndDelete(indexType, kvstore string, b *testing.B) {
+	idx, _, docs := initIndexAndDocs(indexType, kvstore, nil, b)
 	sr := fetchSearchRequest(b)
 
 	b.ResetTimer()
@@ -168,7 +181,7 @@ func benchmarkMossOptimizable(b *testing.B,
 		mo.SkipStats = oldSkipStats
 	}()
 
-	idx, m, docs := initIndexAndDocs(moss.Name, kvConfig, b)
+	idx, m, docs := initIndexAndDocs(upsidedown.Name, moss.Name, kvConfig, b)
 	sr := fetchSearchRequest(b)
 
 	bleveIndex, _ := idx.Advanced()
