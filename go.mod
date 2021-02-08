@@ -29,12 +29,12 @@ replace github.com/couchbase/cbftx => ../../../../../cbftx
 replace github.com/couchbase/cbgt => ../../../../../cbgt
 
 require (
-	github.com/blevesearch/bleve/v2 v2.0.1
+	github.com/blevesearch/bleve/v2 v2.0.2-0.20210208151822-36861ddf9f6d
 	github.com/buger/jsonparser v1.0.0
 	github.com/couchbase/cbauth v0.0.0-20200923220950-efdafddb9bd2
 	github.com/couchbase/cbft v0.0.0-00010101000000-000000000000
 	github.com/couchbase/cbgt v0.0.0-00010101000000-000000000000
-	github.com/couchbase/gocbcore/v9 v9.1.0
+	github.com/couchbase/gocbcore/v9 v9.1.2-0.20210121173748-9dee6deec0a9
 	github.com/couchbase/moss v0.1.0
 	github.com/couchbase/query v0.0.0-00010101000000-000000000000
 	google.golang.org/grpc v1.24.0
