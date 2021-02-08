@@ -151,6 +151,10 @@ func (s *WrapDatastore) HasSystemCBOStats() (bool, errors.Error) {
 	return false, nil
 }
 
+func (s *WrapDatastore) EnableStorageAudit(val bool) {
+
+}
+
 // ------------------------------------------------------------------------
 
 type WrapNamespace struct {
