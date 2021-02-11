@@ -20,8 +20,6 @@ replace github.com/couchbase/indexing => ../indexing
 
 replace github.com/couchbase/plasma => ../plasma
 
-replace github.com/couchbaselabs/gocbcore-transactions => ../../couchbaselabs/gocbcore-transactions
-
 replace github.com/couchbase/cbft => ../../../../../cbft
 
 replace github.com/couchbase/cbftx => ../../../../../cbftx
