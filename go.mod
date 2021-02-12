@@ -27,7 +27,7 @@ replace github.com/couchbase/cbftx => ../../../../../cbftx
 replace github.com/couchbase/cbgt => ../../../../../cbgt
 
 require (
-	github.com/blevesearch/bleve/v2 v2.0.2-0.20210208151822-36861ddf9f6d
+	github.com/blevesearch/bleve/v2 v2.0.2
 	github.com/buger/jsonparser v1.0.0
 	github.com/couchbase/cbauth v0.0.0-20200923220950-efdafddb9bd2
 	github.com/couchbase/cbft v0.0.0-00010101000000-000000000000
