@@ -539,9 +539,9 @@ func ProcessDocumentMapping(im *mapping.IndexMappingImpl,
 func FetchFieldsToSearchFromQuery(que query.Query) (map[SearchField]struct{}, error) {
 	queryFields := map[SearchField]struct{}{}
 
-	var walk func(que query.Query)
+	var walk func(que query.Query) error
 
-	walk = func(que query.Query) {
+	walk = func(que query.Query) error {
 		switch qq := que.(type) {
 		case *query.BooleanQuery:
 			walk(qq.Must)
@@ -555,6 +555,12 @@ func FetchFieldsToSearchFromQuery(que query.Query) (map[SearchField]struct{}, er
 			for _, childQ := range qq.Disjuncts {
 				walk(childQ)
 			}
+		case *query.QueryStringQuery:
+			q, err := qq.Parse()
+			if err != nil {
+				return err
+			}
+			walk(q)
 		default:
 			if fq, ok := que.(query.FieldableQuery); ok {
 				fieldDesc := SearchField{
@@ -598,9 +604,14 @@ func FetchFieldsToSearchFromQuery(que query.Query) (map[SearchField]struct{}, er
 			//   - *query.MatchAllQuery
 			//   - *query.MatchNoneQuery
 		}
+
+		return nil
 	}
 
-	walk(que)
+	err := walk(que)
+	if err != nil {
+		return nil, err
+	}
 
 	return queryFields, nil
 }

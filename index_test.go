@@ -239,7 +239,7 @@ func TestCustomIndexSargabilityNoFieldsQuery(t *testing.T) {
 		t.Fatal(n1qlErr)
 	}
 
-	if count != 1 || indexedCount != 3 || !exact {
+	if count != 3 || indexedCount != 3 || !exact {
 		t.Fatal("Unexpected results from Index.Sargable(...) for query")
 	}
 }

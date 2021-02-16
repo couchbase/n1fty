@@ -15,6 +15,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/couchbase/query/value"
 )
 
 func TestBuildIndexMappingOnFields(t *testing.T) {
@@ -154,5 +156,32 @@ func TestBuildIndexMappingOnFields(t *testing.T) {
 
 	if !reflect.DeepEqual(expect, got) {
 		t.Fatalf("Expected:\n\t%v\nGot:\n\t%v", string(expectBytes), string(gotBytes))
+	}
+}
+
+// https://issues.couchbase.com/browse/MB-44356
+func TestParseQueryToSearchRequest(t *testing.T) {
+	expectQueryFields := map[SearchField]struct{}{
+		{Name: "app_name", Type: "text"}: struct{}{},
+	}
+
+	tests := []interface{}{
+		map[string]interface{}{"match": "dark", "field": "app_name"},
+		map[string]interface{}{"query": map[string]interface{}{"match": "dark", "field": "app_name"}},
+		`app_name:dark`,
+		map[string]interface{}{"query": "app_name:dark"},
+		map[string]interface{}{"query": map[string]interface{}{"query": "app_name:dark"}},
+	}
+
+	for _, test := range tests {
+		q := value.NewValue(test)
+		gotQueryFields, _, _, err := ParseQueryToSearchRequest("", q)
+		if err != nil {
+			t.Fatal(test, err)
+		}
+
+		if !reflect.DeepEqual(expectQueryFields, gotQueryFields) {
+			t.Fatal(test, gotQueryFields)
+		}
 	}
 }

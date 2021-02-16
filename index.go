@@ -545,7 +545,18 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			}
 		}
 		if compatibleWithDynamicMapping {
-			rv.count = len(queryFields)
+			var count int
+			for qf, _ := range queryFields {
+				if len(qf.Name) == 0 {
+					// if even a single sub-query doesn't have it's field set,
+					// reset count to 0, and overwrite sargable count to the
+					// number of fields indexed.
+					count = 0
+					break
+				}
+				count++
+			}
+			rv.count = count
 			if rv.count == 0 {
 				// if field(s) not provided or unavailable within query,
 				// search is applicable on all indexed fields.
@@ -595,6 +606,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		return true
 	}
 
+	var count int
 	for f := range queryFields {
 		if f.Name == "" {
 			// field name not provided/available
@@ -607,6 +619,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			continue
 		}
 
+		count++
 		if f.Type == "" {
 			// type isn't available, likely because query value wasn't available;
 			// check field name against all possible types
@@ -667,7 +680,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		}
 	}
 
-	rv.count = len(queryFields)
+	rv.count = count
 	if rv.count == 0 {
 		// if field(s) not provided or unavailable within query,
 		// index is not sargable if it does not support _all field
