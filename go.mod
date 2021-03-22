@@ -32,7 +32,7 @@ require (
 	github.com/couchbase/cbauth v0.0.0-20200923220950-efdafddb9bd2
 	github.com/couchbase/cbft v0.0.0-00010101000000-000000000000
 	github.com/couchbase/cbgt v0.0.0-00010101000000-000000000000
-	github.com/couchbase/gocbcore/v9 v9.1.2
+	github.com/couchbase/gocbcore/v9 v9.1.4-0.20210322184016-341fc70dc8ba
 	github.com/couchbase/moss v0.1.0
 	github.com/couchbase/query v0.0.0-00010101000000-000000000000
 	google.golang.org/grpc v1.24.0
