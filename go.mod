@@ -2,6 +2,8 @@ module github.com/couchbase/n1fty
 
 go 1.13
 
+replace github.com/couchbase/cbauth => ../cbauth
+
 replace github.com/couchbase/query => ../query
 
 replace github.com/couchbase/n1fty => ./empty
