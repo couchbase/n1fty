@@ -309,12 +309,23 @@ func (i *FTSIndexer) SetLogLevel(level logging.Level) {
 	logging.SetLevel(level)
 }
 
+func (i *FTSIndexer) reset() {
+	i.m.Lock()
+	i.indexIds = nil
+	i.indexNames = nil
+	i.allIndexes = nil
+	i.mapIndexesByID = nil
+	i.mapIndexesByName = nil
+	i.m.Unlock()
+}
+
 // -----------------------------------------------------------------------------
 
 func (i *FTSIndexer) refresh(configMutexAcquired bool) errors.Error {
 	// if no fts nodes available, then return
 	ftsEndpoints := i.agent.FtsEps()
 	if len(ftsEndpoints) == 0 {
+		i.reset()
 		return nil
 	}
 
@@ -334,6 +345,9 @@ func (i *FTSIndexer) refresh(configMutexAcquired bool) errors.Error {
 	// fetch the bleve max result window.
 	if len(mapIndexesByID) == 0 ||
 		nodeDefs == nil || len(nodeDefs.NodeDefs) == 0 {
+		// reset any previous valid states
+		i.reset()
+
 		// initialize the cfg (in case it hasn't been already)
 		// before returning so that the metakv changes will be subscribed
 		i.cfg.initConfig()
