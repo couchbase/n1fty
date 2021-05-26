@@ -111,7 +111,7 @@ func newFTSIndexer(serverIn, namespace, bucket, scope, collection, keyspace stri
 	svrs := strings.Split(server, ";")
 	if len(svrs) <= 0 {
 		return nil, util.N1QLError(fmt.Errorf(
-			"NewFTSIndexer2, no servers provided"), "")
+			"newFTSIndexer, no servers provided"), "")
 	}
 
 	agent, err := agentMap.acquireAgent(svrs[0], bucketName)
@@ -131,6 +131,18 @@ func newFTSIndexer(serverIn, namespace, bucket, scope, collection, keyspace stri
 		cfg:             srvConfig,
 		stats:           &stats{},
 		closeCh:         make(chan struct{}),
+	}
+
+	if len(scope) == 0 && len(collection) == 0 {
+		// Initialize scope and collection to _default for when query
+		// invokes NewFTSIndexer(..).
+		//
+		// This is needed because, query will use one indexer for both
+		// the bucket situation and bucket._default._default, so
+		// FTSIndexer1 will cater for indexes built against bucket and
+		// those built against bucket._default._default.
+		indexer.scope = "_default"
+		indexer.collection = "_default"
 	}
 
 	return indexer, nil
