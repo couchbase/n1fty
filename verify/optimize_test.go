@@ -269,7 +269,7 @@ func TestOptimizeIndexMapping(t *testing.T) {
 			searchFields[sf] = struct{}{}
 		}
 
-		mOut := OptimizeIndexMapping(m, searchFields)
+		mOut := OptimizeIndexMapping(m, "", "", searchFields)
 
 		var mExpect *mapping.IndexMappingImpl
 		err = json.Unmarshal([]byte(test.mappingExpect), &mExpect)

@@ -623,12 +623,13 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 
 			// set this index mapping into the indexMappings cache
 			util.SetIndexMapping(indexDef.Name, &util.MappingDetails{
-				UUID:       indexDef.UUID,
-				SourceName: indexDef.SourceName,
-				IMapping:   pip.IndexMapping,
-				DocConfig:  pip.DocConfig,
-				Scope:      i.scope,
-				Collection: i.collection,
+				UUID:         indexDef.UUID,
+				SourceName:   indexDef.SourceName,
+				IMapping:     pip.IndexMapping,
+				DocConfig:    pip.DocConfig,
+				TypeMappings: pip.TypeMappings,
+				Scope:        i.scope,
+				Collection:   i.collection,
 			})
 		}
 	}

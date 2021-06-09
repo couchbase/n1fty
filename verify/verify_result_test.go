@@ -318,12 +318,13 @@ func TestVerifyEvalWithScopeCollectionMapping(t *testing.T) {
 	}
 
 	util.SetIndexMapping("temp", &util.MappingDetails{
-		UUID:       "tempUUID",
-		SourceName: "temp_keyspace",
-		IMapping:   im,
-		DocConfig:  &bp.DocConfig,
-		Scope:      "scope1",
-		Collection: "collection1",
+		UUID:         "tempUUID",
+		SourceName:   "temp_keyspace",
+		IMapping:     im,
+		DocConfig:    &bp.DocConfig,
+		Scope:        "scope1",
+		Collection:   "collection1",
+		TypeMappings: []string{"airline"},
 	})
 
 	item := value.NewAnnotatedValue([]byte(`{
@@ -355,5 +356,283 @@ func TestVerifyEvalWithScopeCollectionMapping(t *testing.T) {
 
 	if !got {
 		t.Fatal("Expected key to pass evaluation")
+	}
+}
+
+func TestVerificationForVariousIndexes(t *testing.T) {
+	// This test verfies behavior for the following indexes ..
+	// - default mapping
+	// - _default scope, _default collection, default mapping
+	// - _default scope, _default collection, custom type mapping
+	// - custom scope, custom collection, default mapping
+	// - custom scope, custom collection, custom type mapping
+	// - multiple custom scope.collection.type mappings
+	//
+	// Related: MB46821, MB46547
+
+	tests := []struct {
+		indexName      string
+		sourceName     string
+		indexParams    []byte
+		scope          string
+		collection     string
+		typeMappings   []string
+		verifyKeyspace string
+	}{
+		{
+			indexName:  "temp_1",
+			sourceName: "temp_keyspace",
+			indexParams: []byte(`
+				{
+					"doc_config": {
+						"mode": "type_field",
+						"type_field": "type"
+					},
+					"mapping": {
+						"default_analyzer": "standard",
+						"default_field": "_all",
+						"default_mapping": {
+							"dynamic": true,
+							"enabled": true
+						},
+						"default_type": "_default",
+						"type_field": "_type"
+					},
+					"store": {
+						"indexType": "scorch"
+					}
+				}`),
+			verifyKeyspace: "temp_keyspace",
+		},
+		{
+			indexName:  "temp_2",
+			sourceName: "temp_keyspace",
+			indexParams: []byte(`
+			{
+				"doc_config": {
+					"mode": "scope.collection.type_field",
+					"type_field": "type"
+				},
+				"mapping": {
+					"default_analyzer": "standard",
+					"default_field": "_all",
+					"default_mapping": {
+						"enabled": false
+					},
+					"default_type": "_default",
+					"type_field": "_type",
+					"types": {
+						"_default._default": {
+							"dynamic": true,
+							"enabled": true
+						}
+					}
+				},
+				"store": {
+					"indexType": "scorch"
+				}
+			}`),
+			scope:          "_default",
+			collection:     "_default",
+			verifyKeyspace: "temp_keyspace._default._default",
+		},
+		{
+			indexName:  "temp_3",
+			sourceName: "temp_keyspace",
+			indexParams: []byte(`
+				{
+					"doc_config": {
+						"mode": "scope.collection.type_field",
+						"type_field": "type"
+					},
+					"mapping": {
+						"default_analyzer": "standard",
+						"default_field": "_all",
+						"default_mapping": {
+							"enabled": false
+						},
+						"default_type": "_default",
+						"type_field": "_type",
+						"types": {
+							"_default._default.typeX": {
+								"dynamic": true,
+								"enabled": true
+							}
+						}
+					},
+					"store": {
+						"indexType": "scorch"
+					}
+				}`),
+			scope:          "_default",
+			collection:     "_default",
+			typeMappings:   []string{"typeX"},
+			verifyKeyspace: "temp_keyspace._default._default",
+		},
+		{
+			indexName:  "temp_4",
+			sourceName: "temp_keyspace",
+			indexParams: []byte(`
+				{
+					"doc_config": {
+						"mode": "scope.collection.type_field",
+						"type_field": "type"
+					},
+					"mapping": {
+						"default_analyzer": "standard",
+						"default_field": "_all",
+						"default_mapping": {
+							"enabled": false
+						},
+						"default_type": "_default",
+						"type_field": "_type",
+						"types": {
+							"scopeX.collectionX": {
+								"dynamic": true,
+								"enabled": true
+							}
+						}
+					},
+					"store": {
+						"indexType": "scorch"
+					}
+				}`),
+			scope:          "scopeX",
+			collection:     "collectionX",
+			verifyKeyspace: "temp_keyspace.scopeX.collectionX",
+		},
+		{
+			indexName:  "temp_5",
+			sourceName: "temp_keyspace",
+			indexParams: []byte(`
+				{
+					"doc_config": {
+						"mode": "scope.collection.type_field",
+						"type_field": "type"
+					},
+					"mapping": {
+						"default_analyzer": "standard",
+						"default_field": "_all",
+						"default_mapping": {
+							"enabled": false
+						},
+						"default_type": "_default",
+						"type_field": "_type",
+						"types": {
+							"scopeX.collectionX.typeX": {
+								"dynamic": true,
+								"enabled": true
+							}
+						}
+					},
+					"store": {
+						"indexType": "scorch"
+					}
+				}`),
+			scope:          "scopeX",
+			collection:     "collectionX",
+			typeMappings:   []string{"typeX"},
+			verifyKeyspace: "temp_keyspace.scopeX.collectionX",
+		},
+		{
+			indexName:  "temp_6",
+			sourceName: "temp_keyspace",
+			indexParams: []byte(`
+				{
+					"doc_config": {
+						"mode": "scope.collection.type_field",
+						"type_field": "type"
+					},
+					"mapping": {
+						"default_analyzer": "standard",
+						"default_field": "_all",
+						"default_mapping": {
+							"enabled": false
+						},
+						"default_type": "_default",
+						"type_field": "_type",
+						"types": {
+							"scopeX.collectionX.typeX": {
+								"dynamic": true,
+								"enabled": true
+							},
+							"scopeY.collectionY.typeX": {
+								"dynamic": true,
+								"enabled": true
+							}
+						}
+					},
+					"store": {
+						"indexType": "scorch"
+					}
+				}`),
+			scope:          "scopeX",
+			collection:     "collectionX",
+			typeMappings:   []string{"typeX"},
+			verifyKeyspace: "temp_keyspace.scopeX.collectionX",
+		},
+	}
+
+	item := value.NewAnnotatedValue([]byte(`{
+		"fieldX" : "xyz",
+		"type": "typeX"
+	}`))
+	item.SetAttachment("meta", map[string]interface{}{"id": "key"})
+	item.SetId("key")
+
+	queries := []value.Value{
+		value.NewValue(map[string]interface{}{
+			"field": "fieldX",
+			"match": "xyz",
+		}),
+		value.NewValue(map[string]interface{}{
+			"match": "xyz",
+		}),
+	}
+
+	for i := range tests {
+		bp := cbft.NewBleveParams()
+		err := json.Unmarshal(tests[i].indexParams, bp)
+		if err != nil {
+			t.Fatalf("[test-%d], err: %v", i+1, err)
+		}
+
+		im, ok := bp.Mapping.(*mapping.IndexMappingImpl)
+		if !ok {
+			t.Fatalf("[test-%d] Unable to set up index mapping", i+1)
+		}
+
+		util.SetIndexMapping(tests[i].indexName, &util.MappingDetails{
+			SourceName:   tests[i].sourceName,
+			IMapping:     im,
+			DocConfig:    &bp.DocConfig,
+			Scope:        tests[i].scope,
+			Collection:   tests[i].collection,
+			TypeMappings: tests[i].typeMappings,
+		})
+
+		options := value.NewValue(map[string]interface{}{
+			"index": tests[i].indexName,
+		})
+
+		for _, q := range queries {
+			v, err := NewVerify(tests[i].verifyKeyspace, "", q, options)
+			if err != nil {
+				t.Fatalf("[test-%d], keyspace: %v, query: %v, err: %v",
+					i+1, tests[i].verifyKeyspace, q, err)
+			}
+
+			got, err := v.Evaluate(item)
+			if err != nil {
+				t.Errorf("[test-%d], keyspace: %v, query: %v, err: %v",
+					i+1, tests[i].verifyKeyspace, q, err)
+				continue
+			}
+
+			if !got {
+				t.Errorf("[test-%d] Expected key to pass evaluation,"+
+					" keyspace: %v, query: %v", i+1, tests[i].verifyKeyspace, q)
+			}
+		}
 	}
 }

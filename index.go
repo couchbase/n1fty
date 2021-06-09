@@ -84,7 +84,7 @@ func newFTSIndex(indexer *FTSIndexer, indexDef *cbgt.IndexDef,
 		allFieldSearchable:    pip.AllFieldSearchable,
 		defaultAnalyzer:       pip.DefaultAnalyzer,
 		defaultDateTimeParser: pip.DefaultDateTimeParser,
-		multipleTypeStrs:      pip.MultipleTypeStrs,
+		multipleTypeStrs:      len(pip.TypeMappings) > 1,
 	}
 
 	condFlexIndexes, err := flex.BleveToCondFlexIndexes(

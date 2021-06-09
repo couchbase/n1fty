@@ -23,6 +23,7 @@ import (
 // on the given search fields, so that Verify.Evaluate() does not need
 // to wastefully index fields that aren't being searched.
 func OptimizeIndexMapping(idxMapping mapping.IndexMapping,
+	scope, collection string,
 	queryFields map[util.SearchField]struct{}) mapping.IndexMapping {
 	im, ok := idxMapping.(*mapping.IndexMappingImpl)
 	if !ok {
@@ -52,7 +53,18 @@ func OptimizeIndexMapping(idxMapping mapping.IndexMapping,
 
 	rv.TypeMapping = nil
 
+	var scopeCollPrefix string
+	if len(scope) > 0 && len(collection) > 0 {
+		scopeCollPrefix = scope + "." + collection
+	}
+
 	for t, dm := range im.TypeMapping {
+		if len(scopeCollPrefix) > 0 && !strings.HasPrefix(t, scopeCollPrefix) {
+			// Do not consider this mapping as it's not applicable
+			// to the relevant scope.collection
+			continue
+		}
+
 		// Optimization when any of the top-level mappings is dynamic
 		// and enabled, build index mapping based on search fields;
 		// Return right away.

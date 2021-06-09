@@ -30,55 +30,77 @@ import (
 var bleveMaxResultWindow = int64(10000)
 
 type MappingDetails struct {
-	UUID       string
-	SourceName string
-	Scope      string
-	Collection string
-	IMapping   mapping.IndexMapping
-	DocConfig  *cbft.BleveDocumentConfig
+	UUID         string
+	SourceName   string
+	Scope        string
+	Collection   string
+	IMapping     mapping.IndexMapping
+	DocConfig    *cbft.BleveDocumentConfig
+	TypeMappings []string
 }
 
 var mappingsCacheLock sync.RWMutex
-var mappingsCache map[string]*MappingDetails
+var mappingsCache map[string]map[string]*MappingDetails
 
 var EmptyIndexMapping mapping.IndexMapping
 
 func init() {
-	mappingsCache = make(map[string]*MappingDetails)
+	// mappingsCache maps indexname to keyspace to mappingDetails
+	mappingsCache = make(map[string]map[string]*MappingDetails)
 
 	EmptyIndexMapping = bleve.NewIndexMapping()
 }
 
 func SetIndexMapping(name string, mappingDetails *MappingDetails) {
+	if mappingDetails == nil {
+		return
+	}
+
 	// TODO: do the callers care that they're blowing away any
 	// existing mapping?  Consider a race where a slow goroutine
 	// incorrectly "wins" by setting an outdated mapping?
 	mappingsCacheLock.Lock()
-	mappingsCache[name] = mappingDetails
+	if _, exists := mappingsCache[name]; !exists {
+		mappingsCache[name] = make(map[string]*MappingDetails)
+	}
+
+	keyspace := mappingDetails.SourceName
+	if mappingDetails.Scope == "_default" && mappingDetails.Collection == "_default" {
+		// FTSIndexer1 handles indexes that are mapped to bucket and those
+		// mapped to bucket._default._default, so create 2 entries here.
+		mappingsCache[name][keyspace] = mappingDetails
+		mappingsCache[name][keyspace+"._default._default"] = mappingDetails
+	} else if len(mappingDetails.Scope) > 0 && len(mappingDetails.Collection) > 0 {
+		keyspace += "." + mappingDetails.Scope + "." + mappingDetails.Collection
+		mappingsCache[name][keyspace] = mappingDetails
+	} else {
+		mappingsCache[name][keyspace] = mappingDetails
+	}
+
 	mappingsCacheLock.Unlock()
 }
 
 func FetchIndexMapping(name, uuid, keyspace string) (
-	mapping.IndexMapping, *cbft.BleveDocumentConfig, string, string, error) {
+	mapping.IndexMapping, *cbft.BleveDocumentConfig, string, string, []string, error) {
 	if len(keyspace) == 0 || len(name) == 0 {
 		// Return default index mapping if keyspace not provided.
-		return EmptyIndexMapping, nil, "", "", nil
+		return EmptyIndexMapping, nil, "", "", nil, nil
 	}
 	mappingsCacheLock.RLock()
 	defer mappingsCacheLock.RUnlock()
 	if info, exists := mappingsCache[name]; exists {
-		// validate sourceName/keyspace, additionally check UUID if provided
-		indexKeyspace := info.SourceName
-		if len(info.Scope) > 0 && len(info.Collection) > 0 {
-			indexKeyspace += "." + info.Scope + "." + info.Collection
-		}
-		if indexKeyspace == keyspace {
-			if uuid == "" || info.UUID == uuid {
-				return info.IMapping, info.DocConfig, info.Scope, info.Collection, nil
+		if mappingDetails, exists := info[keyspace]; exists {
+			if uuid == "" || mappingDetails.UUID == uuid {
+				return mappingDetails.IMapping,
+					mappingDetails.DocConfig,
+					mappingDetails.Scope,
+					mappingDetails.Collection,
+					mappingDetails.TypeMappings,
+					nil
 			}
 		}
 	}
-	return nil, nil, "", "", fmt.Errorf("index mapping not found for: %v", name)
+	return nil, nil, "", "", nil, fmt.Errorf("index mapping not found for: %v", name)
 }
 
 func BuildIndexMappingOnFields(queryFields map[SearchField]struct{}, defaultAnalyzer string,

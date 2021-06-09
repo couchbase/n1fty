@@ -49,7 +49,7 @@ type ProcessedIndexParams struct {
 	AllFieldSearchable    bool
 	DefaultAnalyzer       string
 	DefaultDateTimeParser string
-	MultipleTypeStrs      bool
+	TypeMappings          []string
 	Scope                 string
 	Collection            string
 }
@@ -88,7 +88,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 
 		m, indexedCount, typeStrs, dynamicMappings, allFieldSearchable,
 			defaultAnalyzer, defaultDateTimeParser := ProcessIndexMapping(im)
-		var types []string
+		var typeMappings []string
 		if typeStrs != nil {
 			for typeMapping, enabled := range typeStrs.S {
 				if len(typeMapping) == 0 || strings.ContainsAny(typeMapping, "\"\\") {
@@ -96,20 +96,20 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 				}
 
 				if enabled {
-					types = append(types, typeMapping)
+					typeMappings = append(typeMappings, typeMapping)
 				}
 			}
 
-			if len(types) == 1 {
+			if len(typeMappings) == 1 {
 				// Ex: condExpr == '`type`="beer"'.
-				condExpr = "`" + typeField + "`" + "=\"" + types[0] + "\""
-			} else if len(types) > 1 {
-				for i := range types {
+				condExpr = "`" + typeField + "`" + "=\"" + typeMappings[0] + "\""
+			} else if len(typeMappings) > 1 {
+				for i := range typeMappings {
 					// Ex: condExpr: '`type` IN ["beer", "brewery"]'.
 					if len(condExpr) == 0 {
-						condExpr = "`" + typeField + "` IN [\"" + types[i] + "\""
+						condExpr = "`" + typeField + "` IN [\"" + typeMappings[i] + "\""
 					} else {
-						condExpr += ", \"" + types[i] + "\""
+						condExpr += ", \"" + typeMappings[i] + "\""
 					}
 				}
 
@@ -129,9 +129,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 			AllFieldSearchable:    allFieldSearchable,
 			DefaultAnalyzer:       defaultAnalyzer,
 			DefaultDateTimeParser: defaultDateTimeParser,
-			MultipleTypeStrs:      len(types) > 1,
-			Scope:                 scope,
-			Collection:            collection,
+			TypeMappings:          typeMappings,
 		}, nil
 
 	case "docid_prefix":
@@ -142,7 +140,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 			return
 		}
 
-		var multipleTypeStrs bool
+		var typeMappings []string
 		m, indexedCount, typeStrs, dynamicMappings, allFieldSearchable,
 			defaultAnalyzer, defaultDateTimeParser := ProcessIndexMapping(im)
 		if typeStrs != nil {
@@ -156,11 +154,11 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 					return
 				}
 
+				typeMappings = append(typeMappings, typeMapping)
 				// Ex: condExpr == 'META().id LIKE "beer-%" OR META().id LIKE "brewery-%"'.
 				if len(condExpr) == 0 {
 					condExpr = `META().id LIKE "` + typeMapping + dc.DocIDPrefixDelim + `%"`
 				} else {
-					multipleTypeStrs = true
 					condExpr += ` OR META().id LIKE "` + typeMapping + dc.DocIDPrefixDelim + `%"`
 				}
 			}
@@ -176,9 +174,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 			AllFieldSearchable:    allFieldSearchable,
 			DefaultAnalyzer:       defaultAnalyzer,
 			DefaultDateTimeParser: defaultDateTimeParser,
-			MultipleTypeStrs:      multipleTypeStrs,
-			Scope:                 scope,
-			Collection:            collection,
+			TypeMappings:          typeMappings,
 		}, nil
 
 	case "scope.collection.type_field":
@@ -188,12 +184,12 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 			return
 		}
 
-		var multipleTypeStrs bool
+		var typeMappings []string
 		m, indexedCount, typeStrs, dynamicMappings, allFieldSearchable,
 			defaultAnalyzer, defaultDateTimeParser := ProcessIndexMapping(im)
+		var entireScopeCollIndexed bool
 		if typeStrs != nil {
 			scopeCollTypes := map[string]bool{}
-			var entireScopeCollIndexed bool
 			for typeMapping, enabled := range typeStrs.S {
 				if len(typeMapping) == 0 || strings.ContainsAny(typeMapping, "\"\\") {
 					return
@@ -223,33 +219,35 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 				}
 				// condExpr is nil
 			} else {
-				var types []string
 				for typeName, enabled := range scopeCollTypes {
 					if enabled {
-						types = append(types, typeName)
+						typeMappings = append(typeMappings, typeName)
 					}
 				}
 
-				if len(types) == 0 {
+				if len(typeMappings) == 0 {
 					// Do not consider index, as nothing relevant to the scope.collection is
 					// indexed.
 					return
-				} else if len(types) == 1 {
+				} else if len(typeMappings) == 1 {
 					// Ex: condExpr == '`type`="beer"'
-					condExpr = "`" + typeField + "`" + "=\"" + types[0] + "\""
+					condExpr = "`" + typeField + "`" + "=\"" + typeMappings[0] + "\""
 				} else {
-					multipleTypeStrs = true
-					for i := range types {
+					for i := range typeMappings {
 						// Ex: condExpr: '`type` IN ["beer", "brewery"]'.
 						if len(condExpr) == 0 {
-							condExpr = "`" + typeField + "` IN [\"" + types[i] + "\""
+							condExpr = "`" + typeField + "` IN [\"" + typeMappings[i] + "\""
 						} else {
-							condExpr += ", \"" + types[i] + "\""
+							condExpr += ", \"" + typeMappings[i] + "\""
 						}
 					}
 					condExpr += "]"
 				}
 			}
+		}
+
+		if entireScopeCollIndexed {
+			indexedCount = math.MaxInt64
 		}
 
 		return ProcessedIndexParams{
@@ -262,7 +260,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 			AllFieldSearchable:    allFieldSearchable,
 			DefaultAnalyzer:       defaultAnalyzer,
 			DefaultDateTimeParser: defaultDateTimeParser,
-			MultipleTypeStrs:      multipleTypeStrs,
+			TypeMappings:          typeMappings,
 			Scope:                 scope,
 			Collection:            collection,
 		}, nil
@@ -275,12 +273,12 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 			return
 		}
 
-		var multipleTypeStrs bool
+		var typeMappings []string
 		m, indexedCount, typeStrs, dynamicMappings, allFieldSearchable,
 			defaultAnalyzer, defaultDateTimeParser := ProcessIndexMapping(im)
+		var entireScopeCollIndexed bool
 		if typeStrs != nil {
 			scopeCollTypes := map[string]bool{}
-			var entireScopeCollIndexed bool
 			for typeMapping, enabled := range typeStrs.S {
 				if strings.ContainsAny(typeMapping, DisallowedChars) ||
 					strings.ContainsAny(typeMapping, dc.DocIDPrefixDelim) {
@@ -311,31 +309,31 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 				}
 				// condExpr is nil
 			} else {
-				var types []string
 				for typeName, enabled := range scopeCollTypes {
 					if enabled {
-						types = append(types, typeName)
+						typeMappings = append(typeMappings, typeName)
 					}
 				}
 
-				if len(types) == 0 {
+				if len(typeMappings) == 0 {
 					// Do not consider index, as nothing relevant to the scope.collection is
 					// indexed.
 					return
 				} else {
-					if len(types) > 1 {
-						multipleTypeStrs = true
-					}
-					for i := range types {
+					for i := range typeMappings {
 						// Ex: condExpr == 'META().id LIKE "beer-%" OR META().id LIKE "brewery-%"'.
 						if len(condExpr) == 0 {
-							condExpr = `META().id LIKE "` + types[i] + dc.DocIDPrefixDelim + `%"`
+							condExpr = `META().id LIKE "` + typeMappings[i] + dc.DocIDPrefixDelim + `%"`
 						} else {
-							condExpr += ` OR META().id LIKE "` + types[i] + dc.DocIDPrefixDelim + `%"`
+							condExpr += ` OR META().id LIKE "` + typeMappings[i] + dc.DocIDPrefixDelim + `%"`
 						}
 					}
 				}
 			}
+		}
+
+		if entireScopeCollIndexed {
+			indexedCount = math.MaxInt64
 		}
 
 		return ProcessedIndexParams{
@@ -348,7 +346,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 			AllFieldSearchable:    allFieldSearchable,
 			DefaultAnalyzer:       defaultAnalyzer,
 			DefaultDateTimeParser: defaultDateTimeParser,
-			MultipleTypeStrs:      multipleTypeStrs,
+			TypeMappings:          typeMappings,
 			Scope:                 scope,
 			Collection:            collection,
 		}, nil
