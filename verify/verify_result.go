@@ -248,7 +248,8 @@ func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
 	doc := item.Actual()
 	if v.docConfig != nil {
 		bdoc := v.docConfig.BuildDocumentFromObj([]byte(key), doc, v.defaultType)
-		if len(v.scope) > 0 && len(v.collection) > 0 {
+		if strings.HasPrefix(v.docConfig.Mode, "scope.collection.") &&
+			len(v.scope) > 0 && len(v.collection) > 0 {
 			// decorate type with scope and collection info
 			typ := v.scope + "." + v.collection
 			for _, t := range v.typeMappings {

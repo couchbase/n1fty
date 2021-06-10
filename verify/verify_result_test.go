@@ -636,3 +636,153 @@ func TestVerificationForVariousIndexes(t *testing.T) {
 		}
 	}
 }
+
+func TestMB46867(t *testing.T) {
+	tests := []struct {
+		indexName      string
+		indexParams    []byte
+		verifyKeyspace string
+	}{
+		{
+			indexName: "temp_1",
+			indexParams: []byte(`
+			{
+				"doc_config": {
+					"mode": "type_field",
+					"type_field": "type"
+				},
+				"mapping": {
+					"default_field": "_all",
+					"default_mapping": {
+						"enabled": false
+					},
+					"default_type": "_default",
+					"type_field": "_type",
+					"types": {
+						"emp": {
+							"enabled": true,
+							"reports": {
+								"enabled": true,
+								"fields": [
+								{
+									"index": true,
+									"include_in_all": true,
+									"name": "reports",
+									"type": "text"
+								}
+								]
+							}
+						}
+					}
+				},
+				"store": {
+					"indexType": "scorch"
+				}
+			}
+			`),
+			verifyKeyspace: "default",
+		},
+		{
+			indexName: "temp_2",
+			indexParams: []byte(`
+			{
+				"doc_config": {
+					"mode": "scope.collection.type_field",
+					"type_field": "type"
+				},
+				"mapping": {
+					"default_field": "_all",
+					"default_mapping": {
+						"enabled": false
+					},
+					"default_type": "_default",
+					"type_field": "_type",
+					"types": {
+						"_default._default.emp": {
+							"enabled": true,
+							"reports": {
+								"enabled": true,
+								"fields": [
+								{
+									"index": true,
+									"include_in_all": true,
+									"name": "reports",
+									"type": "text"
+								}
+								]
+							}
+						}
+					}
+				},
+				"store": {
+					"indexType": "scorch"
+				}
+			}
+			`),
+			verifyKeyspace: "default._default._default",
+		},
+	}
+
+	item := value.NewAnnotatedValue([]byte(`{
+		"reports" : "xyz",
+		"type": "emp"
+	}`))
+	item.SetAttachment("meta", map[string]interface{}{"id": "key"})
+	item.SetId("key")
+
+	queries := []value.Value{
+		value.NewValue(map[string]interface{}{
+			"field": "reports",
+			"match": "xyz",
+		}),
+		value.NewValue(map[string]interface{}{
+			"match": "xyz",
+		}),
+	}
+
+	for i := range tests {
+		bp := cbft.NewBleveParams()
+		err := json.Unmarshal(tests[i].indexParams, bp)
+		if err != nil {
+			t.Fatalf("[test-%d], err: %v", i+1, err)
+		}
+
+		im, ok := bp.Mapping.(*mapping.IndexMappingImpl)
+		if !ok {
+			t.Fatalf("[test-%d] Unable to set up index mapping", i+1)
+		}
+
+		util.SetIndexMapping(tests[i].indexName, &util.MappingDetails{
+			SourceName:   "default",
+			IMapping:     im,
+			DocConfig:    &bp.DocConfig,
+			Scope:        "_default",
+			Collection:   "_default",
+			TypeMappings: []string{"emp"},
+		})
+
+		options := value.NewValue(map[string]interface{}{
+			"index": tests[i].indexName,
+		})
+
+		for _, q := range queries {
+			v, err := NewVerify(tests[i].verifyKeyspace, "", q, options)
+			if err != nil {
+				t.Fatalf("[test-%d], keyspace: %v, query: %v, err: %v",
+					i+1, tests[i].verifyKeyspace, q, err)
+			}
+
+			got, err := v.Evaluate(item)
+			if err != nil {
+				t.Errorf("[test-%d], keyspace: %v, query: %v, err: %v",
+					i+1, tests[i].verifyKeyspace, q, err)
+				continue
+			}
+
+			if !got {
+				t.Errorf("[test-%d] Expected key to pass evaluation,"+
+					" keyspace: %v, query: %v", i+1, tests[i].verifyKeyspace, q)
+			}
+		}
+	}
+}
