@@ -212,11 +212,11 @@ func BuildProtoSearchRequest(sr *cbft.SearchRequest,
 
 			if len(fields) == 1 || (len(fields) == 2 &&
 				fields[1] == "ASC") {
-				tempOrder = append(tempOrder, field)
+				tempOrder = append(tempOrder, `"`+field+`"`)
 				continue
 			}
 
-			tempOrder = append(tempOrder, "-"+field)
+			tempOrder = append(tempOrder, `"-`+field+`"`)
 		}
 
 		sr.Sort = make([]json.RawMessage, len(tempOrder))

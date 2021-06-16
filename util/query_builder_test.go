@@ -18,6 +18,8 @@ import (
 	"testing"
 
 	"github.com/blevesearch/bleve/v2/search/query"
+	"github.com/couchbase/cbft"
+	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/value"
 )
 
@@ -313,5 +315,26 @@ func TestBuildSearchRequest(t *testing.T) {
 		default:
 			t.Fatalf("Unexpected query type: %v, for entry: %v", reflect.TypeOf(q), i)
 		}
+	}
+}
+
+func TestBuildProtoSearchRequestWithSortOnScore(t *testing.T) {
+	searchInfo := &datastore.FTSSearchInfo{
+		Query: value.NewValue(map[string]interface{}{
+			"match": "France",
+		}),
+		Options: nil,
+		Order:   []string{"score DESC"},
+		Offset:  0,
+		Limit:   2,
+	}
+
+	sr := &cbft.SearchRequest{
+		Q: []byte(`{"match":"France"}`),
+	}
+
+	_, err := BuildProtoSearchRequest(sr, searchInfo, nil, datastore.ScanConsistency(""), "")
+	if err != nil {
+		t.Fatal(err)
 	}
 }

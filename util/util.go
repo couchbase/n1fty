@@ -235,8 +235,6 @@ func ParseQueryToSearchRequest(field string, input value.Value) (
 			return nil, nil, 0, err
 		}
 
-		from := 0
-		rv.From = &from
 		size := math.MaxInt64
 		rv.Size = &size
 
