@@ -51,6 +51,12 @@ func init() {
 	EmptyIndexMapping = bleve.NewIndexMapping()
 }
 
+func ClearMappingsCache() {
+	mappingsCacheLock.Lock()
+	mappingsCache = make(map[string]map[string]*MappingDetails)
+	mappingsCacheLock.Unlock()
+}
+
 func SetIndexMapping(name string, mappingDetails *MappingDetails) {
 	if mappingDetails == nil {
 		return

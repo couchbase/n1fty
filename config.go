@@ -80,6 +80,12 @@ func (c *ftsConfig) Listen() {
 			// verify the updated version with their cached one.
 			atomic.AddUint64(&c.version, 1)
 
+			// clear mappingsCache (used during Verify/Eval) to
+			// remove any stale entries; the following refresh(..)
+			// on every indexer will add the latest entries into
+			// the cache.
+			util.ClearMappingsCache()
+
 			c.m.Lock()
 			for _, i := range c.subscribers {
 				if indexer, ok := i.(*FTSIndexer); ok {
