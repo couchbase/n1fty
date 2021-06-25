@@ -185,16 +185,16 @@ type VerifyCtx struct {
 	options         value.Value
 	skip            bool
 
-	l           sync.RWMutex
-	initialised bool
-	idx         bleve.Index
-	m           mapping.IndexMapping
-	scope       string
-	collection  string
+	l            sync.RWMutex
+	initialised  bool
+	idx          bleve.Index
+	m            mapping.IndexMapping
+	scope        string
+	collection   string
 	typeMappings []string
-	sr          *bleve.SearchRequest
-	defaultType string
-	docConfig   *cbft.BleveDocumentConfig
+	sr           *bleve.SearchRequest
+	defaultType  string
+	docConfig    *cbft.BleveDocumentConfig
 }
 
 func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
