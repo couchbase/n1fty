@@ -17,12 +17,14 @@ import (
 	"sync"
 
 	"github.com/blevesearch/bleve/v2"
+	"github.com/blevesearch/bleve/v2/document"
+	"github.com/blevesearch/bleve/v2/index/upsidedown"
+	"github.com/blevesearch/bleve/v2/index/upsidedown/store/moss"
 	"github.com/blevesearch/bleve/v2/mapping"
-	"github.com/blevesearch/bleve/v2/registry"
-	"github.com/blevesearch/sear"
 
 	"github.com/couchbase/cbft"
 	mo "github.com/couchbase/moss"
+
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
@@ -30,7 +32,7 @@ import (
 )
 
 func init() {
-	registry.RegisterIndexType(sear.Name, sear.New)
+	mo.SkipStats = true
 }
 
 func KVConfigForMoss() map[string]interface{} {
@@ -143,9 +145,31 @@ func (v *VerifyCtx) initVerifyCtx() errors.Error {
 	}
 
 	// Set up an in-memory bleve index using moss for evaluating the hits.
-	idx, err := bleve.NewUsing("", idxMapping, sear.Name, sear.Name, nil)
+	idx, err := bleve.NewUsing("", idxMapping, upsidedown.Name, moss.Name,
+		KVConfigForMoss())
 	if err != nil {
 		return util.N1QLError(err, "")
+	}
+
+	// fetch upsidedown & moss collection associated with underlying store
+	bleveIndex, err := idx.Advanced()
+	if err != nil {
+		return util.N1QLError(err, "idx.Advanced error")
+	}
+
+	udc, ok := bleveIndex.(*upsidedown.UpsideDownCouch)
+	if !ok {
+		return util.N1QLError(nil, "expected UpsideDownCouch")
+	}
+
+	kvstore, err := udc.Advanced()
+	if err != nil {
+		return util.N1QLError(err, "upsidedown idx.Advanced error")
+	}
+
+	collh, ok := kvstore.(CollectionHolder)
+	if !ok {
+		return util.N1QLError(nil, "expected kvstore.CollectionHolder")
 	}
 
 	defaultType := "_default"
@@ -160,6 +184,8 @@ func (v *VerifyCtx) initVerifyCtx() errors.Error {
 	}
 	v.sr.Size = 1
 	v.sr.From = 0
+	v.udc = udc
+	v.coll = collh.Collection()
 	v.defaultType = defaultType
 	v.docConfig = docConfig
 	v.scope = scope
@@ -185,16 +211,18 @@ type VerifyCtx struct {
 	options         value.Value
 	skip            bool
 
-	l           sync.RWMutex
-	initialised bool
-	idx         bleve.Index
-	m           mapping.IndexMapping
-	scope       string
-	collection  string
+	l            sync.RWMutex
+	initialised  bool
+	idx          bleve.Index
+	m            mapping.IndexMapping
+	scope        string
+	collection   string
 	typeMappings []string
-	sr          *bleve.SearchRequest
-	defaultType string
-	docConfig   *cbft.BleveDocumentConfig
+	sr           *bleve.SearchRequest
+	udc          *upsidedown.UpsideDownCouch
+	coll         mo.Collection
+	defaultType  string
+	docConfig    *cbft.BleveDocumentConfig
 }
 
 func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
@@ -238,14 +266,25 @@ func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
 		doc = bdoc
 	}
 
-	err := v.idx.Index(key, doc)
+	kdoc := document.NewDocument(key)
+
+	err := v.m.MapDocument(kdoc, doc)
 	if err != nil {
-		return false, util.N1QLError(err, "Index error")
+		return false, util.N1QLError(err, "MapDocument error")
+	}
+
+	err = v.udc.UpdateWithAnalysis(kdoc, v.udc.Analyze(kdoc), nil)
+	if err != nil {
+		return false, util.N1QLError(err, "UpdateWithAnalysis error")
 	}
 
 	res, err := v.idx.Search(v.sr)
 	if err != nil {
 		return false, util.N1QLError(err, "search failed")
+	}
+
+	if rsdt, ok := v.coll.(ResetStackDirtyToper); ok && rsdt != nil {
+		rsdt.ResetStackDirtyTop()
 	}
 
 	if len(res.Hits) < 1 {
