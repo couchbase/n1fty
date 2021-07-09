@@ -786,3 +786,32 @@ func TestMB46867(t *testing.T) {
 		}
 	}
 }
+
+func TestMB47265(t *testing.T) {
+	// array indexing fails with sear
+	item := value.NewAnnotatedValue([]byte(`{"name":"xyz","lang": ["Quechua", "Thai", "Portuguese"]}`))
+	item.SetAttachment("meta", map[string]interface{}{"id": "key"})
+	item.SetId("key")
+
+	for _, q := range []map[string]interface{}{
+		{"match": "Quechua", "field": "lang"},
+		{"match": "Thai", "field": "lang"},
+		{"match": "Portuguese", "field": "lang"},
+	} {
+		queryVal := value.NewValue(q)
+		v, err := NewVerify("`temp_keyspace`", "", queryVal, nil)
+		if err != nil {
+			t.Fatal(queryVal, err)
+		}
+
+		ret, err := v.Evaluate(item)
+		if err != nil {
+			t.Fatal(queryVal, err)
+		}
+
+		if !ret {
+			t.Fatalf("Expected evaluation for key to succeed for `%v`", queryVal)
+		}
+	}
+
+}
