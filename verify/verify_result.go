@@ -12,7 +12,6 @@
 package verify
 
 import (
-	"math"
 	"strings"
 	"sync"
 
@@ -31,14 +30,6 @@ import (
 
 func init() {
 	registry.RegisterIndexType(sear.Name, sear.New)
-}
-
-func KVConfigForMoss() map[string]interface{} {
-	return map[string]interface{}{
-		"mossCollectionOptions": map[string]interface{}{
-			"MaxPreMergerBatches": math.MaxInt32,
-		},
-	}
 }
 
 // NewVerify expects nameAndKeyspace to be either of:

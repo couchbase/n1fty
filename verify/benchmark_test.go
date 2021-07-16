@@ -12,6 +12,7 @@
 package verify
 
 import (
+	"math"
 	"testing"
 
 	"github.com/blevesearch/bleve/v2"
@@ -26,6 +27,14 @@ import (
 
 	mo "github.com/couchbase/moss"
 )
+
+func kvConfigForMoss() map[string]interface{} {
+	return map[string]interface{}{
+		"mossCollectionOptions": map[string]interface{}{
+			"MaxPreMergerBatches": math.MaxInt32,
+		},
+	}
+}
 
 func initIndexAndDocs(indexType, kvstore string, kvConfig map[string]interface{},
 	b *testing.B) (bleve.Index, mapping.IndexMapping, []value.Value) {
@@ -166,11 +175,11 @@ func BenchmarkMossWithoutOptimizations(b *testing.B) {
 }
 
 func BenchmarkMossWithOptimizeReset(b *testing.B) {
-	benchmarkMossOptimizable(b, KVConfigForMoss(), true, false)
+	benchmarkMossOptimizable(b, kvConfigForMoss(), true, false)
 }
 
 func BenchmarkMossWithOptimizeResetAndUpdate(b *testing.B) {
-	benchmarkMossOptimizable(b, KVConfigForMoss(), true, true)
+	benchmarkMossOptimizable(b, kvConfigForMoss(), true, true)
 }
 
 func benchmarkMossOptimizable(b *testing.B,
