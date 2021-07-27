@@ -838,3 +838,28 @@ func TestMB47438(t *testing.T) {
 		t.Fatalf("Expected evaluation for key to succeed for `%v`", queryVal)
 	}
 }
+
+func TestMB47473(t *testing.T) {
+	item := value.NewAnnotatedValue([]byte(`{"name":"KÓ"}`))
+	item.SetAttachment("meta", map[string]interface{}{"id": "key"})
+	item.SetId("key")
+
+	q := map[string]interface{}{
+		"field": "name",
+		"wildcard": "K*",
+	}
+	queryVal := value.NewValue(q)
+	v, err := NewVerify("`temp_keyspace`", "", queryVal, nil)
+	if err != nil {
+		t.Fatal(queryVal, err)
+	}
+
+	ret, err := v.Evaluate(item)
+	if err != nil {
+		t.Fatal(queryVal, err)
+	}
+
+	if !ret {
+		t.Fatalf("Expected evaluation for key to succeed for `%v`", queryVal)
+	}
+}
