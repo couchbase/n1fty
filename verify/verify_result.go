@@ -187,7 +187,6 @@ type VerifyCtx struct {
 
 	l            sync.RWMutex
 	initialised  bool
-	idx          bleve.Index
 	m            mapping.IndexMapping
 	scope        string
 	collection   string
@@ -195,6 +194,9 @@ type VerifyCtx struct {
 	sr           *bleve.SearchRequest
 	defaultType  string
 	docConfig    *cbft.BleveDocumentConfig
+
+	idxM         sync.Mutex
+	idx          bleve.Index
 }
 
 func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
@@ -237,6 +239,9 @@ func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
 		}
 		doc = bdoc
 	}
+
+	v.idxM.Lock()
+	defer v.idxM.Unlock()
 
 	err := v.idx.Index(key, doc)
 	if err != nil {
