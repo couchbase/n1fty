@@ -107,6 +107,7 @@ func setupAgent(server, bucket string) (*gocbcore.Agent, error) {
 		ConnectTimeout:   ConnectTimeoutMS,
 		KVConnectTimeout: KVConnectTimeoutMS,
 		Auth:             &Authenticator{},
+		NetworkType:      "default",
 	}
 
 	connStr := server
