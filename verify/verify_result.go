@@ -35,7 +35,8 @@ func init() {
 // NewVerify expects nameAndKeyspace to be either of:
 //     - `bucket_name`
 //     - `bucket_name.scope_name.collection_name`
-func NewVerify(nameAndKeyspace, field string, query, options value.Value) (
+func NewVerify(nameAndKeyspace, field string, query, options value.Value,
+	parallelism int) (
 	datastore.Verify, errors.Error) {
 	if query == nil {
 		return nil, util.N1QLError(nil, "query/options not provided")
@@ -186,8 +187,8 @@ type VerifyCtx struct {
 	defaultType  string
 	docConfig    *cbft.BleveDocumentConfig
 
-	idxM         sync.Mutex
-	idx          bleve.Index
+	idxM sync.Mutex
+	idx  bleve.Index
 }
 
 func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {

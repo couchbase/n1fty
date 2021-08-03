@@ -62,7 +62,7 @@ func TestVerifyResultWithIndexOption(t *testing.T) {
 		IMapping:   bleve.NewIndexMapping(),
 	})
 
-	v, err := NewVerify("`temp_keyspace`", q.field, q.query, q.options)
+	v, err := NewVerify("`temp_keyspace`", q.field, q.query, q.options, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestVerifyResultWithoutIndexOption(t *testing.T) {
 		expect: true,
 	}
 
-	v, err := NewVerify("`temp_keyspace`", q.field, q.query, q.options)
+	v, err := NewVerify("`temp_keyspace`", q.field, q.query, q.options, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +139,7 @@ func TestNewVerifyWithInvalidIndexUUID(t *testing.T) {
 		}),
 	}
 
-	vctx, err := NewVerify("`temp_keyspace`", q.field, q.query, q.options)
+	vctx, err := NewVerify("`temp_keyspace`", q.field, q.query, q.options, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +179,7 @@ func TestMB33444(t *testing.T) {
 		},
 	}
 
-	v, err := NewVerify("`temp_keyspace`", q.field, q.query, q.options)
+	v, err := NewVerify("`temp_keyspace`", q.field, q.query, q.options, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +206,7 @@ func TestDocIDQueryEvaluation(t *testing.T) {
 		"ids": []interface{}{"key-1"},
 	})
 
-	v, err := NewVerify("`temp_keyspace`", "", queryVal, nil)
+	v, err := NewVerify("`temp_keyspace`", "", queryVal, nil, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +231,7 @@ func TestMB39592(t *testing.T) {
 		{"wildcard": "Eng?neer?ng", "field": "dept"},
 	} {
 		queryVal := value.NewValue(q)
-		v, err := NewVerify("`temp_keyspace`", "", queryVal, nil)
+		v, err := NewVerify("`temp_keyspace`", "", queryVal, nil, 1)
 		if err != nil {
 			t.Fatal(queryVal, err)
 		}
@@ -256,7 +256,7 @@ func TestMB41536(t *testing.T) {
 		{"wildcard": "Eng?neer?ng"},
 	} {
 		queryVal := value.NewValue(q)
-		v, err := NewVerify("`temp_keyspace`", "", queryVal, nil)
+		v, err := NewVerify("`temp_keyspace`", "", queryVal, nil, 1)
 		if err != nil {
 			t.Fatal(queryVal, err)
 		}
@@ -344,7 +344,7 @@ func TestVerifyEvalWithScopeCollectionMapping(t *testing.T) {
 		"index": "temp",
 	})
 
-	v, err := NewVerify("`temp_keyspace.scope1.collection1`", "", q, options)
+	v, err := NewVerify("`temp_keyspace.scope1.collection1`", "", q, options, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -616,7 +616,7 @@ func TestVerificationForVariousIndexes(t *testing.T) {
 		})
 
 		for _, q := range queries {
-			v, err := NewVerify(tests[i].verifyKeyspace, "", q, options)
+			v, err := NewVerify(tests[i].verifyKeyspace, "", q, options, 1)
 			if err != nil {
 				t.Fatalf("[test-%d], keyspace: %v, query: %v, err: %v",
 					i+1, tests[i].verifyKeyspace, q, err)
@@ -766,7 +766,7 @@ func TestMB46867(t *testing.T) {
 		})
 
 		for _, q := range queries {
-			v, err := NewVerify(tests[i].verifyKeyspace, "", q, options)
+			v, err := NewVerify(tests[i].verifyKeyspace, "", q, options, 1)
 			if err != nil {
 				t.Fatalf("[test-%d], keyspace: %v, query: %v, err: %v",
 					i+1, tests[i].verifyKeyspace, q, err)
@@ -799,7 +799,7 @@ func TestMB47265(t *testing.T) {
 		{"match": "Portuguese", "field": "lang"},
 	} {
 		queryVal := value.NewValue(q)
-		v, err := NewVerify("`temp_keyspace`", "", queryVal, nil)
+		v, err := NewVerify("`temp_keyspace`", "", queryVal, nil, 1)
 		if err != nil {
 			t.Fatal(queryVal, err)
 		}
