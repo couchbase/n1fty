@@ -794,6 +794,7 @@ func (i *FTSIndex) SargableFlex(requestId string,
 		res.StaticSargKeys[string(s)] = e
 	}
 
+	res.NumIndexedKeys = uint32(i.indexedCount)
 	if !needsFiltering && !i.multipleTypeStrs {
 		res.RespFlags |= datastore.FTS_FLEXINDEX_EXACT
 
