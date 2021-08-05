@@ -824,7 +824,7 @@ func TestMB47438(t *testing.T) {
 		"query": "-Marketing",
 	}
 	queryVal := value.NewValue(q)
-	v, err := NewVerify("`temp_keyspace`", "", queryVal, nil)
+	v, err := NewVerify("`temp_keyspace`", "", queryVal, nil, 1)
 	if err != nil {
 		t.Fatal(queryVal, err)
 	}
@@ -845,11 +845,11 @@ func TestMB47473(t *testing.T) {
 	item.SetId("key")
 
 	q := map[string]interface{}{
-		"field": "name",
+		"field":    "name",
 		"wildcard": "K*",
 	}
 	queryVal := value.NewValue(q)
-	v, err := NewVerify("`temp_keyspace`", "", queryVal, nil)
+	v, err := NewVerify("`temp_keyspace`", "", queryVal, nil, 1)
 	if err != nil {
 		t.Fatal(queryVal, err)
 	}
@@ -861,5 +861,44 @@ func TestMB47473(t *testing.T) {
 
 	if !ret {
 		t.Fatalf("Expected evaluation for key to succeed for `%v`", queryVal)
+	}
+}
+
+func TestConcurrentEval(t *testing.T) {
+	q := map[string]interface{}{
+		"field": "name",
+		"match": "abhi",
+	}
+	queryVal := value.NewValue(q)
+
+	parallelism := 4
+	v, err := NewVerify("`temp_keyspace`", "", queryVal, nil, parallelism)
+	if err != nil {
+		t.Fatal(queryVal, err)
+	}
+
+	signalCh := make(chan struct{}, parallelism)
+
+	for jj := 0; jj < 10; jj++ {
+		for ii := 0; ii < parallelism; ii++ {
+			go func(ch chan struct{}) {
+				item := value.NewAnnotatedValue([]byte(`{"name":"abhi"}`))
+				item.SetAttachment("meta", map[string]interface{}{"id": "key"})
+				item.SetId("key")
+
+				ret, err := v.Evaluate(item)
+				if err != nil {
+					t.Fatal(queryVal, err)
+				}
+				if !ret {
+					t.Fatalf("Expected evaluation for key to succeed for `%v`", queryVal)
+				}
+				ch <- struct{}{}
+			}(signalCh)
+		}
+
+		for ii := 0; ii < parallelism; ii++ {
+			<-signalCh
+		}
 	}
 }

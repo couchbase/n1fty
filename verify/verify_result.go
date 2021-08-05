@@ -14,6 +14,7 @@ package verify
 import (
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/mapping"
@@ -56,12 +57,17 @@ func NewVerify(nameAndKeyspace, field string, query, options value.Value,
 		}
 	}
 
+	if parallelism < 1 {
+		parallelism = 1
+	}
+
 	return &VerifyCtx{
 		nameAndKeyspace: nameAndKeyspace,
 		field:           field,
 		query:           query,
 		options:         options,
 		skip:            skip,
+		parallelism:     uint32(parallelism),
 	}, nil
 }
 
@@ -134,10 +140,15 @@ func (v *VerifyCtx) initVerifyCtx() errors.Error {
 		}
 	}
 
-	// Set up an in-memory bleve index using moss for evaluating the hits.
-	idx, err := bleve.NewUsing("", idxMapping, sear.Name, sear.Name, nil)
-	if err != nil {
-		return util.N1QLError(err, "")
+	// Create as many in-memory bleve indexes (sear) for evaluating the hits
+	// to support concurrency during evaluation
+	for x := uint32(0); x < v.parallelism; x++ {
+		idx, err := bleve.NewUsing("", idxMapping, sear.Name, sear.Name, nil)
+		if err != nil {
+			return util.N1QLError(err, "")
+		}
+
+		v.idxs = append(v.idxs, idx)
 	}
 
 	defaultType := "_default"
@@ -145,7 +156,6 @@ func (v *VerifyCtx) initVerifyCtx() errors.Error {
 		defaultType = imi.DefaultType
 	}
 
-	v.idx = idx
 	v.m = idxMapping
 	if v.sr, err = searchRequest.ConvertToBleveSearchRequest(); err != nil {
 		return util.N1QLError(err, "could not generate *bleve.SearchRequest")
@@ -177,8 +187,9 @@ type VerifyCtx struct {
 	options         value.Value
 	skip            bool
 
-	l            sync.RWMutex
-	initialised  bool
+	l           sync.RWMutex
+	initialised bool
+
 	m            mapping.IndexMapping
 	scope        string
 	collection   string
@@ -187,8 +198,9 @@ type VerifyCtx struct {
 	defaultType  string
 	docConfig    *cbft.BleveDocumentConfig
 
-	idxM sync.Mutex
-	idx  bleve.Index
+	idxs        []bleve.Index
+	parallelism uint32
+	cursor      uint32 // counter to be atomically incremented
 }
 
 func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
@@ -197,6 +209,7 @@ func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
 		return true, nil
 	}
 
+	cursor := atomic.AddUint32(&v.cursor, 1)
 	if !v.isCtxInitialised() {
 		err := v.initVerifyCtx()
 		if err != nil {
@@ -232,15 +245,13 @@ func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
 		doc = bdoc
 	}
 
-	v.idxM.Lock()
-	defer v.idxM.Unlock()
-
-	err := v.idx.Index(key, doc)
+	pos := cursor % v.parallelism
+	err := v.idxs[pos].Index(key, doc)
 	if err != nil {
 		return false, util.N1QLError(err, "Index error")
 	}
 
-	res, err := v.idx.Search(v.sr)
+	res, err := v.idxs[pos].Search(v.sr)
 	if err != nil {
 		return false, util.N1QLError(err, "search failed")
 	}
