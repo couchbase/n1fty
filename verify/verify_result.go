@@ -22,7 +22,6 @@ import (
 	"github.com/blevesearch/sear"
 
 	"github.com/couchbase/cbft"
-	mo "github.com/couchbase/moss"
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
@@ -170,14 +169,6 @@ func (v *VerifyCtx) initVerifyCtx() errors.Error {
 	v.initialised = true
 
 	return nil
-}
-
-type CollectionHolder interface {
-	Collection() mo.Collection
-}
-
-type ResetStackDirtyToper interface {
-	ResetStackDirtyTop() error
 }
 
 type VerifyCtx struct {

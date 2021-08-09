@@ -36,6 +36,14 @@ func kvConfigForMoss() map[string]interface{} {
 	}
 }
 
+type CollectionHolder interface {
+	Collection() mo.Collection
+}
+
+type ResetStackDirtyToper interface {
+	ResetStackDirtyTop() error
+}
+
 func initIndexAndDocs(indexType, kvstore string, kvConfig map[string]interface{},
 	b *testing.B) (bleve.Index, mapping.IndexMapping, []value.Value) {
 	idxMapping := bleve.NewIndexMapping()
