@@ -34,11 +34,11 @@ import (
 
 // CBAUTH security/encryption config
 type securityConfig struct {
-	encryptionEnabled bool
-	disableNonSSLPort bool
-	certificate       *tls.Certificate
-	certInBytes       []byte
-	tlsPreference     *cbauth.TLSConfig
+	encryptionEnabled  bool
+	disableNonSSLPorts bool
+	certificate        *tls.Certificate
+	certInBytes        []byte
+	tlsPreference      *cbauth.TLSConfig
 }
 
 var secConfig = unsafe.Pointer(new(securityConfig))
@@ -132,7 +132,7 @@ OUTER:
 	return nil
 }
 
-func (c *ftsClient) Close() {
+func (c *ftsClient) close() {
 	for _, conns := range c.gRPCConnMap {
 		for i := 0; i < len(conns); i++ {
 			conns[i].Close()
@@ -206,7 +206,7 @@ func setupFTSClient(nodeDefs *cbgt.NodeDefs) (*ftsClient, error) {
 		// TODO: addClientInterceptor() ?
 	}
 
-	if secConfig.encryptionEnabled && len(sslHosts) != 0 {
+	if secConfig.encryptionEnabled && len(sslHosts) > 0 {
 		certPool := x509.NewCertPool()
 		ok := certPool.AppendCertsFromPEM(secConfig.certInBytes)
 		if !ok {
@@ -215,8 +215,14 @@ func setupFTSClient(nodeDefs *cbgt.NodeDefs) (*ftsClient, error) {
 		cred := credentials.NewClientTLSFromCert(certPool, "")
 		gRPCOpts = append(gRPCOpts, grpc.WithTransportCredentials(cred))
 		hosts = sslHosts
-	} else if len(hosts) > 0 {
+	} else if !secConfig.disableNonSSLPorts && len(hosts) > 0 {
 		gRPCOpts = append(gRPCOpts, grpc.WithInsecure())
+	} else {
+		logging.Warnf("client: hosts error, config: {encryptionEnabled: %v,"+
+			" disableNonSSLPorts: %v}, hosts: %v, sslHosts: %v",
+			secConfig.encryptionEnabled, secConfig.disableNonSSLPorts,
+			hosts, sslHosts)
+		return nil, fmt.Errorf("hosts (ssl/non-ssl) unavailable")
 	}
 
 	err := client.initConnections(hosts, gRPCOpts,
