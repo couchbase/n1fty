@@ -13,6 +13,7 @@ package n1fty
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -23,13 +24,14 @@ import (
 
 	"github.com/couchbase/cbft"
 	"github.com/couchbase/cbgt"
-	"github.com/couchbase/gocbcore/v9"
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/expression"
 	"github.com/couchbase/query/logging"
 	"github.com/couchbase/query/value"
+
+	"golang.org/x/net/http2"
 )
 
 const VERSION = 1
@@ -44,8 +46,6 @@ type FTSIndexer struct {
 	collection string
 
 	collectionAware bool
-
-	agent *gocbcore.Agent
 
 	cfg     *ftsConfig
 	stats   *stats
@@ -114,11 +114,6 @@ func newFTSIndexer(serverIn, namespace, bucket, scope, collection, keyspace stri
 			"newFTSIndexer, no servers provided"), "")
 	}
 
-	agent, err := agentMap.acquireAgent(svrs[0], bucketName)
-	if err != nil {
-		return nil, util.N1QLError(err, "")
-	}
-
 	indexer := &FTSIndexer{
 		serverURL:       svrs[0],
 		namespace:       namespace,
@@ -127,7 +122,6 @@ func newFTSIndexer(serverIn, namespace, bucket, scope, collection, keyspace stri
 		scope:           scope,
 		collection:      collection,
 		collectionAware: collection == keyspace,
-		agent:           agent,
 		cfg:             srvConfig,
 		stats:           &stats{},
 		closeCh:         make(chan struct{}),
@@ -144,6 +138,11 @@ func newFTSIndexer(serverIn, namespace, bucket, scope, collection, keyspace stri
 		indexer.scope = "_default"
 		indexer.collection = "_default"
 	}
+
+	// Register indexer as a metaKV config subscriber
+	indexer.cfg.subscribe(
+		indexer.namespace+"$"+indexer.bucket+"$"+indexer.scope+"$"+indexer.keyspace,
+		indexer)
 
 	return indexer, nil
 }
@@ -176,13 +175,14 @@ func (i *FTSIndexer) SetConnectionSecurityConfig(
 	}
 
 	updateSecurityConfig(newSecurityConfig)
+	updateHttpClient(newSecurityConfig.certInBytes)
 
 	i.securityConfigRefreshed()
 
 	// bump the cfg version as this needs a force refresh
 	i.cfg.bumpVersion()
 
-	i.Refresh()
+	i.refresh(true)
 }
 
 // Close is an implementation of io.Closer interface
@@ -200,7 +200,6 @@ func (i *FTSIndexer) Close() error {
 	i.cfg.unSubscribe(i.namespace + "$" + i.bucket + "$" + i.scope + "$" + i.keyspace)
 	mr.unregisterIndexer(i)
 	close(i.closeCh)
-	agentMap.releaseAgent(i.bucket)
 	return nil
 }
 
@@ -330,6 +329,10 @@ func (i *FTSIndexer) reset() {
 	i.allIndexes = nil
 	i.mapIndexesByID = nil
 	i.mapIndexesByName = nil
+	i.nodeDefs = nil
+	if i.client != nil {
+		i.client.close()
+	}
 	i.m.Unlock()
 }
 
@@ -341,11 +344,9 @@ func (i *FTSIndexer) securityConfigRefreshed() {
 	i.m.Unlock()
 }
 
-func (i *FTSIndexer) refresh(configMutexAcquired bool) errors.Error {
-	// if no fts nodes available, then return
-	ftsEndpoints := i.agent.FtsEps()
-	if len(ftsEndpoints) == 0 {
-		i.reset()
+func (i *FTSIndexer) refresh(force bool) errors.Error {
+	if !force && (i.nodeDefs == nil || len(i.nodeDefs.NodeDefs) == 0) {
+		// if no fts nodes available, then return
 		return nil
 	}
 
@@ -410,14 +411,8 @@ func (i *FTSIndexer) refresh(configMutexAcquired bool) errors.Error {
 	// supporting go routines.
 	i.init.Do(func() {
 		mr.registerIndexer(i)
-
 		i.cfg.initConfig()
 
-		if configMutexAcquired {
-			i.cfg.subscribeLOCKED(i.namespace+"$"+i.bucket+"$"+i.scope+"$"+i.keyspace, i)
-		} else {
-			i.cfg.subscribe(i.namespace+"$"+i.bucket+"$"+i.scope+"$"+i.keyspace, i)
-		}
 		// perform bleveMaxResultWindow initialisation only
 		// once per FTSIndexer instance.
 		bmrw, err := i.fetchBleveMaxResultWindow()
@@ -531,9 +526,9 @@ func (i *FTSIndexer) fetchBleveMaxResultWindow() (int, error) {
 		return 0, err
 	}
 
-	httpClient := i.agent.HTTPClient()
+	httpClient := obtainHttpClient()
 	if httpClient == nil {
-		return 0, fmt.Errorf("client not available")
+		return 0, fmt.Errorf("HttpClient unavailable")
 	}
 
 	resp, err := httpClient.Get(cbauthURL)
@@ -661,4 +656,39 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 	}
 
 	return rv, nil
+}
+
+// -----------------------------------------------------------------------------
+
+var httpClientM sync.RWMutex
+var httpClient *http.Client
+
+func updateHttpClient(certInBytes []byte) {
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{},
+	}
+
+	rootCAs := x509.NewCertPool()
+	if ok := rootCAs.AppendCertsFromPEM(certInBytes); ok {
+		transport.TLSClientConfig.RootCAs = rootCAs
+		_ = http2.ConfigureTransport(transport)
+	} else {
+		transport.TLSClientConfig.InsecureSkipVerify = true
+	}
+
+	client := &http.Client{
+		Timeout:   cbgt.HttpClientTimeout,
+		Transport: transport,
+	}
+
+	httpClientM.Lock()
+	httpClient = client
+	httpClientM.Unlock()
+}
+
+func obtainHttpClient() *http.Client {
+	httpClientM.RLock()
+	client := httpClient
+	httpClientM.RUnlock()
+	return client
 }
