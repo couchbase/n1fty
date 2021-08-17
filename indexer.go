@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/couchbase/cbft"
 	"github.com/couchbase/cbgt"
@@ -660,6 +661,8 @@ func (i *FTSIndexer) convertIndexDefs(indexDefs *cbgt.IndexDefs) (
 
 // -----------------------------------------------------------------------------
 
+var HttpClientTimeout = 60 * time.Second
+
 var httpClientM sync.RWMutex
 var httpClient *http.Client
 
@@ -677,7 +680,7 @@ func updateHttpClient(certInBytes []byte) {
 	}
 
 	client := &http.Client{
-		Timeout:   cbgt.HttpClientTimeout,
+		Timeout:   HttpClientTimeout,
 		Transport: transport,
 	}
 
