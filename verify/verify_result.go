@@ -14,7 +14,6 @@ package verify
 import (
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/mapping"
@@ -139,6 +138,8 @@ func (v *VerifyCtx) initVerifyCtx() errors.Error {
 		}
 	}
 
+	v.idxs = initFifoQueue(v.parallelism)
+
 	// Create as many in-memory bleve indexes (sear) for evaluating the hits
 	// to support concurrency during evaluation
 	for x := uint32(0); x < v.parallelism; x++ {
@@ -147,7 +148,7 @@ func (v *VerifyCtx) initVerifyCtx() errors.Error {
 			return util.N1QLError(err, "")
 		}
 
-		v.idxs = append(v.idxs, idx)
+		v.idxs.push(idx)
 	}
 
 	defaultType := "_default"
@@ -189,9 +190,8 @@ type VerifyCtx struct {
 	defaultType  string
 	docConfig    *cbft.BleveDocumentConfig
 
-	idxs        []bleve.Index
+	idxs        *fifoQueue
 	parallelism uint32
-	cursor      uint32 // counter to be atomically incremented
 }
 
 func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
@@ -200,7 +200,6 @@ func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
 		return true, nil
 	}
 
-	cursor := atomic.AddUint32(&v.cursor, 1)
 	if !v.isCtxInitialised() {
 		err := v.initVerifyCtx()
 		if err != nil {
@@ -236,13 +235,15 @@ func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
 		doc = bdoc
 	}
 
-	pos := cursor % v.parallelism
-	err := v.idxs[pos].Index(key, doc)
+	idx := v.idxs.pop()
+	defer v.idxs.push(idx)
+
+	err := idx.Index(key, doc)
 	if err != nil {
 		return false, util.N1QLError(err, "Index error")
 	}
 
-	res, err := v.idxs[pos].Search(v.sr)
+	res, err := idx.Search(v.sr)
 	if err != nil {
 		return false, util.N1QLError(err, "search failed")
 	}
@@ -252,4 +253,37 @@ func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
 	}
 
 	return true, nil
+}
+
+// -----------------------------------------------------------------------------
+
+// First-In-First-Out queue of indexes to support parallelism
+type fifoQueue struct {
+	m    sync.Mutex
+	idxs []bleve.Index
+}
+
+func initFifoQueue(capacity uint32) *fifoQueue {
+	return &fifoQueue{
+		idxs: make([]bleve.Index, 0, capacity),
+	}
+}
+
+func (q *fifoQueue) push(idx bleve.Index) {
+	q.m.Lock()
+	q.idxs = append(q.idxs, idx)
+	q.m.Unlock()
+}
+
+func (q *fifoQueue) pop() bleve.Index {
+	for {
+		q.m.Lock()
+		if len(q.idxs) > 0 {
+			idx := q.idxs[0]
+			q.idxs = q.idxs[1:]
+			q.m.Unlock()
+			return idx
+		}
+		q.m.Unlock()
+	}
 }

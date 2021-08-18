@@ -871,7 +871,7 @@ func TestConcurrentEval(t *testing.T) {
 	}
 	queryVal := value.NewValue(q)
 
-	parallelism := 4
+	parallelism := 10
 	v, err := NewVerify("`temp_keyspace`", "", queryVal, nil, parallelism)
 	if err != nil {
 		t.Fatal(queryVal, err)
@@ -879,9 +879,9 @@ func TestConcurrentEval(t *testing.T) {
 
 	signalCh := make(chan struct{}, parallelism)
 
-	for jj := 0; jj < 10; jj++ {
-		for ii := 0; ii < parallelism; ii++ {
-			go func(ch chan struct{}) {
+	for ii := 0; ii < parallelism; ii++ {
+		go func(ch chan struct{}) {
+			for jj := 0; jj < 100; jj++ {
 				item := value.NewAnnotatedValue([]byte(`{"name":"abhi"}`))
 				item.SetAttachment("meta", map[string]interface{}{"id": "key"})
 				item.SetId("key")
@@ -893,12 +893,13 @@ func TestConcurrentEval(t *testing.T) {
 				if !ret {
 					t.Fatalf("Expected evaluation for key to succeed for `%v`", queryVal)
 				}
-				ch <- struct{}{}
-			}(signalCh)
-		}
+			}
 
-		for ii := 0; ii < parallelism; ii++ {
-			<-signalCh
-		}
+			ch <- struct{}{}
+		}(signalCh)
+	}
+
+	for ii := 0; ii < parallelism; ii++ {
+		<-signalCh
 	}
 }
