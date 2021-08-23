@@ -278,23 +278,23 @@ func (b *WrapKeyspace) Indexers() ([]datastore.Indexer, errors.Error) {
 }
 
 func (b *WrapKeyspace) Fetch(keys []string, keysMap map[string]value.AnnotatedValue,
-	context datastore.QueryContext, subPaths []string) []errors.Error {
+	context datastore.QueryContext, subPaths []string) errors.Errors {
 	return b.W.Fetch(keys, keysMap, context, subPaths)
 }
 
-func (b *WrapKeyspace) Insert(inserts []value.Pair, context datastore.QueryContext) ([]value.Pair, errors.Error) {
+func (b *WrapKeyspace) Insert(inserts value.Pairs, context datastore.QueryContext) (value.Pairs, errors.Errors) {
 	return b.W.Insert(inserts, context)
 }
 
-func (b *WrapKeyspace) Update(updates []value.Pair, context datastore.QueryContext) ([]value.Pair, errors.Error) {
+func (b *WrapKeyspace) Update(updates value.Pairs, context datastore.QueryContext) (value.Pairs, errors.Errors) {
 	return b.W.Update(updates, context)
 }
 
-func (b *WrapKeyspace) Upsert(upserts []value.Pair, context datastore.QueryContext) ([]value.Pair, errors.Error) {
+func (b *WrapKeyspace) Upsert(upserts value.Pairs, context datastore.QueryContext) (value.Pairs, errors.Errors) {
 	return b.W.Upsert(upserts, context)
 }
 
-func (b *WrapKeyspace) Delete(deletes []value.Pair, context datastore.QueryContext) ([]value.Pair, errors.Error) {
+func (b *WrapKeyspace) Delete(deletes value.Pairs, context datastore.QueryContext) (value.Pairs, errors.Errors) {
 	return b.W.Delete(deletes, context)
 }
 
