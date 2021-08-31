@@ -22,6 +22,8 @@ replace github.com/couchbase/indexing => ../indexing
 
 replace github.com/couchbase/plasma => ../plasma
 
+replace github.com/couchbase/gometa => ../gometa
+
 replace github.com/couchbase/cbft => ../../../../../cbft
 
 replace github.com/couchbase/cbftx => ../../../../../cbftx
