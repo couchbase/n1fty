@@ -138,7 +138,7 @@ func (v *VerifyCtx) initVerifyCtx() errors.Error {
 		}
 	}
 
-	v.idxs = initFifoQueue(v.parallelism)
+	v.idxs = initIdxsQueue(v.parallelism)
 
 	// Create as many in-memory bleve indexes (sear) for evaluating the hits
 	// to support concurrency during evaluation
@@ -148,7 +148,7 @@ func (v *VerifyCtx) initVerifyCtx() errors.Error {
 			return util.N1QLError(err, "")
 		}
 
-		v.idxs.push(idx)
+		v.idxs.enqueue(idx)
 	}
 
 	defaultType := "_default"
@@ -190,7 +190,7 @@ type VerifyCtx struct {
 	defaultType  string
 	docConfig    *cbft.BleveDocumentConfig
 
-	idxs        *fifoQueue
+	idxs        *idxsQueue
 	parallelism uint32
 }
 
@@ -235,8 +235,8 @@ func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
 		doc = bdoc
 	}
 
-	idx := v.idxs.pop()
-	defer v.idxs.push(idx)
+	idx := v.idxs.dequeue()
+	defer v.idxs.enqueue(idx)
 
 	err := idx.Index(key, doc)
 	if err != nil {
@@ -257,33 +257,21 @@ func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
 
 // -----------------------------------------------------------------------------
 
-// First-In-First-Out queue of indexes to support parallelism
-type fifoQueue struct {
-	m    sync.Mutex
-	idxs []bleve.Index
+// buffered channel of indexes to support parallelism
+type idxsQueue struct {
+	ch chan bleve.Index
 }
 
-func initFifoQueue(capacity uint32) *fifoQueue {
-	return &fifoQueue{
-		idxs: make([]bleve.Index, 0, capacity),
+func initIdxsQueue(capacity uint32) *idxsQueue {
+	return &idxsQueue{
+		ch: make(chan bleve.Index, capacity),
 	}
 }
 
-func (q *fifoQueue) push(idx bleve.Index) {
-	q.m.Lock()
-	q.idxs = append(q.idxs, idx)
-	q.m.Unlock()
+func (i *idxsQueue) enqueue(idx bleve.Index) {
+	i.ch <- idx
 }
 
-func (q *fifoQueue) pop() bleve.Index {
-	for {
-		q.m.Lock()
-		if len(q.idxs) > 0 {
-			idx := q.idxs[0]
-			q.idxs = q.idxs[1:]
-			q.m.Unlock()
-			return idx
-		}
-		q.m.Unlock()
-	}
+func (i *idxsQueue) dequeue() bleve.Index {
+	return <-i.ch
 }

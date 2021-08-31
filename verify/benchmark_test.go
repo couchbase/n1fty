@@ -13,6 +13,7 @@ package verify
 
 import (
 	"math"
+	"sync"
 	"testing"
 
 	"github.com/blevesearch/bleve/v2"
@@ -240,4 +241,34 @@ func benchmarkMossOptimizable(b *testing.B,
 			_ = rsdt.ResetStackDirtyTop()
 		}
 	}
+}
+
+func BenchmarkVerifyEvalWithParallelism(b *testing.B) {
+	parallelism := uint32(4)
+	idxs := initIdxsQueue(parallelism)
+	for p := uint32(0); p < parallelism; p++ {
+		idx, err := bleve.NewUsing("", bleve.NewIndexMapping(), sear.Name, sear.Name, nil)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		idxs.enqueue(idx)
+	}
+
+	var wg sync.WaitGroup
+
+	b.ResetTimer()
+
+	for p := uint32(0); p < parallelism; p++ {
+		wg.Add(1)
+		go func(w *sync.WaitGroup) {
+			for i := 0; i < b.N; i++ {
+				idx := idxs.dequeue()
+				idxs.enqueue(idx)
+			}
+			w.Done()
+		}(&wg)
+	}
+
+	wg.Wait()
 }
