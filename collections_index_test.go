@@ -411,3 +411,75 @@ func TestCollectionIndexSargabilityDocidPrefix(t *testing.T) {
 	expectQueryStr := `{"query":{"term":"United States","field":"country"},"score":"none"}`
 	checkFlexQuerySargability(t, index, sargableQuery, expectQueryStr)
 }
+
+func TestCollectionIndexSargabilityDocIDRegexp(t *testing.T) {
+	index, err := setupSampleIndexOverCollection("scope1", "collection1", []byte(`
+	{
+		"type": "fulltext-index",
+		"name": "idx2",
+		"sourceType": "gocbcore",
+		"sourceName": "travel-sample",
+		"planParams": {
+			"indexPartitions": 6
+		},
+		"params": {
+			"doc_config": {
+				"mode": "scope.collection.docid_regexp",
+				"docid_regexp": "abc.*ghi"
+			},
+			"mapping": {
+				"default_mapping": {
+					"enabled": false
+				},
+				"types": {
+					"scope1.collection1.abcdefghi": {
+						"dynamic": false,
+						"enabled": true,
+						"properties": {
+							"country": {
+								"dynamic": false,
+								"enabled": true,
+								"fields": [
+								{
+									"analyzer": "keyword",
+									"index": true,
+									"name": "country",
+									"type": "text"
+								}
+								]
+							}
+						}
+					}
+				}
+			},
+			"store": {
+				"indexType": "scorch"
+			}
+		}
+	}
+	`))
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	query := expression.NewConstant(map[string]interface{}{
+		"match": "United States",
+		"field": "country",
+	})
+
+	count, indexedCount, exact, _, n1qlErr := index.Sargable("", query,
+		expression.NewConstant(``), nil)
+	if n1qlErr != nil {
+		t.Fatal(n1qlErr)
+	}
+
+	if count != 1 || indexedCount != 1 || !exact {
+		t.Fatalf("Unexpected results for query: %v, %v, %v",
+			count, indexedCount, exact)
+	}
+
+	sargableQuery := `meta().id LIKE "%abcdefghi%" AND t.country = "United States"`
+	expectQueryStr := `{"query":{"term":"United States","field":"country"},"score":"none"}`
+	checkFlexQuerySargability(t, index, sargableQuery, expectQueryStr)
+}

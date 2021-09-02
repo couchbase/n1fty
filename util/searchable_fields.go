@@ -57,7 +57,7 @@ type ProcessedIndexParams struct {
 // ProcessIndexDef determines if an indexDef is supportable as an
 // datastore.FTSIndex, especially by invoking ProcessIndexMapping().
 // The DocConfig.Mode is also checked here with current support for
-// "type_field" and "docid_prefix" modes.
+// "type_field", "docid_prefix" and "docid_regexp" modes.
 func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 	pip ProcessedIndexParams, err error) {
 	// Other types like "fulltext-alias" are not-FTSIndex'able for now.
@@ -160,6 +160,45 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 					condExpr = `META().id LIKE "` + typeMapping + dc.DocIDPrefixDelim + `%"`
 				} else {
 					condExpr += ` OR META().id LIKE "` + typeMapping + dc.DocIDPrefixDelim + `%"`
+				}
+			}
+		}
+
+		return ProcessedIndexParams{
+			IndexMapping:          im,
+			DocConfig:             dc,
+			SearchFields:          m,
+			IndexedCount:          indexedCount,
+			CondExpr:              condExpr,
+			DynamicMappings:       dynamicMappings,
+			AllFieldSearchable:    allFieldSearchable,
+			DefaultAnalyzer:       defaultAnalyzer,
+			DefaultDateTimeParser: defaultDateTimeParser,
+			TypeMappings:          typeMappings,
+		}, nil
+
+	case "docid_regexp":
+		dc := &bp.DocConfig
+
+		var typeMappings []string
+		m, indexedCount, typeStrs, dynamicMappings, allFieldSearchable,
+			defaultAnalyzer, defaultDateTimeParser := ProcessIndexMapping(im)
+		if typeStrs != nil {
+			for typeMapping, enabled := range typeStrs.S {
+				if !enabled {
+					continue
+				}
+
+				if strings.ContainsAny(typeMapping, DisallowedChars) {
+					return
+				}
+
+				typeMappings = append(typeMappings, typeMapping)
+				// Ex: condExpr == 'META().id LIKE "%beer" OR META().id LIKE "%brewery%"'.
+				if len(condExpr) == 0 {
+					condExpr = `META().id LIKE "%` + typeMapping + `%"`
+				} else {
+					condExpr += `OR META().id LIKE "%` + typeMapping + `%"`
 				}
 			}
 		}
@@ -351,10 +390,85 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 			Collection:            collection,
 		}, nil
 
-	case "docid_regexp", "scope.collection.docid_regexp":
-		// N1QL doesn't currently support a generic regexp-based
-		// condExpr, so not-FTSIndex'able.
-		return
+	case "scope.collection.docid_regexp":
+		dc := &bp.DocConfig
+
+		var typeMappings []string
+		m, indexedCount, typeStrs, dynamicMappings, allFieldSearchable,
+			defaultAnalyzer, defaultDateTimeParser := ProcessIndexMapping(im)
+		var entireScopeCollIndexed bool
+		if typeStrs != nil {
+			scopeCollTypes := map[string]bool{}
+			for typeMapping, enabled := range typeStrs.S {
+				if strings.ContainsAny(typeMapping, DisallowedChars) {
+					return
+				}
+
+				arr := strings.SplitN(typeMapping, ".", 3)
+				if len(arr) == 1 {
+					if (scope == "" || scope == "_default") &&
+						(collection == "" || collection == "_default") {
+						scopeCollTypes[arr[0]] = enabled
+					}
+				} else if len(arr) == 2 {
+					if scope == arr[0] && collection == arr[1] {
+						entireScopeCollIndexed = enabled
+					}
+				} else if len(arr) == 3 {
+					if scope == arr[0] && collection == arr[1] {
+						scopeCollTypes[arr[2]] = enabled
+					}
+				}
+			}
+
+			if entireScopeCollIndexed {
+				if len(scopeCollTypes) > 0 {
+					// Do not consider this index, to avoid the possibility of false negatives.
+					return
+				}
+				// condExpr is nil
+			} else {
+				for typeName, enabled := range scopeCollTypes {
+					if enabled {
+						typeMappings = append(typeMappings, typeName)
+					}
+				}
+
+				if len(typeMappings) == 0 {
+					// Do not consider index, as nothing relevant to the scope.collection is
+					// indexed.
+					return
+				} else {
+					for i := range typeMappings {
+						// Ex: condExpr == 'META().id LIKE "%beer" OR META().id LIKE "%brewery%"'.
+						if len(condExpr) == 0 {
+							condExpr = `META().id LIKE "%` + typeMappings[i] + `%"`
+						} else {
+							condExpr += ` OR META().id LIKE "%` + typeMappings[i] + `%"`
+						}
+					}
+				}
+			}
+		}
+
+		if entireScopeCollIndexed {
+			indexedCount = math.MaxInt64
+		}
+
+		return ProcessedIndexParams{
+			IndexMapping:          im,
+			DocConfig:             dc,
+			SearchFields:          m,
+			IndexedCount:          indexedCount,
+			CondExpr:              condExpr,
+			DynamicMappings:       dynamicMappings,
+			AllFieldSearchable:    allFieldSearchable,
+			DefaultAnalyzer:       defaultAnalyzer,
+			DefaultDateTimeParser: defaultDateTimeParser,
+			TypeMappings:          typeMappings,
+			Scope:                 scope,
+			Collection:            collection,
+		}, nil
 
 	default:
 		return

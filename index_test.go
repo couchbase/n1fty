@@ -1667,3 +1667,113 @@ func TestFlexPushDownSearchFunc3(t *testing.T) {
 		t.Fatalf("Expected query: %v, Got query: %v", expectQuery, gotQuery)
 	}
 }
+
+func TestIndexSargabilityDocIDRegexp(t *testing.T) {
+	index, err := setupSampleIndex([]byte(`
+		{
+			"type": "fulltext-index",
+			"name": "idx1",
+			"sourceType": "gocbcore",
+			"sourceName": "travel-sample",
+			"planParams": {
+				"indexPartitions": 6
+			},
+			"params": {
+				"doc_config": {
+					"mode": "docid_regexp",
+					"docid_regexp": "abc.*ghi"
+				},
+				"mapping": {
+					"default_mapping": {
+						"enabled": false
+					},
+					"types": {
+						"abcdefghi": {
+							"enabled": true,
+							"dynamic": false,
+							"properties": {
+								"country": {
+									"enabled": true,
+									"dynamic": false,
+									"fields": [
+									{
+										"analyzer": "keyword",
+										"index": true,
+										"name": "country",
+										"type": "text"
+									}
+									]
+								}
+							}
+						}
+					}
+				},
+				"store": {
+					"indexType": "scorch"
+				}
+			}
+		}
+		`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		queryStr         string
+		expectedQueryStr string
+	}{
+		{
+			queryStr:         `meta().id LIKE "%abcdefghi%" AND t.country = "US"`,
+			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
+		},
+		{
+			queryStr:         `meta().id IN ["abc.*ghi"] AND t.country = "US"`,
+			expectedQueryStr: ``,
+		},
+	}
+
+	for i := range tests {
+		queryExpression, err := parser.Parse(tests[i].queryStr)
+		if err != nil {
+			t.Fatal(tests[i].queryStr, err)
+		}
+
+		flexRequest := &datastore.FTSFlexRequest{
+			Keyspace: "t",
+			Pred:     queryExpression,
+		}
+
+		resp, err := index.SargableFlex("0", flexRequest)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(tests[i].expectedQueryStr) == 0 {
+			if resp != nil {
+				t.Errorf("[%d] Expected `%s` to not be sargable for index",
+					i, tests[i].queryStr)
+			}
+			continue
+		}
+
+		if resp == nil {
+			t.Errorf("[%d] Expected `%s` to be sargable for index", i, tests[i].queryStr)
+			continue
+		}
+
+		var gotQuery, expectedQuery map[string]interface{}
+		err = json.Unmarshal([]byte(resp.SearchQuery), &gotQuery)
+		if err != nil {
+			t.Errorf("[%d] SearchQuery: %s, err: %v", i, resp.SearchQuery, err)
+		}
+		err = json.Unmarshal([]byte(tests[i].expectedQueryStr), &expectedQuery)
+		if err != nil {
+			t.Errorf("[%d] ExpectedQuery: %s, err: %v", i, tests[i].expectedQueryStr, err)
+		}
+
+		if !reflect.DeepEqual(expectedQuery, gotQuery) {
+			t.Errorf("[%d] ExpectedQuery: %s, GotQuery: %s",
+				i, tests[i].expectedQueryStr, resp.SearchQuery)
+		}
+	}
+}

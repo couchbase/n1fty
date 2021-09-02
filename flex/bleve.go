@@ -95,7 +95,8 @@ func BleveToCondFlexIndexes(name, uuid string, im *mapping.IndexMappingImpl,
 			}
 			fi.IndexedFields = append(fi.IndexedFields,
 				&FieldInfo{FieldPath: typeFieldPath, FieldType: "text"})
-		case "docid_prefix", "scope.collection.docid_prefix":
+		case "docid_prefix", "scope.collection.docid_prefix",
+			"docid_regexp", "scope.collection.docid_regexp":
 			typeFieldPath = []string{"meta().id"}
 		default:
 			return nil, fmt.Errorf("unsupported docConfig.mode: %v", mode)
@@ -148,7 +149,23 @@ func BleveToCondFlexIndexes(name, uuid string, im *mapping.IndexMappingImpl,
 			} else if mode == "docid_prefix" || mode == "scope.collection.docid_prefix" {
 				val := value.NewValue(typeName + docConfig.DocIDPrefixDelim + "%")
 
-				// Strips `meta().id LIKE "BEER-%"` fro expressions.
+				// Strips `meta().id LIKE "BEER-%"` from expressions.
+				fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
+					Cmp:       "like",
+					FieldPath: typeFieldPath,
+					ValueType: "text",
+					ValueMust: val,
+					Effect:    typeEqEffect,
+				})
+
+				values[val] = &valueDetails{
+					typeName: typeName,
+					cmp:      "like",
+				}
+			} else if mode == "docid_regexp" || mode == "scope.collection.docid_regexp" {
+				val := value.NewValue("%" + typeName + "%")
+
+				// Strips `meta().id LIKE "%BEER%"` from expressions.
 				fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
 					Cmp:       "like",
 					FieldPath: typeFieldPath,

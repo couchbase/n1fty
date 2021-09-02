@@ -144,25 +144,6 @@ func TestProcessIndexDef(t *testing.T) {
 			expectErr:                   "",
 		},
 		{
-			about: "docid_regexp is not a supported indexDef.DocConfig.Mode",
-			indexDef: `
-			{
-				"type": "fulltext-index",
-				"params": {
-					"doc_config": {
-						"mode": "docid_regexp",
-						"docid_regexp": "[a-z]+"
-					}
-				}
-			}`,
-			expectSearchFields:          nil,
-			expectCondExpr:              "",
-			expectDynamic:               false,
-			expectDefaultAnalyzer:       "",
-			expectDefaultDateTimeParser: "",
-			expectErr:                   "",
-		},
-		{
 			about: "a supported indexDef",
 			indexDef: `
 			{
@@ -337,6 +318,55 @@ func TestProcessIndexDef(t *testing.T) {
 			expectDynamic:               false,
 			expectDefaultAnalyzer:       "",
 			expectDefaultDateTimeParser: "",
+			expectErr:                   "",
+		},
+		{
+			about: "a supported indexDef, with docid_regexp",
+			indexDef: `
+			{
+				"type": "fulltext-index",
+				"params": {
+					"doc_config": {
+						"mode": "docid_regexp",
+						"docid_regexp": "hotel"
+					},
+					"mapping": {
+						"default_analyzer": "standard",
+						"default_datetime_parser": "dateTimeOptional",
+						"default_mapping": {
+							"dynamic": true,
+							"enabled": false
+						},
+						"index_dynamic": true,
+						"types": {
+							"hotel": {
+								"enabled": true,
+								"dynamic": false,
+								"properties": {
+									"country": {
+										"enabled": true,
+										"dynamic": false,
+										"fields": [{
+											"name": "country",
+											"type": "text",
+											"analyzer": "keyword",
+											"index": true
+										}]
+									}
+								}
+							}
+						}
+					}
+				}
+			}`,
+			expectSearchFields: map[SearchField]bool{
+				{Name: "country", Type: "text", Analyzer: "keyword"}:  false,
+				{Name: "country", Type: "text", Analyzer: "standard"}: false,
+			},
+			expectCondExpr:              `META().id LIKE "%hotel%"`,
+			expectDynamic:               false,
+			expectDefaultAnalyzer:       "standard",
+			expectDefaultDateTimeParser: "dateTimeOptional",
 			expectErr:                   "",
 		},
 		{
