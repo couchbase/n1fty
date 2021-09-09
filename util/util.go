@@ -203,13 +203,13 @@ func FetchKeySpace(nameAndKeyspace string) string {
 }
 
 func ParseQueryToSearchRequest(field string, input value.Value) (
-	map[SearchField]struct{}, *cbft.SearchRequest, int64, error) {
+	map[SearchField]struct{}, *cbft.SearchRequest, int64, bool, error) {
 	field = CleanseField(field)
 
 	queryFields := map[SearchField]struct{}{}
 	if input == nil {
 		queryFields[SearchField{Name: field}] = struct{}{}
-		return queryFields, nil, 0, nil
+		return queryFields, nil, 0, false, nil
 	}
 
 	var err error
@@ -223,7 +223,7 @@ func ParseQueryToSearchRequest(field string, input value.Value) (
 	if qf, ok := input.Field("query"); ok && qf.Type() == value.OBJECT {
 		rv, q, err = BuildSearchRequest(field, input)
 		if err != nil {
-			return nil, nil, 0, err
+			return nil, nil, 0, false, err
 		}
 
 		if cf, ok := input.Field("ctl"); ok && cf.Type() == value.OBJECT {
@@ -234,11 +234,11 @@ func ParseQueryToSearchRequest(field string, input value.Value) (
 	} else {
 		q, err = BuildQuery(field, input)
 		if err != nil {
-			return nil, nil, 0, err
+			return nil, nil, 0, false, err
 		}
 		rv.Q, err = json.Marshal(q)
 		if err != nil {
-			return nil, nil, 0, err
+			return nil, nil, 0, false, err
 		}
 
 		size := math.MaxInt64
@@ -249,10 +249,54 @@ func ParseQueryToSearchRequest(field string, input value.Value) (
 
 	queryFields, err = FetchFieldsToSearchFromQuery(q)
 	if err != nil {
-		return nil, nil, 0, err
+		return nil, nil, 0, false, err
 	}
 
-	return queryFields, rv, ctlTimeout, nil
+	needsFiltering := queryResultsNeedFiltering(q)
+
+	return queryFields, rv, ctlTimeout, needsFiltering, nil
+}
+
+func queryResultsNeedFiltering(q query.Query) bool {
+	if _, ok := q.(*query.MatchAllQuery); ok {
+		// A match_all query would obtain all document IDs that
+		// KV shipped to FTS and not necessarily the ones that
+		// were indexed.
+		return true
+	}
+
+	if bq, ok := q.(*query.BooleanQuery); ok {
+		if bq.MustNot != nil {
+			// A NEGATE search would obtain all document IDs that
+			// KV shipped to FTS that did not match the search
+			// criteria.
+			if dq, ok := bq.MustNot.(*query.DisjunctionQuery); ok {
+				if len(dq.Disjuncts) > 0 {
+					return true
+				}
+			}
+		}
+	}
+
+	if qsq, ok := q.(*query.QueryStringQuery); ok {
+		if qq, err := qsq.Parse(); err == nil {
+			if bq, ok := qq.(*query.BooleanQuery); ok {
+				if bq.MustNot != nil {
+					// A NEGATE search would obtain all document IDs that
+					// KV shipped to FTS that did not match the search
+					// criteria.
+					if dq, ok := bq.MustNot.(*query.DisjunctionQuery); ok {
+						if len(dq.Disjuncts) > 0 {
+							return true
+						}
+					}
+
+				}
+			}
+		}
+	}
+
+	return false
 }
 
 // Value MUST be an object

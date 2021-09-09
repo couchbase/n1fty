@@ -84,7 +84,7 @@ func (v *VerifyCtx) initVerifyCtx() errors.Error {
 	}
 	defer v.l.Unlock()
 
-	queryFields, searchRequest, _, err := util.ParseQueryToSearchRequest(
+	queryFields, searchRequest, _, _, err := util.ParseQueryToSearchRequest(
 		v.field, v.query)
 	if err != nil {
 		return util.N1QLError(err, "")

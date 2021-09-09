@@ -307,6 +307,7 @@ func (i *FTSIndex) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 type sargableRV struct {
 	count         int
 	indexedCount  int64
+	exact         bool
 	opaque        map[string]interface{}
 	searchRequest *cbft.SearchRequest
 	timeoutMS     int64
@@ -350,16 +351,10 @@ func (i *FTSIndex) Sargable(field string, query,
 	if i.multipleTypeStrs {
 		// As this index includes multiple type mappings, this index will
 		// not be supported for n1ql's SEARCH(..) functions to avoid the
-		// possibility of false positives
+		// possibility of false positives, as FTS supports indexing same
+		// field names across type mappings.
 		return 0, 0, false, nil, nil
 	}
-
-	// For now, Exact will always be true (to prevent n1ql from doing
-	// unnecessary KV fetches);
-	// This is more of a place holder for until partial sargability is
-	// supported where n1fty can determine whether a particular index
-	// would generate false positives or not for a given query.
-	exact := true
 
 	var queryFields map[util.SearchField]struct{}
 	if opq, ok := opaque.(map[string]interface{}); ok {
@@ -372,7 +367,7 @@ func (i *FTSIndex) Sargable(field string, query,
 		// this index will be sargable for the unavailable query if
 		// it has a default dynamic mapping with the _all field searchable.
 		if len(i.dynamicMappings) > 0 && i.allFieldSearchable {
-			return int(math.MaxInt64), math.MaxInt64, exact, opaque, nil
+			return int(math.MaxInt64), math.MaxInt64, false, opaque, nil
 		}
 
 		// if the index isn't default dynamic, check if the query expression
@@ -423,16 +418,17 @@ func (i *FTSIndex) Sargable(field string, query,
 
 	if util.Debug > 0 {
 		logging.Infof("n1fty: Sargable, index: %s, field: %s, query: %v,"+
-			" options: %v, rv: %+v, exact: %t",
-			i.indexDef.Name, field, query, options, rv, exact)
+			" options: %v, rv: %+v",
+			i.indexDef.Name, field, query, options, rv)
 	}
 
-	return rv.count, rv.indexedCount, exact, rv.opaque, rv.err
+	return rv.count, rv.indexedCount, rv.exact, rv.opaque, rv.err
 }
 
 func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 	query, options value.Value, opaque interface{}) *sargableRV {
 	rv := &sargableRV{}
+
 	var ok bool
 	rv.opaque, ok = opaque.(map[string]interface{})
 	if !ok {
@@ -443,11 +439,12 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 	var queryFields map[util.SearchField]struct{}
 	var sr *cbft.SearchRequest
 	var ctlTimeout int64
+	var needsFiltering bool
 
 	if queryFieldsInterface, exists := rv.opaque["query_fields"]; !exists {
 		// if opaque didn't carry a "query" entry, go ahead and
 		// process the field+query provided to retrieve queryFields.
-		queryFields, sr, ctlTimeout, err = util.ParseQueryToSearchRequest(field, query)
+		queryFields, sr, ctlTimeout, needsFiltering, err = util.ParseQueryToSearchRequest(field, query)
 		if err != nil {
 			rv.err = util.N1QLError(err, "failed to parse query to search request")
 			return rv
@@ -457,6 +454,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		rv.opaque["query_fields"] = queryFields
 		rv.opaque["search_request"] = sr
 		rv.opaque["ctl_timeout"] = ctlTimeout
+		rv.opaque["needs_filtering"] = needsFiltering
 	} else {
 		queryFields, _ = queryFieldsInterface.(map[util.SearchField]struct{})
 
@@ -466,10 +464,12 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		sr, _ = srInterface.(*cbft.SearchRequest)
 
 		ctlTimeout, _ = rv.opaque["ctl_timeout"].(int64)
+		needsFiltering, _ = rv.opaque["needs_filtering"].(bool)
 	}
 
 	rv.searchRequest = sr
 	rv.timeoutMS = ctlTimeout
+	rv.exact = !needsFiltering
 
 	if options != nil {
 		// check if an "index" entry exists and if it matches

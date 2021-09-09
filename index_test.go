@@ -1777,3 +1777,92 @@ func TestIndexSargabilityDocIDRegexp(t *testing.T) {
 		}
 	}
 }
+
+func TestIndexSargabilityForQueriesThatNeedFiltering(t *testing.T) {
+	index, err := setupSampleIndex([]byte(`{
+		"name": "hotels",
+		"type": "fulltext-index",
+		"sourceName": "travel-sample",
+		"planParams": {
+			"indexPartitions": 6
+		},
+		"params": {
+			"doc_config": {
+				"mode": "type_field",
+				"type_field": "type"
+			},
+			"mapping": {
+				"default_mapping": {
+					"dynamic": true,
+					"enabled": false
+				},
+				"type_field": "_type",
+				"types": {
+					"hotel": {
+						"dynamic": true,
+						"enabled": true
+					}
+				}
+			},
+			"store": {
+				"indexType": "scorch"
+			}
+		}
+	}`))
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	queBytes := []byte(`
+	{
+		"conjuncts":[{
+			"match": "United States",
+			"field": "country",
+			"analyzer": "keyword"
+		}, {
+			"match": "San Francisco",
+			"field": "city"
+		}]
+	}
+	`)
+	var que map[string]interface{}
+	err = json.Unmarshal(queBytes, &que)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// MB-47538
+	q1Bytes := []byte(`{"query": {"match_all": {}}}`)
+	var q1 map[string]interface{}
+	err = json.Unmarshal(q1Bytes, &q1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, exact, _, n1qlErr := index.Sargable("",
+		expression.NewConstant(q1), expression.NewConstant(``), nil)
+	if n1qlErr != nil || exact {
+		t.Errorf("Expected exact: false for query: %v, err: %v", q1, n1qlErr)
+	}
+
+	// MB-47276
+	q2 := `-country:France`
+	_, _, exact, _, n1qlErr = index.Sargable("",
+		expression.NewConstant(q2), expression.NewConstant(``), nil)
+	if n1qlErr != nil || exact {
+		t.Errorf("Expected exact: false for query: %v, err: %v", q2, n1qlErr)
+	}
+
+	q3Bytes := []byte(`{"must_not": {"disjuncts": [{"match": "France", "field": "country"}]}}`)
+	var q3 map[string]interface{}
+	err = json.Unmarshal(q3Bytes, &q3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, exact, _, n1qlErr = index.Sargable("",
+		expression.NewConstant(q3), expression.NewConstant(``), nil)
+	if n1qlErr != nil || exact {
+		t.Errorf("Expected exact: false for query: %v, err: %v", q3, n1qlErr)
+	}
+
+}
