@@ -163,13 +163,19 @@ func (i *FTSIndexer) SetConnectionSecurityConfig(
 	}
 
 	if len(conf.CertFile) != 0 && len(conf.KeyFile) != 0 {
-		certificate, err := tls.LoadX509KeyPair(conf.CertFile, conf.KeyFile)
+		certificate, err := cbgt.LoadX509KeyPair(conf.CertFile, conf.KeyFile,
+			conf.TLSConfig.PrivateKeyPassphrase)
 		if err != nil {
 			logging.Fatalf("Failed to generate SSL certificate, err: %v", err)
 		}
 		newSecurityConfig.certificate = &certificate
 
-		newSecurityConfig.certInBytes, err = ioutil.ReadFile(conf.CertFile)
+		caFile := conf.CAFile
+		if len(caFile) == 0 {
+			caFile = conf.CertFile
+		}
+
+		newSecurityConfig.certInBytes, err = ioutil.ReadFile(caFile)
 		if err != nil {
 			logging.Fatalf("Failed to load certificate file, err: %v", err)
 		}
