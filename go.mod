@@ -33,8 +33,8 @@ replace github.com/couchbase/cbgt => ../../../../../cbgt
 replace github.com/couchbase/goutils => ../goutils
 
 require (
-	github.com/blevesearch/bleve/v2 v2.2.0
-	github.com/blevesearch/sear v0.0.3
+	github.com/blevesearch/bleve/v2 v2.2.1
+	github.com/blevesearch/sear v0.0.4
 	github.com/buger/jsonparser v1.1.1
 	github.com/couchbase/cbauth v0.0.0-20210911011937-6a860d4b3951
 	github.com/couchbase/cbft v0.0.0-00010101000000-000000000000
