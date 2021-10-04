@@ -32,6 +32,8 @@ replace github.com/couchbase/cbgt => ../../../../../cbgt
 
 replace github.com/couchbase/goutils => ../goutils
 
+replace github.com/couchbase/godbc => ../godbc
+
 require (
 	github.com/blevesearch/bleve/v2 v2.2.1
 	github.com/blevesearch/sear v0.0.4
