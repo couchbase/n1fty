@@ -23,6 +23,8 @@ import (
 	"sync"
 	"time"
 
+	cbtls "github.com/couchbase/goutils/tls"
+
 	"github.com/couchbase/cbft"
 	"github.com/couchbase/cbgt"
 	"github.com/couchbase/n1fty/util"
@@ -163,7 +165,7 @@ func (i *FTSIndexer) SetConnectionSecurityConfig(
 	}
 
 	if len(conf.CertFile) != 0 && len(conf.KeyFile) != 0 {
-		certificate, err := cbgt.LoadX509KeyPair(conf.CertFile, conf.KeyFile,
+		certificate, err := cbtls.LoadX509KeyPair(conf.CertFile, conf.KeyFile,
 			conf.TLSConfig.PrivateKeyPassphrase)
 		if err != nil {
 			logging.Fatalf("Failed to generate SSL certificate, err: %v", err)
