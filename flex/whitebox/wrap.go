@@ -155,6 +155,10 @@ func (s *WrapDatastore) EnableStorageAudit(val bool) {
 
 }
 
+func (s *WrapDatastore) GetUserUUID(creds *auth.Credentials) string {
+	return ""
+}
+
 // ------------------------------------------------------------------------
 
 type WrapNamespace struct {
