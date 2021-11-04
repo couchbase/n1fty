@@ -167,10 +167,9 @@ func BuildIndexMappingOnFields(queryFields map[SearchField]struct{}, defaultAnal
 				docMapping = build(field, docMapping)
 			} else {
 				// in case one of the searcher's field name is not provided,
-				// set doc mapping to dynamic and skip processing remaining fields.
+				// set doc mapping to dynamic
 				docMapping.Dynamic = true
 				docMapping.DefaultAnalyzer = field.Analyzer
-				break
 			}
 		}
 	}
