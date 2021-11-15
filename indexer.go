@@ -60,6 +60,8 @@ type FTSIndexer struct {
 	// sync RWMutex protects following fields
 	m sync.RWMutex
 
+	newSecurityConfigAvailable bool
+
 	client   *ftsClient
 	nodeDefs *cbgt.NodeDefs
 
@@ -159,9 +161,9 @@ func (i *FTSIndexer) SetConnectionSecurityConfig(
 	}
 
 	newSecurityConfig := &securityConfig{
-		tlsPreference:     &conf.TLSConfig,
-		encryptionEnabled: conf.ClusterEncryptionConfig.EncryptData,
-		disableNonSSLPort: conf.ClusterEncryptionConfig.DisableNonSSLPorts,
+		tlsPreference:      &conf.TLSConfig,
+		encryptionEnabled:  conf.ClusterEncryptionConfig.EncryptData,
+		disableNonSSLPorts: conf.ClusterEncryptionConfig.DisableNonSSLPorts,
 	}
 
 	if len(conf.CertFile) != 0 && len(conf.KeyFile) != 0 {
@@ -178,6 +180,8 @@ func (i *FTSIndexer) SetConnectionSecurityConfig(
 	}
 
 	updateSecurityConfig(newSecurityConfig)
+
+	i.securityConfigRefreshed()
 
 	// bump the cfg version as this needs a force refresh
 	i.cfg.bumpVersion()
@@ -303,6 +307,12 @@ func (i *FTSIndexer) MetadataVersion() uint64 {
 
 func (i *FTSIndexer) SetLogLevel(level logging.Level) {
 	logging.SetLevel(level)
+}
+
+func (i *FTSIndexer) securityConfigRefreshed() {
+	i.m.Lock()
+	i.newSecurityConfigAvailable = true
+	i.m.Unlock()
 }
 
 // -----------------------------------------------------------------------------
@@ -435,10 +445,18 @@ func (i *FTSIndexer) nodeDefsUnchangedLOCKED(newNodeDefs *cbgt.NodeDefs) bool {
 	return i.nodeDefs.UUID == newNodeDefs.UUID
 }
 
+func (i *FTSIndexer) getNodeDefs() *cbgt.NodeDefs {
+	i.m.RLock()
+	nodeDefs := i.nodeDefs
+	i.m.RUnlock()
+	return nodeDefs
+}
+
 func (i *FTSIndexer) initClient(nodeDefs *cbgt.NodeDefs, force bool) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	if !force && i.client != nil && i.nodeDefsUnchangedLOCKED(nodeDefs) {
+	if !force && i.client != nil && i.nodeDefsUnchangedLOCKED(nodeDefs) &&
+		!i.newSecurityConfigAvailable {
 		return nil
 	}
 
@@ -449,11 +467,12 @@ func (i *FTSIndexer) initClient(nodeDefs *cbgt.NodeDefs, force bool) error {
 	}
 
 	if i.client != nil {
-		i.client.Close()
+		i.client.close()
 	}
 
 	i.client = client
 	i.nodeDefs = nodeDefs
+	i.newSecurityConfigAvailable = false
 
 	return nil
 }
@@ -467,14 +486,22 @@ func (i *FTSIndexer) getClient() *ftsClient {
 }
 
 func (i *FTSIndexer) fetchBleveMaxResultWindow() (int, error) {
-	ftsEndpoints := i.agent.FtsEps()
-	if len(ftsEndpoints) == 0 {
+	nodeDefs := i.getNodeDefs()
+	if nodeDefs == nil || len(nodeDefs.NodeDefs) == 0 {
 		return 0, fmt.Errorf("no fts endpoints available")
 	}
 
-	now := time.Now().UnixNano()
-	cbauthURL, err := cbgt.CBAuthURL(
-		ftsEndpoints[now%int64(len(ftsEndpoints))] + "/api/manager")
+	var nodeDef *cbgt.NodeDef
+	for _, nodeDef = range nodeDefs.NodeDefs {
+		break
+	}
+
+	hostPortUrl := "http://" + nodeDef.HostPort
+	if u, err := nodeDef.HttpsURL(); err == nil {
+		hostPortUrl = u
+	}
+
+	cbauthURL, err := cbgt.CBAuthURL(hostPortUrl + "/api/manager")
 	if err != nil {
 		return 0, err
 	}
