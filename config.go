@@ -83,7 +83,7 @@ func (c *ftsConfig) Listen() {
 			c.m.Lock()
 			for _, i := range c.subscribers {
 				if indexer, ok := i.(*FTSIndexer); ok {
-					indexer.refresh(true /* config mutex acquired */)
+					indexer.refresh(true)
 				}
 			}
 			c.m.Unlock()
