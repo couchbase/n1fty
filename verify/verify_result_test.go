@@ -900,3 +900,30 @@ func TestConcurrentEval(t *testing.T) {
 		<-signalCh
 	}
 }
+
+func TestMB49888(t *testing.T) {
+	item := value.NewAnnotatedValue([]byte(`{"name":"xyz"}`))
+	item.SetAttachment("meta", map[string]interface{}{"id": "key"})
+	item.SetId("key")
+
+	qBytes := []byte(`{"query": {"query": "name:xyz"}, "fields": ["*"]}`)
+	var q map[string]interface{}
+	err := json.Unmarshal(qBytes, &q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	queryVal := value.NewValue(q)
+	v, err := NewVerify("`temp_keyspace`", "", queryVal, nil, 1)
+	if err != nil {
+		t.Fatal(queryVal, err)
+	}
+
+	ret, err := v.Evaluate(item)
+	if err != nil {
+		t.Fatal(queryVal, err)
+	}
+
+	if !ret {
+		t.Fatalf("Expected evaluation for key to succeed for `%v`", queryVal)
+	}
+}
