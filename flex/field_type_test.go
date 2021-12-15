@@ -71,20 +71,13 @@ func TestLearnConjunctFieldTypes(t *testing.T) {
 		expectOk         bool
 	}{
 		{"123 AND 234", fieldInfosZ, fieldTypesZ,
-			"[123, 234]", fieldTypesZ, true},
-		{"123 AND 234", fieldInfos0, fieldTypes0,
-			"[123, 234]", fieldTypes0, true},
-		{"123 AND 234", fieldInfosA, fieldTypes0,
-			"[123, 234]", fieldTypes0, true},
-		{"123 AND 234", fieldInfosAB, fieldTypes0,
-			"[123, 234]", fieldTypes0, true},
-
-		{"123 AND 234", fieldInfosZ, fieldTypes1a,
-			"[123, 234]", fieldTypes1a, true},
-		{"123 AND 234", fieldInfosZ, fieldTypes1ab,
-			"[123, 234]", fieldTypes1ab, true},
+			"[]", fieldTypesZ, true},
 		{"123 AND 234", fieldInfosZ, fieldTypes1a1b,
-			"[123, 234]", fieldTypes1a1b, true},
+			"[]", fieldTypes1a1b, true},
+		{"$1 AND $2", fieldInfosZ, fieldTypesZ,
+			"[$1, $2]", fieldTypesZ, true},
+		{"$name AND $id", fieldInfos0, fieldTypes0,
+			"[$name, $id]", fieldTypes0, true},
 
 		{`a = "hi" AND a = "bye"`, fieldInfosZ, fieldTypesZ,
 			"[((`bucket`.`a`) = \"hi\"), ((`bucket`.`a`) = \"bye\")]",
