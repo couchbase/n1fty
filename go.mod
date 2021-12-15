@@ -35,7 +35,7 @@ replace github.com/couchbase/goutils => ../goutils
 replace github.com/couchbase/godbc => ../godbc
 
 require (
-	github.com/blevesearch/bleve/v2 v2.2.3-0.20211215201529-b41c8cc48479
+	github.com/blevesearch/bleve/v2 v2.2.3-0.20211215221715-ba2e47b263b9
 	github.com/blevesearch/sear v0.0.5
 	github.com/buger/jsonparser v1.1.1
 	github.com/couchbase/cbauth v0.1.0
@@ -44,6 +44,6 @@ require (
 	github.com/couchbase/goutils v0.1.2
 	github.com/couchbase/moss v0.1.1
 	github.com/couchbase/query v0.0.0-00010101000000-000000000000
-	golang.org/x/net v0.0.0-20200822124328-c89045814202
+	golang.org/x/net v0.0.0-20211215060638-4ddde0e984e9
 	google.golang.org/grpc v1.24.0
 )
