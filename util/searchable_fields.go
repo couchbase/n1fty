@@ -132,7 +132,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 	case "docid_prefix":
 		dc := &bp.DocConfig
 
-		if len(dc.DocIDPrefixDelim) != 1 ||
+		if len(dc.DocIDPrefixDelim) == 0 ||
 			strings.ContainsAny(dc.DocIDPrefixDelim, DisallowedChars) {
 			return
 		}
@@ -304,7 +304,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 	case "scope.collection.docid_prefix":
 		dc := &bp.DocConfig
 
-		if len(dc.DocIDPrefixDelim) != 1 ||
+		if len(dc.DocIDPrefixDelim) == 0 ||
 			strings.ContainsAny(dc.DocIDPrefixDelim, DisallowedChars) {
 			return
 		}
