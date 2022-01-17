@@ -45,8 +45,11 @@ type ftsConfig struct {
 
 	version uint64 // version for the metakv config changes
 
-	m           sync.Mutex
+	m           sync.RWMutex
 	subscribers map[string]datastore.Indexer
+
+	indexDefs *cbgt.IndexDefs
+	nodeDefs  *cbgt.NodeDefs
 }
 
 var once sync.Once
@@ -69,13 +72,43 @@ func init() {
 	go srvConfig.Listen()
 }
 
+var nodeDefsKnownKey = cbgt.CfgNodeDefsKey(cbgt.NODE_DEFS_KNOWN)
+
 func (c *ftsConfig) Listen() {
 	for {
 		select {
-		case <-c.eventCh:
+		case ev := <-c.eventCh:
 			// first bump the version so that the subscribers can
 			// verify the updated version with their cached one.
 			atomic.AddUint64(&c.version, 1)
+
+			if ev.Key == nodeDefsKnownKey {
+				nodeDefs, _, err := cbgt.CfgGetNodeDefs(c.cfg, "known")
+				if err != nil {
+					logging.Infof("n1fty: ftsConfig CfgGetNodeDefs, err: %v", err)
+					// reset the node defs so that the clients shall
+					// fetch it directly from metakv.
+					nodeDefs = nil
+				}
+
+				c.m.Lock()
+				c.nodeDefs = nodeDefs
+				c.m.Unlock()
+			}
+
+			if ev.Key == cbgt.INDEX_DEFS_KEY {
+				indexDefs, _, err := cbgt.CfgGetIndexDefs(c.cfg)
+				if err != nil {
+					logging.Infof("n1fty: ftsConfig CfgGetIndexDefs, err: %v", err)
+					// reset the index defs so that the clients shall
+					// fetch it directly from metakv.
+					indexDefs = nil
+				}
+
+				c.m.Lock()
+				c.indexDefs = indexDefs
+				c.m.Unlock()
+			}
 
 			// clear mappingsCache (used during Verify/Eval) to
 			// remove any stale entries; the following refresh(..)
@@ -295,19 +328,45 @@ func getDefaultTmpDir() string {
 }
 
 // GetIndexDefs gets the latest indexDefs from configs
-func GetIndexDefs(cfg cbgt.Cfg) (*cbgt.IndexDefs, error) {
-	indexDefs, _, err := cbgt.CfgGetIndexDefs(cfg)
+func GetIndexDefs(srvConfig *ftsConfig) (*cbgt.IndexDefs, error) {
+	srvConfig.m.RLock()
+	rv := srvConfig.indexDefs
+	srvConfig.m.RUnlock()
+	if rv != nil {
+		return rv, nil
+	}
+
+	// fetch it from metakv only when the local cache is empty.
+	indexDefs, _, err := cbgt.CfgGetIndexDefs(srvConfig.cfg)
 	if err != nil {
 		return nil, fmt.Errorf("indexDefs err: %v", err)
 	}
+
+	srvConfig.m.Lock()
+	srvConfig.indexDefs = indexDefs
+	srvConfig.m.Unlock()
+
 	return indexDefs, nil
 }
 
 // GetNodeDefs gets the latest nodeDefs from configs
-func GetNodeDefs(cfg cbgt.Cfg) (*cbgt.NodeDefs, error) {
-	nodeDefs, _, err := cbgt.CfgGetNodeDefs(cfg, "known")
+func GetNodeDefs(srvConfig *ftsConfig) (*cbgt.NodeDefs, error) {
+	srvConfig.m.RLock()
+	rv := srvConfig.nodeDefs
+	srvConfig.m.RUnlock()
+	if rv != nil {
+		return rv, nil
+	}
+
+	// fetch it from metakv only when the local cache is empty.
+	nodeDefs, _, err := cbgt.CfgGetNodeDefs(srvConfig.cfg, "known")
 	if err != nil {
 		return nil, fmt.Errorf("nodeDefs err: %v", err)
 	}
+
+	srvConfig.m.Lock()
+	srvConfig.nodeDefs = nodeDefs
+	srvConfig.m.Unlock()
+
 	return nodeDefs, nil
 }

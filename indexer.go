@@ -438,13 +438,13 @@ func (i *FTSIndexer) refreshConfigs() (
 	}
 
 	// first try to load configs from meta kv cfg
-	indexDefs, err := GetIndexDefs(conf.cfg)
+	indexDefs, err := GetIndexDefs(conf)
 	if err != nil {
 		logging.Infof("n1fty: GetIndexDefs, err: %v", err)
 		return nil, nil, nil
 	}
 
-	nodeDefs, err := GetNodeDefs(conf.cfg)
+	nodeDefs, err := GetNodeDefs(conf)
 	if err != nil {
 		logging.Infof("n1fty: GetNodeDefs, err: %v", err)
 		return nil, nil, nil

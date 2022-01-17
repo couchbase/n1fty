@@ -21,8 +21,18 @@ func init() {
 		cfg: cbgt.NewCfgMem(),
 	}
 }
-func GetTestConfig() (cbgt.Cfg, errors.Error) {
-	return tconfig.cfg, nil
+func GetTestConfig() (*ftsConfig, errors.Error) {
+	return tconfig, nil
+}
+
+func (c *ftsConfig) Del(key string, cas uint64) error {
+	return c.cfg.Del(key, cas)
+}
+
+func (c *ftsConfig) Set(key string, val []byte, cas uint64) (uint64, error) {
+	c.indexDefs = nil
+	c.nodeDefs = nil
+	return c.cfg.Set(key, val, cas)
 }
 
 func cleanConfig() {
