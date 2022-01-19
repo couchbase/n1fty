@@ -431,11 +431,23 @@ func resolveExpr(e expression.Expression) expression.Expression {
 		// translates:
 		//     x IN ['a','b','c'] -> (x = 'a' OR x = 'b' OR x = 'c')
 		if ac, ok := inExpr.Second().(*expression.ArrayConstruct); ok {
-			disjuncts := make(expression.Expressions, len(ac.Children()))
-			for i, operand := range ac.Children() {
-				disjuncts[i] = expression.NewEq(inExpr.First(), operand)
+			if len(ac.Children()) > 0 {
+				disjuncts := make(expression.Expressions, len(ac.Children()))
+				for i, operand := range ac.Children() {
+					disjuncts[i] = expression.NewEq(inExpr.First(), operand)
+				}
+				return expression.NewOr(disjuncts...)
 			}
-			return expression.NewOr(disjuncts...)
+		} else if v := inExpr.Second().Value(); v != nil && v.Type() == value.ARRAY {
+			// consider the case where the argument is a $ variable that represents an array
+			vals, ok := v.Actual().([]interface{})
+			if ok && len(vals) > 0 {
+				disjuncts := make(expression.Expressions, len(vals))
+				for i, val := range vals {
+					disjuncts[i] = expression.NewEq(inExpr.First(), expression.NewConstant(val))
+				}
+				return expression.NewOr(disjuncts...)
+			}
 		}
 	}
 
