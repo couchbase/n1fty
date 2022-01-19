@@ -48,6 +48,7 @@ type ftsConfig struct {
 	m           sync.RWMutex
 	subscribers map[string]datastore.Indexer
 
+	m1        sync.RWMutex
 	indexDefs *cbgt.IndexDefs
 	nodeDefs  *cbgt.NodeDefs
 }
@@ -91,9 +92,9 @@ func (c *ftsConfig) Listen() {
 					nodeDefs = nil
 				}
 
-				c.m.Lock()
+				c.m1.Lock()
 				c.nodeDefs = nodeDefs
-				c.m.Unlock()
+				c.m1.Unlock()
 			}
 
 			if ev.Key == cbgt.INDEX_DEFS_KEY {
@@ -105,9 +106,9 @@ func (c *ftsConfig) Listen() {
 					indexDefs = nil
 				}
 
-				c.m.Lock()
+				c.m1.Lock()
 				c.indexDefs = indexDefs
-				c.m.Unlock()
+				c.m1.Unlock()
 			}
 
 			// clear mappingsCache (used during Verify/Eval) to
@@ -329,9 +330,9 @@ func getDefaultTmpDir() string {
 
 // GetIndexDefs gets the latest indexDefs from configs
 func GetIndexDefs(srvConfig *ftsConfig) (*cbgt.IndexDefs, error) {
-	srvConfig.m.RLock()
+	srvConfig.m1.RLock()
 	rv := srvConfig.indexDefs
-	srvConfig.m.RUnlock()
+	srvConfig.m1.RUnlock()
 	if rv != nil {
 		return rv, nil
 	}
@@ -342,18 +343,18 @@ func GetIndexDefs(srvConfig *ftsConfig) (*cbgt.IndexDefs, error) {
 		return nil, fmt.Errorf("indexDefs err: %v", err)
 	}
 
-	srvConfig.m.Lock()
+	srvConfig.m1.Lock()
 	srvConfig.indexDefs = indexDefs
-	srvConfig.m.Unlock()
+	srvConfig.m1.Unlock()
 
 	return indexDefs, nil
 }
 
 // GetNodeDefs gets the latest nodeDefs from configs
 func GetNodeDefs(srvConfig *ftsConfig) (*cbgt.NodeDefs, error) {
-	srvConfig.m.RLock()
+	srvConfig.m1.RLock()
 	rv := srvConfig.nodeDefs
-	srvConfig.m.RUnlock()
+	srvConfig.m1.RUnlock()
 	if rv != nil {
 		return rv, nil
 	}
@@ -364,9 +365,9 @@ func GetNodeDefs(srvConfig *ftsConfig) (*cbgt.NodeDefs, error) {
 		return nil, fmt.Errorf("nodeDefs err: %v", err)
 	}
 
-	srvConfig.m.Lock()
+	srvConfig.m1.Lock()
 	srvConfig.nodeDefs = nodeDefs
-	srvConfig.m.Unlock()
+	srvConfig.m1.Unlock()
 
 	return nodeDefs, nil
 }
