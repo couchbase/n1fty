@@ -752,23 +752,32 @@ func (i *FTSIndex) SargableFlex(requestId string,
 		return nil, util.N1QLError(nil, "SargableFlex bindings")
 	}
 
-	fieldTracks, needsFiltering, flexBuild, err0 := i.condFlexIndexes.Sargable(
+	fieldTracks, needsFiltering, flexBuild, err := i.condFlexIndexes.Sargable(
 		identifiers, req.Pred, nil)
-	if err0 != nil {
-		return nil, util.N1QLError(err0, "SargableFlex Sargable")
+	if err != nil {
+		return nil, util.N1QLError(err, "SargableFlex Sargable")
 	}
 
 	if len(fieldTracks) == 0 {
 		return nil, nil
 	}
 
-	bleveQuery, err1 := flex.FlexBuildToBleveQuery(flexBuild, nil)
-	if err1 != nil {
-		return nil, util.N1QLError(err1, "SargableFlex Sargable")
+	bleveQuery, err := flex.FlexBuildToBleveQuery(flexBuild, nil)
+	if err != nil {
+		return nil, util.N1QLError(err, "SargableFlex Sargable")
 	}
 
 	if bleveQuery == nil {
 		return nil, nil
+	}
+
+	if !needsFiltering {
+		// Overwrite needsFiltering (only if unset) to true if we need to
+		// for the query (involves match_all, negate).
+		needsFiltering, err = util.FlexQueryNeedsFiltering(bleveQuery)
+		if err != nil {
+			return nil, nil
+		}
 	}
 
 	searchRequest := map[string]interface{}{

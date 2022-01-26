@@ -254,29 +254,33 @@ func ParseQueryToSearchRequest(field string, input value.Value) (
 }
 
 func queryResultsNeedFiltering(q query.Query) bool {
-	if _, ok := q.(*query.MatchAllQuery); ok {
-		// A match_all query would obtain all document IDs that
-		// KV shipped to FTS and not necessarily the ones that
-		// were indexed.
-		return true
-	}
-
-	if bq, ok := q.(*query.BooleanQuery); ok {
-		if bq.MustNot != nil {
+	switch que := q.(type) {
+	case *query.BooleanQuery:
+		if que.MustNot != nil {
 			// A NEGATE search would obtain all document IDs that
 			// KV shipped to FTS that did not match the search
 			// criteria.
-			if dq, ok := bq.MustNot.(*query.DisjunctionQuery); ok {
+			if dq, ok := que.MustNot.(*query.DisjunctionQuery); ok {
 				if len(dq.Disjuncts) > 0 {
 					return true
 				}
 			}
 		}
-	}
-
-	if qsq, ok := q.(*query.QueryStringQuery); ok {
-		if qq, err := qsq.Parse(); err == nil {
-			if bq, ok := qq.(*query.BooleanQuery); ok {
+	case *query.ConjunctionQuery:
+		for i := 0; i < len(que.Conjuncts); i++ {
+			if rv := queryResultsNeedFiltering(que.Conjuncts[i]); rv {
+				return rv
+			}
+		}
+	case *query.DisjunctionQuery:
+		for i := 0; i < len(que.Disjuncts); i++ {
+			if rv := queryResultsNeedFiltering(que.Disjuncts[i]); rv {
+				return rv
+			}
+		}
+	case *query.QueryStringQuery:
+		if qsq, err := que.Parse(); err == nil {
+			if bq, ok := qsq.(*query.BooleanQuery); ok {
 				if bq.MustNot != nil {
 					// A NEGATE search would obtain all document IDs that
 					// KV shipped to FTS that did not match the search
@@ -286,13 +290,33 @@ func queryResultsNeedFiltering(q query.Query) bool {
 							return true
 						}
 					}
-
 				}
 			}
 		}
+	case *query.MatchAllQuery:
+		// A match_all query would obtain all document IDs that
+		// KV shipped to FTS and not necessarily the ones that
+		// were indexed.
+		return true
+	default:
+		break
 	}
 
 	return false
+}
+
+func FlexQueryNeedsFiltering(qMap map[string]interface{}) (bool, error) {
+	qBytes, err := json.Marshal(qMap)
+	if err != nil {
+		return false, err
+	}
+
+	q, err := query.ParseQuery(qBytes)
+	if err != nil {
+		return false, err
+	}
+
+	return queryResultsNeedFiltering(q), nil
 }
 
 // Value MUST be an object

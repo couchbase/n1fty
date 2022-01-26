@@ -182,3 +182,23 @@ func TestParseQueryToSearchRequest(t *testing.T) {
 		}
 	}
 }
+
+func TestFlexQueryNeedsFiltering(t *testing.T) {
+	for _, qStr := range []string{
+		`{"match_all": {}}`,
+		`{"query": "-whatever"}`,
+		`{"must_not": {"disjuncts": [{"query": "whatever"}]}}`,
+		`{"conjuncts": [{"match": "whatever"}, {"match_all": {}}]}`,
+		`{"conjuncts": [{"match": "whatever"}, {"query": "-whatever"}]}`,
+		`{"disjuncts": [{"match": "whatever"}, {"match_all": {}}]}`,
+		`{"disjuncts": [{"match": "whatever"}, {"query": "-whatever"}]}`,
+	} {
+		var qMap map[string]interface{}
+		if err := json.Unmarshal([]byte(qStr), &qMap); err != nil {
+			t.Fatal(err)
+		}
+		if ok, err := FlexQueryNeedsFiltering(qMap); !ok || err != nil {
+			t.Error(ok, err)
+		}
+	}
+}
