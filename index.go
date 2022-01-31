@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/blevesearch/bleve/v2/mapping"
+	bq "github.com/blevesearch/bleve/v2/search/query"
 	"github.com/couchbase/cbft"
 	pb "github.com/couchbase/cbft/protobuf"
 	"github.com/couchbase/cbgt"
@@ -212,7 +213,7 @@ func (i *FTSIndex) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 	sargRV := i.buildQueryAndCheckIfSargable(
 		field, searchInfo.Query, searchInfo.Options, nil)
 	if sargRV.err != nil || sargRV.count == 0 {
-		conn.Error(util.N1QLError(nil, "not sargable"))
+		conn.Error(util.N1QLError(sargRV.err, "not sargable"))
 		sender.Close()
 		return
 	}
@@ -679,6 +680,15 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 
 	rv.count = count
 	if rv.count == 0 {
+		// if field(s) not available within the query, check if it's
+		// a match all query
+		if que, err := bq.ParseQuery(sr.Q); err == nil {
+			if _, ok := que.(*bq.MatchAllQuery); ok {
+				rv.count = 1
+				return rv
+			}
+		}
+
 		// if field(s) not provided or unavailable within query,
 		// index is not sargable if it does not support _all field
 		if !i.allFieldSearchable {
