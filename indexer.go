@@ -201,6 +201,9 @@ func (i *FTSIndexer) Close() error {
 		return nil
 	}
 	i.closed = true
+	if i.client != nil {
+		i.client.close()
+	}
 	i.m.Unlock()
 
 	i.cfg.unSubscribe(i.namespace + "$" + i.bucket + "$" + i.scope + "$" + i.keyspace)
