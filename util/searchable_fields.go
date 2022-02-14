@@ -191,11 +191,11 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 				}
 
 				typeMappings = append(typeMappings, typeMapping)
-				// Ex: condExpr == 'META().id LIKE "%beer" OR META().id LIKE "%brewery%"'.
+				// Ex: condExpr == 'META().id LIKE "beer" OR META().id LIKE "brewery"'.
 				if len(condExpr) == 0 {
-					condExpr = `META().id LIKE "%` + typeMapping + `%"`
+					condExpr = `META().id LIKE "` + typeMapping + `"`
 				} else {
-					condExpr += `OR META().id LIKE "%` + typeMapping + `%"`
+					condExpr += `OR META().id LIKE "` + typeMapping + `"`
 				}
 			}
 		}
@@ -437,11 +437,11 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 					return
 				} else {
 					for i := range typeMappings {
-						// Ex: condExpr == 'META().id LIKE "%beer" OR META().id LIKE "%brewery%"'.
+						// Ex: condExpr == 'META().id LIKE "beer" OR META().id LIKE "brewery"'.
 						if len(condExpr) == 0 {
-							condExpr = `META().id LIKE "%` + typeMappings[i] + `%"`
+							condExpr = `META().id LIKE "` + typeMappings[i] + `"`
 						} else {
-							condExpr += ` OR META().id LIKE "%` + typeMappings[i] + `%"`
+							condExpr += ` OR META().id LIKE "` + typeMappings[i] + `"`
 						}
 					}
 				}

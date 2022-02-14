@@ -162,9 +162,9 @@ func BleveToCondFlexIndexes(name, uuid string, im *mapping.IndexMappingImpl,
 					cmp:      "like",
 				}
 			} else if mode == "docid_regexp" || mode == "scope.collection.docid_regexp" {
-				val := value.NewValue("%" + typeName + "%")
+				val := value.NewValue(typeName)
 
-				// Strips `meta().id LIKE "%BEER%"` from expressions.
+				// Strips `meta().id LIKE "BEER"` from expressions.
 				fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
 					Cmp:       "like",
 					FieldPath: typeFieldPath,
