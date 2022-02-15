@@ -1720,7 +1720,7 @@ func TestIndexSargabilityDocIDRegexp(t *testing.T) {
 		expectedQueryStr string
 	}{
 		{
-			queryStr:         `meta().id LIKE "abcdefghi" AND t.country = "US"`,
+			queryStr:         `meta().id LIKE "%abcdefghi%" AND t.country = "US"`,
 			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
 		},
 		{
@@ -1861,4 +1861,5 @@ func TestIndexSargabilityForQueriesThatNeedFiltering(t *testing.T) {
 	if n1qlErr != nil || exact {
 		t.Errorf("Expected exact: false for query: %v, err: %v", q3, n1qlErr)
 	}
+
 }
