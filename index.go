@@ -763,7 +763,7 @@ func (i *FTSIndex) SargableFlex(requestId string,
 	}
 
 	fieldTracks, needsFiltering, flexBuild, err := i.condFlexIndexes.Sargable(
-		identifiers, req.Pred, nil)
+		identifiers, req.Pred, req.Keyspace, nil)
 	if err != nil {
 		return nil, util.N1QLError(err, "SargableFlex Sargable")
 	}

@@ -191,7 +191,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 				}
 
 				typeMappings = append(typeMappings, typeMapping)
-				// Ex: condExpr == 'META().id LIKE "%beer" OR META().id LIKE "%brewery%"'.
+				// Ex: condExpr == 'META().id LIKE "%beer%" OR META().id LIKE "%brewery%"'.
 				if len(condExpr) == 0 {
 					condExpr = `META().id LIKE "%` + typeMapping + `%"`
 				} else {

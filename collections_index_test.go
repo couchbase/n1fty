@@ -404,7 +404,7 @@ func TestCollectionIndexSargabilityDocidPrefix(t *testing.T) {
 			count, indexedCount, exact)
 	}
 
-	sargableQuery := `meta().id LIKE "airline_%" AND t.country = "United States"`
+	sargableQuery := `meta(t).id LIKE "airline_%" AND t.country = "United States"`
 	expectQueryStr := `{"query":{"term":"United States","field":"country"},"score":"none"}`
 	checkFlexQuerySargability(t, index, sargableQuery, expectQueryStr)
 }
@@ -476,7 +476,7 @@ func TestCollectionIndexSargabilityDocIDRegexp(t *testing.T) {
 			count, indexedCount, exact)
 	}
 
-	sargableQuery := `meta().id LIKE "%abcdefghi%" AND t.country = "United States"`
+	sargableQuery := `meta(t).id LIKE "%abcdefghi%" AND t.country = "United States"`
 	expectQueryStr := `{"query":{"term":"United States","field":"country"},"score":"none"}`
 	checkFlexQuerySargability(t, index, sargableQuery, expectQueryStr)
 }

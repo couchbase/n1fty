@@ -148,7 +148,7 @@ type CondFlexIndexes []*CondFlexIndex
 
 // Returns true when the expressions match the condition check, also
 // returns an array of the requested "types" (obtained from query).
-type CondFunc func(ids Identifiers, es expression.Expressions) (
+type CondFunc func(keyspace string, ids Identifiers, es expression.Expressions) (
 	bool, []string, error)
 
 type valueDetails struct {
@@ -159,7 +159,7 @@ type valueDetails struct {
 // Returns a CondFunc that represents checking a field for value equality.
 func MakeCondFuncEqVals(fieldPath []string, vals map[value.Value]*valueDetails,
 	skipCheck bool) CondFunc {
-	return func(ids Identifiers, es expression.Expressions) (
+	return func(keyspace string, ids Identifiers, es expression.Expressions) (
 		bool, []string, error) {
 		if skipCheck {
 			// Skip checking expressions, as there're no condition expressions
@@ -178,7 +178,7 @@ func MakeCondFuncEqVals(fieldPath []string, vals map[value.Value]*valueDetails,
 					}
 				}
 			} else if f, ok := e.(*expression.Like); ok {
-				matches, c := MatchLikeFieldPathMetaIDToConstant(f)
+				matches, c := MatchLikeFieldPathMetaIDToConstant(keyspace, f)
 				if matches {
 					for k, v := range vals {
 						if v.cmp == "like" && c.Value().Equals(k).Truth() {
@@ -206,7 +206,7 @@ func MakeCondFuncEqVals(fieldPath []string, vals map[value.Value]*valueDetails,
 							}
 						}
 					} else if ff, ok := ee.(*expression.Like); ok {
-						matches, c := MatchLikeFieldPathMetaIDToConstant(ff)
+						matches, c := MatchLikeFieldPathMetaIDToConstant(keyspace, ff)
 						if matches {
 							for k, v := range vals {
 								if v.cmp == "like" && c.Value().Equals(k).Truth() {
@@ -233,7 +233,7 @@ func MakeCondFuncEqVals(fieldPath []string, vals map[value.Value]*valueDetails,
 // Returns a CondFunc that represents checking a field is not equal to
 // any of the given vals.
 func MakeCondFuncNeqVals(fieldPath []string, vals []string) CondFunc {
-	return func(ids Identifiers, es expression.Expressions) (
+	return func(keyspace string, ids Identifiers, es expression.Expressions) (
 		bool, []string, error) {
 		if len(vals) <= 0 {
 			return true, nil, nil // Empty vals means CondFunc always matches.
@@ -288,9 +288,11 @@ func MatchEqFieldPathToConstant(ids Identifiers, fieldPath []string,
 	return m(f.Second(), f.First()) // Commute to check c = a.foo.
 }
 
-func MatchLikeFieldPathMetaIDToConstant(f *expression.Like) (bool, *expression.Constant) {
+func MatchLikeFieldPathMetaIDToConstant(keyspace string, f *expression.Like) (bool, *expression.Constant) {
 	// Check pattern `meta().id like c`
-	id := expression.NewField(expression.NewMeta(), expression.NewFieldName("id", false))
+	id := expression.NewField(
+		expression.NewMeta(expression.NewIdentifier(keyspace)),
+		expression.NewFieldName("id", false))
 	if e, ok := f.First().(*expression.Field); ok {
 		if e.EquivalentTo(id) {
 			if c, ok := f.Second().(*expression.Constant); ok {
@@ -305,7 +307,7 @@ func MatchLikeFieldPathMetaIDToConstant(f *expression.Like) (bool, *expression.C
 // -------------------------------------------------------------------------
 
 func (s CondFlexIndexes) Sargable(
-	ids Identifiers, e expression.Expression, eFTs FieldTypes) (
+	ids Identifiers, e expression.Expression, keyspace string, eFTs FieldTypes) (
 	rFieldTracks FieldTracks, rNeedsFiltering bool, rFB *FlexBuild, err error) {
 	o, ok := e.(*expression.Or)
 	if !ok {
@@ -315,7 +317,7 @@ func (s CondFlexIndexes) Sargable(
 	// OR-of-AND's means all the OR's children must match a flex index.
 	for _, oChild := range o.Children() {
 		oChild = resolveExpr(oChild)
-		cFI, requestedTypes, err := s.FindFlexIndex(ids, oChild)
+		cFI, requestedTypes, err := s.FindFlexIndex(keyspace, ids, oChild)
 		if err != nil || cFI == nil {
 			return nil, false, nil, err
 		}
@@ -365,12 +367,12 @@ func (s CondFlexIndexes) Sargable(
 }
 
 // Find the first FlexIndex whose Cond matches the given AND expression.
-func (s CondFlexIndexes) FindFlexIndex(ids Identifiers, e expression.Expression) (
+func (s CondFlexIndexes) FindFlexIndex(keyspace string, ids Identifiers, e expression.Expression) (
 	rv *FlexIndex, requestedTypes []string, err error) {
 	children := collectConjunctExprs(e, nil)
 
 	for _, cfi := range s {
-		matches, reqTypes, err := cfi.Cond(ids, children)
+		matches, reqTypes, err := cfi.Cond(keyspace, ids, children)
 		if err != nil {
 			return nil, nil, err
 		}
