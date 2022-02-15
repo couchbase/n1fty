@@ -755,10 +755,10 @@ func (i *FTSIndex) SargableFlex(requestId string,
 		return nil, util.N1QLError(nil, "SargableFlex bindings")
 	}
 
-	fieldTracks, needsFiltering, flexBuild, err0 := i.condFlexIndexes.Sargable(
-		identifiers, req.Pred, nil)
-	if err0 != nil {
-		return nil, util.N1QLError(err0, "SargableFlex Sargable")
+	fieldTracks, needsFiltering, flexBuild, err := i.condFlexIndexes.Sargable(
+		identifiers, req.Pred, req.Keyspace, nil)
+	if err != nil {
+		return nil, util.N1QLError(err, "SargableFlex Sargable")
 	}
 
 	if len(fieldTracks) == 0 {

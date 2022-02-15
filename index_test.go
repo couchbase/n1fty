@@ -1270,25 +1270,25 @@ func TestSargableFlexIndexDocIDPrefixWithMultipleTypeMappings(t *testing.T) {
 		expectedQueryStr string
 	}{
 		{
-			queryStr:         `meta().id LIKE "airline-%" AND t.country = "US"`,
+			queryStr:         `meta(t).id LIKE "airline-%" AND t.country = "US"`,
 			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
 		},
 		{
-			queryStr:         `meta().id LIKE "airport-%" AND t.country = "US"`,
+			queryStr:         `meta(t).id LIKE "airport-%" AND t.country = "US"`,
 			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
 		},
 		{
-			queryStr:         `(meta().id LIKE "airline-%" OR meta().id LIKE "airport-%") AND t.country = "US"`,
+			queryStr:         `(meta(t).id LIKE "airline-%" OR meta(t).id LIKE "airport-%") AND t.country = "US"`,
 			expectedQueryStr: `{"query":{"field":"country","term":"US"},"score":"none"}`,
 		},
 		{
 			// MB-39517: "city" indexed within "airport" type mapping
-			queryStr:         `meta().id LIKE "airport-%" AND t.city = "SF"`,
+			queryStr:         `meta(t).id LIKE "airport-%" AND t.city = "SF"`,
 			expectedQueryStr: `{"query":{"field":"city","term":"SF"},"score":"none"}`,
 		},
 		{
 			// MB-39517: "city" only indexed within "airport" type mapping
-			queryStr:         `meta().id LIKE "airline-%" AND t.city = "SF"`,
+			queryStr:         `meta(t).id LIKE "airline-%" AND t.city = "SF"`,
 			expectedQueryStr: ``,
 		},
 	}
