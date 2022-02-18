@@ -198,7 +198,7 @@ func BuildProtoSearchRequest(sr *cbft.SearchRequest,
 
 	// if original request was of query form then, override with
 	// searchInfo order details
-	if sr.Sort == nil && len(searchInfo.Order) > 0 {
+	if len(sr.Sort) == 0 && len(searchInfo.Order) > 0 {
 		var tempOrder []string
 		for _, so := range searchInfo.Order {
 			fields := strings.Fields(so)
@@ -244,7 +244,7 @@ func BuildProtoSearchRequest(sr *cbft.SearchRequest,
 		}
 	}
 
-	if sr.Sort == nil && len(searchInfo.Order) == 0 {
+	if len(sr.Sort) == 0 && len(searchInfo.Order) == 0 {
 		searchRequest.Stream = true
 	}
 
