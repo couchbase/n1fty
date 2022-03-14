@@ -51,6 +51,15 @@ func unmarshalSearchRequest(field string, input []byte) (
 	}
 
 	if field != "" {
+		if qsq, ok := temp.Query.(*query.QueryStringQuery); ok {
+			// case where query string query is provided as an object
+			q, err := qsq.Parse()
+			if err != nil {
+				return nil, nil, err
+			}
+			temp.Query = q
+		}
+
 		UpdateFieldsInQuery(temp.Query, field)
 		if sr.Q, err = json.Marshal(temp.Query); err != nil {
 			return nil, nil, err
@@ -112,6 +121,14 @@ func BuildQueryFromBytes(field string, qBytes []byte) (query.Query, error) {
 	}
 
 	if field != "" {
+		if qsq, ok := q.(*query.QueryStringQuery); ok {
+			// case where query string query is provided as an object
+			q, err = qsq.Parse()
+			if err != nil {
+				return nil, fmt.Errorf("BuildQueryFromBytes, err: %v", err)
+			}
+		}
+
 		UpdateFieldsInQuery(q, field)
 	}
 
@@ -121,6 +138,15 @@ func BuildQueryFromBytes(field string, qBytes []byte) (query.Query, error) {
 func BuildQueryFromSearchRequest(field string,
 	sr *bleve.SearchRequest) (query.Query, error) {
 	if field != "" {
+		if qsq, ok := sr.Query.(*query.QueryStringQuery); ok {
+			// case where query string query is provided as an object
+			q, err := qsq.Parse()
+			if err != nil {
+				return nil, err
+			}
+			sr.Query = q
+		}
+
 		UpdateFieldsInQuery(sr.Query, field)
 	}
 
