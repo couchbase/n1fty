@@ -32,9 +32,28 @@ import (
 	"github.com/couchbase/query/value"
 
 	"golang.org/x/net/http2"
+
+	log "github.com/couchbase/clog"
 )
 
 const VERSION = 1
+
+func loggerFunc(level, format string, args ...interface{}) string {
+	ts := time.Now().Format("2006-01-02T15:04:05.000-07:00")
+	prefix := ts + " [" + level + "] "
+	if format != "" {
+		return prefix + fmt.Sprintf(format, args...)
+	}
+	return prefix + fmt.Sprint(args...)
+}
+
+var initOnce sync.Once
+
+func setLoggerCallback() {
+	initOnce.Do(func() {
+		log.SetLoggerCallback(loggerFunc)
+	})
+}
 
 // FTSIndexer implements datastore.Indexer interface
 type FTSIndexer struct {
@@ -86,6 +105,8 @@ type stats struct {
 // keyspace = bucket
 func NewFTSIndexer(serverIn, namespace, keyspace string) (datastore.Indexer,
 	errors.Error) {
+	setLoggerCallback()
+
 	logging.Infof("n1fty: NewFTSIndexer, server: %v, namespace: %v, keyspace: %v",
 		serverIn, namespace, keyspace)
 
@@ -95,6 +116,8 @@ func NewFTSIndexer(serverIn, namespace, keyspace string) (datastore.Indexer,
 // keyspace = collection
 func NewFTSIndexer2(serverIn, namespace, bucket, scope, keyspace string) (
 	datastore.Indexer, errors.Error) {
+	setLoggerCallback()
+
 	logging.Infof("n1fty: NewFTSIndexer2, server: %v, namespace: %v, bucket: %v,"+
 		" scope: %v, keyspace: %v", serverIn, namespace, bucket, scope, keyspace)
 
