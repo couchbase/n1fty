@@ -1412,7 +1412,7 @@ func TestSargableFlexIndexWithLikeExpressions(t *testing.T) {
 	}
 }
 
-func TestFlexPushDownForLimitOffsetOrder(t *testing.T) {
+func TestFlexPushDownForLimitOffsetOrderOverId(t *testing.T) {
 	index, err := setupSampleIndex(
 		util.SampleIndexDefWithKeywordAnalyzerOverDefaultMapping)
 	if err != nil {
@@ -1421,7 +1421,7 @@ func TestFlexPushDownForLimitOffsetOrder(t *testing.T) {
 
 	queryStr := `t.type = "hotel" AND t.id >= 10 AND t.id <= 20`
 	queryExpr, _ := parser.Parse(queryStr)
-	sortOnID, _ := parser.Parse("id")
+	sortOnID, _ := parser.Parse("t.id")
 	flexRequest := &datastore.FTSFlexRequest{
 		Keyspace:      "t",
 		Pred:          queryExpr,
@@ -1460,6 +1460,63 @@ func TestFlexPushDownForLimitOffsetOrder(t *testing.T) {
 	}
 }
 
+func TestFlexPushDownOrderOverField(t *testing.T) {
+	queryStr := `t.type = "XYZ"`
+	queryExp, err := parser.Parse(queryStr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	orderBy := `t.name`
+	orderByExp, err := parser.Parse(orderBy)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	flexRequest := &datastore.FTSFlexRequest{
+		Keyspace:      "t",
+		Pred:          queryExp,
+		CheckPageable: true,
+		Order: []*datastore.SortTerm{
+			&datastore.SortTerm{Expr: orderByExp, NullsPos: datastore.ORDER_NULLS_NONE},
+		},
+		Limit: 5,
+	}
+
+	expectSearchQuery := `{"from":0,"query":{"field":"type","term":"XYZ"},` +
+		`"score":"none","size":5,"sort":["name"]}`
+	var expectQuery map[string]interface{}
+	_ = json.Unmarshal([]byte(expectSearchQuery), &expectQuery)
+
+	for i, indexDef := range [][]byte{
+		util.SampleIndexDefWithKeywordAnalyzerOverDefaultMapping,
+		util.SampleIndexDefDynamicWithAnalyzerKeyword,
+	} {
+		index, err := setupSampleIndex(indexDef)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		resp, err := index.SargableFlex("0", flexRequest)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if resp == nil {
+			t.Fatalf("Expected query to be SARGABLE for index-%d", i+1)
+		}
+
+		var gotQuery map[string]interface{}
+		err = json.Unmarshal([]byte(resp.SearchQuery), &gotQuery)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !reflect.DeepEqual(gotQuery, expectQuery) {
+			t.Fatalf("Unexpected search query for index-%d, %s", i+1, resp.SearchQuery)
+		}
+	}
+}
 func TestFlexPushDownSearchFunc1(t *testing.T) {
 	index, err := setupSampleIndex(
 		util.SampleIndexDefDynamicWithAnalyzerKeyword)
@@ -1861,5 +1918,4 @@ func TestIndexSargabilityForQueriesThatNeedFiltering(t *testing.T) {
 	if n1qlErr != nil || exact {
 		t.Errorf("Expected exact: false for query: %v, err: %v", q3, n1qlErr)
 	}
-
 }

@@ -394,6 +394,20 @@ var SampleIndexDefWithKeywordAnalyzerOverDefaultMapping = []byte(`
 						}
 						]
 					},
+					"name": {
+						"enabled": true,
+						"dynamic": false,
+						"fields": [
+						{
+							"docvalues": true,
+							"include_in_all": true,
+							"include_term_vectors": true,
+							"index": true,
+							"name": "name",
+							"type": "text"
+						}
+						]
+					},
 					"id": {
 						"enabled": true,
 						"dynamic": false,

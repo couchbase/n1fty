@@ -73,10 +73,13 @@ func BleveToCondFlexIndexes(name, uuid string, im *mapping.IndexMappingImpl,
 	sort.Strings(types) // For output stability.
 
 	fi := &FlexIndex{
-		Name:           name,
-		UUID:           uuid,
-		IndexedFields:  FieldInfos{},
-		SupportedExprs: []SupportedExpr{},
+		Name:             name,
+		UUID:             uuid,
+		IndexedFields:    FieldInfos{},
+		SortableFields:   []string{},
+		SupportedExprs:   []SupportedExpr{},
+		DocValuesDynamic: im.DocValuesDynamic,
+		StoreDynamic:     im.StoreDynamic,
 	}
 
 	if len(fieldTrackTypes) > 0 {
@@ -205,7 +208,9 @@ func BleveToCondFlexIndexes(name, uuid string, im *mapping.IndexMappingImpl,
 
 	if im.DefaultMapping != nil && im.DefaultMapping.Enabled {
 		fi, err := BleveToFlexIndex(&FlexIndex{
-			IndexedFields: FieldInfos{},
+			IndexedFields:    FieldInfos{},
+			DocValuesDynamic: im.DocValuesDynamic,
+			StoreDynamic:     im.StoreDynamic,
 		}, nil, im.DefaultMapping, im.DefaultAnalyzer, fieldTrackTypeCounts)
 		if err != nil {
 			return nil, err
@@ -348,6 +353,10 @@ func BleveToFlexIndex(fi *FlexIndex, path []string, dm *mapping.DocumentMapping,
 			FieldPath: fieldPath,
 			FieldType: f.Type,
 		})
+
+		if f.DocValues || f.Store {
+			fi.SortableFields = append(fi.SortableFields, strings.Join(fieldPath, "."))
+		}
 
 		fi.SupportedExprs = append(fi.SupportedExprs, &SupportedExprCmpFieldConstant{
 			Cmp:       "eq like",

@@ -245,7 +245,7 @@ func (i *Index) SargableFlex(nodeAlias string, bindings expression.Bindings,
 
 	fmt.Printf("  identifiers: %+v\n", identifiers)
 
-	fieldTracks, needsFiltering, flexBuild, err0 := i.CondFlexIndexes.Sargable(
+	fieldTracks, needsFiltering, flexBuild, _, err0 := i.CondFlexIndexes.Sargable(
 		identifiers, where, "keyspace", nil)
 
 	i.lastSargableFlexErr = err0

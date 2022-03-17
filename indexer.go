@@ -425,8 +425,8 @@ func (i *FTSIndexer) refresh(force bool) errors.Error {
 		// perform bleveMaxResultWindow initialisation only
 		// once per FTSIndexer instance.
 		bmrw, err := i.fetchBleveMaxResultWindow()
-		if err == nil && int64(bmrw) != util.GetBleveMaxResultWindow() {
-			util.SetBleveMaxResultWindow(int64(bmrw))
+		if err == nil && uint64(bmrw) != util.GetBleveMaxResultWindow() {
+			util.SetBleveMaxResultWindow(uint64(bmrw))
 		}
 	})
 
