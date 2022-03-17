@@ -307,12 +307,22 @@ func MatchLikeFieldPathMetaIDToConstant(keyspace string, f *expression.Like) (bo
 
 // -------------------------------------------------------------------------
 
+type SortDetails struct {
+	Fields  map[string]struct{}
+	Dynamic bool
+}
+
 func (s CondFlexIndexes) Sargable(
 	ids Identifiers, e expression.Expression, keyspace string, eFTs FieldTypes) (
-	rFieldTracks FieldTracks, rNeedsFiltering bool, rFB *FlexBuild, err error) {
+	rFieldTracks FieldTracks, rNeedsFiltering bool, rFB *FlexBuild,
+	sortDetails *SortDetails, err error) {
 	o, ok := e.(*expression.Or)
 	if !ok {
 		o = expression.NewOr(e)
+	}
+
+	sortDetails = &SortDetails{
+		Fields: make(map[string]struct{}),
 	}
 
 	// OR-of-AND's means all the OR's children must match a flex index.
@@ -320,12 +330,12 @@ func (s CondFlexIndexes) Sargable(
 		oChild = resolveExpr(oChild)
 		cFI, requestedTypes, err := s.FindFlexIndex(keyspace, ids, oChild)
 		if err != nil || cFI == nil {
-			return nil, false, nil, err
+			return nil, false, nil, nil, err
 		}
 
 		cFieldTracks, cNeedsFiltering, cFB, err := cFI.Sargable(ids, oChild, requestedTypes, eFTs)
 		if err != nil {
-			return nil, false, nil, err
+			return nil, false, nil, nil, err
 		}
 
 		if cFB == nil {
@@ -334,7 +344,7 @@ func (s CondFlexIndexes) Sargable(
 			// - an expression is treated as "not-sargable"
 			// - as expression is "FlexBuild:n" ("type"/cond expr)
 			// - expression doesn't hold a constant/parmeter
-			return nil, false, nil, nil
+			return nil, false, nil, nil, nil
 		}
 
 		// Add the recursion's result to our composite results.
@@ -352,19 +362,25 @@ func (s CondFlexIndexes) Sargable(
 		}
 		rFB.Children = append(rFB.Children, cFB)
 
+		// Collect sortable fields
+		for _, sortField := range cFI.SortableFields {
+			sortDetails.Fields[sortField] = struct{}{}
+		}
+		sortDetails.Dynamic = cFI.Dynamic && (cFI.StoreDynamic || cFI.DocValuesDynamic)
+
 		if len(cFieldTracks) > 0 {
 			continue // Expression sargable.
 		}
 
-		return nil, false, nil, nil // Expression not-sargable.
+		return nil, false, nil, nil, nil // Expression not-sargable.
 	}
 
 	if rFB != nil && len(rFB.Children) == 1 { // Optimize OR-of-1-expr.
-		return rFieldTracks, rNeedsFiltering, rFB.Children[0], nil
+		return rFieldTracks, rNeedsFiltering, rFB.Children[0], sortDetails, nil
 	}
 
 	// All expressions in the OR were sargable.
-	return rFieldTracks, rNeedsFiltering, rFB, nil
+	return rFieldTracks, rNeedsFiltering, rFB, sortDetails, nil
 }
 
 // Find the first FlexIndex whose Cond matches the given AND expression.

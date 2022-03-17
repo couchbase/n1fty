@@ -27,7 +27,7 @@ import (
 	"github.com/couchbase/query/value"
 )
 
-var bleveMaxResultWindow = int64(10000)
+var bleveMaxResultWindow = uint64(10000)
 
 type MappingDetails struct {
 	UUID         string
@@ -266,10 +266,10 @@ func N1QLError(err error, desc string) errors.Error {
 	return errors.NewError(err, "n1fty: "+desc)
 }
 
-func GetBleveMaxResultWindow() int64 {
-	return atomic.LoadInt64(&bleveMaxResultWindow)
+func GetBleveMaxResultWindow() uint64 {
+	return atomic.LoadUint64(&bleveMaxResultWindow)
 }
 
-func SetBleveMaxResultWindow(v int64) {
-	atomic.StoreInt64(&bleveMaxResultWindow, v)
+func SetBleveMaxResultWindow(v uint64) {
+	atomic.StoreUint64(&bleveMaxResultWindow, v)
 }
