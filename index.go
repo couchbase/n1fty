@@ -741,7 +741,7 @@ func (i *FTSIndex) pageable(order []string, offset, limit int64, query,
 		}
 	}
 
-	return offset+limit <= util.GetBleveMaxResultWindow()
+	return uint64(offset)+uint64(limit) <= util.GetBleveMaxResultWindow()
 }
 
 // -----------------------------------------------------------------------------
@@ -762,7 +762,7 @@ func (i *FTSIndex) SargableFlex(requestId string,
 		return nil, util.N1QLError(nil, "SargableFlex bindings")
 	}
 
-	fieldTracks, needsFiltering, flexBuild, err := i.condFlexIndexes.Sargable(
+	fieldTracks, needsFiltering, flexBuild, sortDetails, err := i.condFlexIndexes.Sargable(
 		identifiers, req.Pred, req.Keyspace, nil)
 	if err != nil {
 		return nil, util.N1QLError(err, "SargableFlex Sargable")
@@ -819,41 +819,41 @@ func (i *FTSIndex) SargableFlex(requestId string,
 			// Set Offset, Limit settings only if:
 			//     - they fall within the BleveMaxResultWindow
 			//     - ORDER BY is requested over fields that are indexed
-			if req.Offset+req.Limit <= util.GetBleveMaxResultWindow() {
+			if uint64(req.Offset)+uint64(req.Limit) <= util.GetBleveMaxResultWindow() {
 				sortable := true
 				var sortOrder []string
 				var sortOrderVals []value.Value
 
-				metaIdExpr := expression.NewField(expression.NewMeta(),
+				metaIdExpr := expression.NewField(
+					expression.NewMeta(expression.NewIdentifier(req.Keyspace)),
 					expression.NewFieldName("id", false))
 				for i := range req.Order {
-					if req.Order[i].NullsPos != datastore.ORDER_NULLS_NONE {
-						// FTS does NOT index NULL or MISSING values
-						sortable = false
-						break
-					}
+					// Note: Order by score is NOT supported for FLEX queries
 
-					var exists bool
 					var sortStr string
-					for str, expr := range res.StaticSargKeys {
-						if req.Order[i].Expr.EquivalentTo(expr) {
-							sortStr = str
-							exists = true
-							break
-						}
-					}
 
-					if !exists {
-						// - Field is NOT indexed
-						// - Next, check if it's the meta().id field and if that's
-						//   the case the sortStr is the "_id" field indexed by FTS
-						// - Order by score is NOT supported
-						if !req.Order[i].Expr.EquivalentTo(metaIdExpr) {
+					if req.Order[i].Expr.EquivalentTo(metaIdExpr) {
+						// Check if it's the meta().id field and if that's
+						// the case the sortStr is the "_id" field indexed by FTS
+						sortStr = "_id"
+					} else if sortDetails != nil {
+						alias, orderBy, err := expression.PathString(req.Order[i].Expr)
+						if err != nil || alias != req.Keyspace {
 							sortable = false
 							break
 						}
 
-						sortStr = "_id"
+						// Drop any backticks
+						orderBy = util.CleanseField(orderBy)
+
+						_, exists := sortDetails.Fields[orderBy]
+						if !exists && !sortDetails.Dynamic {
+							// Field is NOT indexed and index is NOT dynamic
+							sortable = false
+							break
+						}
+
+						sortStr = orderBy
 					}
 
 					if req.Order[i].Descending {

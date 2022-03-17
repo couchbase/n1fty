@@ -27,10 +27,13 @@ type FlexIndex struct {
 	Name             string
 	UUID             string
 	IndexedFields    FieldInfos // Ex: "hireDate", "city", "salary".
+	SortableFields   []string
 	SupportedExprs   []SupportedExpr
 	FieldTrackTypes  map[FieldTrack]map[string]struct{} // Ex: {"city":{{"airport":..}}}
 	MultipleTypeStrs bool
 	Dynamic          bool
+	StoreDynamic     bool
+	DocValuesDynamic bool
 }
 
 // This API interprets a search expression for the FlexIndex.
