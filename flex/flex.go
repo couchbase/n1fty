@@ -263,7 +263,25 @@ func (fi *FlexIndex) SargableAnySatisfies(ids Identifiers,
 		return nil, false, nil, nil
 	}
 
-	ft, needsFiltering, fb, err := fi.Sargable(ids, a.Satisfies(), requestedTypes, ftypes)
+	e := a.Satisfies()
+	if !forceNeedsFiltering {
+		// In case of ANY-SATISFIES, if in case of multiple predicates -
+		// force filtering as FTS does not track index position within an array.
+
+		switch e.(type) {
+		case *expression.And:
+			forceNeedsFiltering = true
+		case *expression.Or:
+			forceNeedsFiltering = true
+		case *expression.Any:
+			forceNeedsFiltering = true
+		case *expression.AnyEvery:
+			forceNeedsFiltering = true
+		default:
+		}
+	}
+
+	ft, needsFiltering, fb, err := fi.Sargable(ids, e, requestedTypes, ftypes)
 
 	return ft, needsFiltering || forceNeedsFiltering, fb, err
 }
