@@ -1919,3 +1919,32 @@ func TestIndexSargabilityForQueriesThatNeedFiltering(t *testing.T) {
 		t.Errorf("Expected exact: false for query: %v, err: %v", q3, n1qlErr)
 	}
 }
+
+func TestMB51888(t *testing.T) {
+	index, err := setupSampleIndex(util.SampleIndexDefDynamicWithAnalyzerKeyword)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	queryStr := `ANY c IN t.children SATISFIES c.gender = "F"` +
+		` AND (c.age > 5 AND c.age <15) OR c.first_name LIKE "a%" END`
+
+	queryExpression, err := parser.Parse(queryStr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	flexRequest := &datastore.FTSFlexRequest{
+		Keyspace: "t",
+		Pred:     queryExpression,
+	}
+
+	resp, err := index.SargableFlex("0", flexRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if resp.RespFlags&datastore.FTS_FLEXINDEX_EXACT == 1 {
+		t.Fatalf("expected response to not be exact")
+	}
+}
