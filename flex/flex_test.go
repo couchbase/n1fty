@@ -1585,7 +1585,7 @@ func TestFlexSargable(t *testing.T) {
 			expectFieldTracks: FieldTracks{
 				FieldTrack("a.b.city"): 2,
 			},
-			expectExact: true,
+			expectExact: false, // multiple predicates within ANY-SATISFIES: MB-51888
 			expectFlexBuild: &FlexBuild{
 				Kind: "conjunct",
 				Children: []*FlexBuild{
@@ -1684,7 +1684,7 @@ func TestFlexSargable(t *testing.T) {
 				FieldTrack("a.b.city"): 1,
 				FieldTrack("b"):        1,
 			},
-			expectExact: true,
+			expectExact: false, // multiple predicates within ANY-SATISFIES: MB-51888
 			expectFlexBuild: &FlexBuild{
 				Kind: "conjunct",
 				Children: []*FlexBuild{
@@ -1781,7 +1781,7 @@ func TestFlexSargable(t *testing.T) {
 			expectFieldTracks: FieldTracks{
 				FieldTrack("a.b.c.d.city"): 1,
 			},
-			expectExact: true,
+			expectExact: false, // multiple predicates within ANY-SATISFIES: MB-51888
 			expectFlexBuild: &FlexBuild{
 				Kind: "cmpFieldConstant",
 				Data: []string{"eq", "a.b.c.d.city", "text", `"nyc"`},
