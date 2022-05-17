@@ -1948,3 +1948,66 @@ func TestMB51888(t *testing.T) {
 		t.Fatalf("expected response to not be exact")
 	}
 }
+
+func TestMB52163(t *testing.T) {
+	index, err := setupSampleIndex(util.SampleIndexDefDynamicWithAnalyzerKeyword)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	queryStr := `ANY l in t.arr SATISFIES l IN ["1", "2", "3"] END`
+	queryExpression, err := parser.Parse(queryStr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	flexRequest := &datastore.FTSFlexRequest{
+		Keyspace: "t",
+		Pred:     queryExpression,
+	}
+
+	resp, err := index.SargableFlex("0", flexRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if resp == nil {
+		t.Fatalf("Expected query to be sargable for index")
+	}
+
+	expectedQueryStr := `
+	{
+		"query": {
+			"disjuncts": [
+			{
+				"field": "arr",
+				"term": "1"
+			},
+			{
+				"field": "arr",
+				"term": "2"
+			},
+			{
+				"field": "arr",
+				"term": "3"
+			}
+			]
+		},
+		"score": "none"
+	}
+	`
+	var gotQuery, expectedQuery map[string]interface{}
+	err = json.Unmarshal([]byte(resp.SearchQuery), &gotQuery)
+	if err != nil {
+		t.Errorf("SearchQuery: %s, err: %v", resp.SearchQuery, err)
+	}
+	err = json.Unmarshal([]byte(expectedQueryStr), &expectedQuery)
+	if err != nil {
+		t.Errorf("ExpectedQuery: %s, err: %v", expectedQueryStr, err)
+	}
+
+	if !reflect.DeepEqual(expectedQuery, gotQuery) {
+		t.Errorf("ExpectedQuery: %s, GotQuery: %s",
+			expectedQueryStr, resp.SearchQuery)
+	}
+}
