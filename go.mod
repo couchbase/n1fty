@@ -30,6 +30,8 @@ replace github.com/couchbase/cbft => ../../../../../cbft
 
 replace github.com/couchbase/cbftx => ../../../../../cbftx
 
+replace github.com/couchbase/hebrew => ../../../../../hebrew
+
 replace github.com/couchbase/cbgt => ../../../../../cbgt
 
 replace github.com/couchbase/goutils => ../goutils
