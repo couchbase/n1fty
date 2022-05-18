@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/couchbase/cbgt"
+	_ "github.com/couchbase/hebrew"
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
