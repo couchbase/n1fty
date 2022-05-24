@@ -37,15 +37,22 @@ func OptimizeIndexMapping(idxMapping mapping.IndexMapping,
 	rv := *im // Shallow copy.
 
 	// Optimization when default dynamic type mapping is enabled,
-	// build index mapping based on search fields;
+	// build index mapping based on search fields if and only if
+	// there's no sub fields or sub properties defined.
 	// Return right away.
-	if im.DefaultMapping.Enabled && im.DefaultMapping.Dynamic {
+	if im.DefaultMapping.Enabled && im.DefaultMapping.Dynamic &&
+		len(im.DefaultMapping.Fields) == 0 && len(im.DefaultMapping.Properties) == 0 {
 		defaultAnalyzer := im.DefaultMapping.DefaultAnalyzer
 		if defaultAnalyzer == "" {
 			defaultAnalyzer = im.DefaultAnalyzer
 		}
-		return util.BuildIndexMappingOnFields(queryFields,
+		optimizedMapping := util.BuildIndexMappingOnFields(queryFields,
 			defaultAnalyzer, im.DefaultDateTimeParser)
+		// MB-52263
+		// Update only default mapping to optimized definition's default mapping;
+		// This is to retain any custom analysis components' definitions.
+		rv.DefaultMapping = optimizedMapping.DefaultMapping
+		return &rv
 	}
 
 	rv.TypeMapping = nil
@@ -63,15 +70,22 @@ func OptimizeIndexMapping(idxMapping mapping.IndexMapping,
 		}
 
 		// Optimization when any of the top-level mappings is dynamic
-		// and enabled, build index mapping based on search fields;
+		// and enabled, build index mapping based on search fields
+		// if and only if there's no sub fields defined.
 		// Return right away.
-		if dm.Enabled && dm.Dynamic {
+		if dm.Enabled && dm.Dynamic &&
+			len(dm.Fields) == 0 && len(dm.Properties) == 0 {
 			defaultAnalyzer := dm.DefaultAnalyzer
 			if defaultAnalyzer == "" {
 				defaultAnalyzer = im.DefaultAnalyzer
 			}
-			return util.BuildIndexMappingOnFields(queryFields,
+			optimizedMapping := util.BuildIndexMappingOnFields(queryFields,
 				defaultAnalyzer, im.DefaultDateTimeParser)
+			// MB-52263
+			// Update only default mapping to optimized definition's default mapping;
+			// This is to retain any custom analysis components' definitions.
+			rv.DefaultMapping = optimizedMapping.DefaultMapping
+			return &rv
 		}
 
 		dmOptimized := optimizeDocumentMapping(queryFields,
