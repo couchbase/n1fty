@@ -927,3 +927,132 @@ func TestMB49888(t *testing.T) {
 		t.Fatalf("Expected evaluation for key to succeed for `%v`", queryVal)
 	}
 }
+
+func TestMB52263_Verify(t *testing.T) {
+	indexParams := []byte(`{
+		"doc_config": {
+			"mode": "type_field",
+			"type_field": "type"
+		},
+		"mapping": {
+			"analysis": {
+				"analyzers": {
+					"custom_analyzer": {
+						"token_filters": [
+						"custom_token_filter",
+						"to_lower"
+						],
+						"tokenizer": "unicode",
+						"type": "custom"
+					}
+				},
+				"token_filters": {
+					"custom_token_filter": {
+						"stop_token_map": "custom_stop_words",
+						"type": "stop_tokens"
+					}
+				},
+				"token_maps": {
+					"custom_stop_words": {
+						"tokens": [
+						"the"
+						],
+						"type": "custom"
+					}
+				}
+			},
+			"default_analyzer": "custom_analyzer",
+			"default_datetime_parser": "dateTimeOptional",
+			"default_field": "_all",
+			"default_mapping": {
+				"dynamic": true,
+				"enabled": true,
+				"properties": {
+					"payload": {
+						"default_analyzer": "custom_analyzer",
+						"dynamic": true,
+						"enabled": true,
+						"properties": {
+							"product": {
+								"default_analyzer": "custom_analyzer",
+								"dynamic": true,
+								"enabled": true,
+								"properties": {
+									"suffix": {
+										"enabled": true,
+										"fields": [
+										{
+											"analyzer": "custom_analyzer",
+											"index": true,
+											"name": "suffix",
+											"type": "text"
+										}
+										]
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"type_field": "_type"
+		},
+		"store": {
+			"indexType": "scorch"
+		}
+	}`)
+
+	bp := cbft.NewBleveParams()
+	err := json.Unmarshal(indexParams, bp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	im, ok := bp.Mapping.(*mapping.IndexMappingImpl)
+	if !ok {
+		t.Fatal("Unable to set up index mapping")
+	}
+
+	util.SetIndexMapping("temp", &util.MappingDetails{
+		UUID:       "tempUUID",
+		SourceName: "temp_keyspace",
+		IMapping:   im,
+		DocConfig:  &bp.DocConfig,
+		Scope:      "_default",
+		Collection: "_default",
+	})
+
+	item := value.NewAnnotatedValue([]byte(`{
+		"payload": {
+			"product": {
+				"suffix": "BE"
+			}
+		}
+	}`))
+	item.SetAttachment("meta", map[string]interface{}{"id": "key"})
+	item.SetId("key")
+
+	q := value.NewValue(map[string]interface{}{
+		"match": "BE",
+		"field": "payload.product.suffix",
+	})
+
+	options := value.NewValue(map[string]interface{}{
+		"index": "temp",
+	})
+
+	v, err := NewVerify("`temp_keyspace._default._default`", "", q, options, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := v.Evaluate(item)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !got {
+		t.Fatal("Expected key to pass evaluation")
+	}
+
+}

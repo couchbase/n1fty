@@ -10,6 +10,7 @@ package verify
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -281,5 +282,90 @@ func TestOptimizeIndexMapping(t *testing.T) {
 			t.Fatalf("testi: %d, test: %+v,\n mismatch mOut, got:\n   %s\n expect:\n   %s",
 				testi, test, jOut, jExpect)
 		}
+	}
+}
+
+func TestMB52263_Optimize(t *testing.T) {
+	customMapping := []byte(`{
+		"analysis": {
+			"analyzers": {
+				"custom_analyzer": {
+					"token_filters": [
+					"custom_token_filter",
+					"to_lower"
+					],
+					"tokenizer": "unicode",
+					"type": "custom"
+				}
+			},
+			"token_filters": {
+				"custom_token_filter": {
+					"stop_token_map": "custom_stop_words",
+					"type": "stop_tokens"
+				}
+			},
+			"token_maps": {
+				"custom_stop_words": {
+					"tokens": [
+					"the"
+					],
+					"type": "custom"
+				}
+			}
+		},
+		"default_analyzer": "custom_analyzer",
+		"default_datetime_parser": "dateTimeOptional",
+		"default_field": "_all",
+		"default_mapping": {
+			"dynamic": true,
+			"enabled": true,
+			"properties": {
+				"payload": {
+					"default_analyzer": "custom_analyzer",
+					"enabled": true,
+					"properties": {
+						"product": {
+							"default_analyzer": "custom_analyzer",
+							"enabled": true,
+							"properties": {
+								"suffix": {
+									"enabled": true,
+									"fields": [
+									{
+										"analyzer": "custom_analyzer",
+										"index": true,
+										"name": "suffix",
+										"type": "text"
+									}
+									]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"index_dynamic": true,
+		"type_field": "_type"
+	}`)
+
+	var m *mapping.IndexMappingImpl
+	err := json.Unmarshal([]byte(customMapping), &m)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	searchFields := map[util.SearchField]struct{}{
+		{Name: "payload.product.suffix", Type: "text"}: struct{}{},
+	}
+
+	optimized := OptimizeIndexMapping(m, "_default", "_default", searchFields)
+	optimizedImpl, ok := optimized.(*mapping.IndexMappingImpl)
+	if !ok {
+		t.Fatal("unexpected error")
+	}
+
+	if !reflect.DeepEqual(m.CustomAnalysis, optimizedImpl.CustomAnalysis) {
+		t.Fatal("Custom analysis components lost")
 	}
 }

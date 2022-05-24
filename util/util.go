@@ -107,7 +107,7 @@ func FetchIndexMapping(name, uuid, keyspace string) (
 }
 
 func BuildIndexMappingOnFields(queryFields map[SearchField]struct{}, defaultAnalyzer string,
-	defaultDateTimeParser string) mapping.IndexMapping {
+	defaultDateTimeParser string) *mapping.IndexMappingImpl {
 	var build func(field SearchField, m *mapping.DocumentMapping) *mapping.DocumentMapping
 	build = func(field SearchField, m *mapping.DocumentMapping) *mapping.DocumentMapping {
 		subs := strings.SplitN(field.Name, ".", 2)
