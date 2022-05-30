@@ -38,6 +38,8 @@ replace github.com/couchbase/goutils => ../goutils
 
 replace github.com/couchbase/godbc => ../godbc
 
+replace github.com/couchbase/regulator => ../regulator
+
 require (
 	github.com/blevesearch/bleve/v2 v2.2.3-0.20220224151155-3c7d301db56a
 	github.com/blevesearch/sear v0.0.5
@@ -51,5 +53,5 @@ require (
 	github.com/couchbase/moss v0.3.0
 	github.com/couchbase/query v0.0.0-00010101000000-000000000000
 	golang.org/x/net v0.0.0-20211215060638-4ddde0e984e9
-	google.golang.org/grpc v1.24.0
+	google.golang.org/grpc v1.31.0
 )
