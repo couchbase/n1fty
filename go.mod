@@ -39,7 +39,7 @@ replace github.com/couchbase/goutils => ../goutils
 replace github.com/couchbase/godbc => ../godbc
 
 require (
-	github.com/blevesearch/bleve/v2 v2.2.3-0.20220224151155-3c7d301db56a
+	github.com/blevesearch/bleve/v2 v2.3.3-0.20220531075447-9845adbf7246
 	github.com/blevesearch/sear v0.0.5
 	github.com/buger/jsonparser v1.1.1
 	github.com/couchbase/cbauth v0.1.1
