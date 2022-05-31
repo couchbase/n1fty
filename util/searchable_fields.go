@@ -687,6 +687,8 @@ func FetchFieldsToSearchFromQuery(que query.Query) (map[SearchField]struct{}, er
 					*query.GeoDistanceQuery,
 					*query.GeoBoundingPolygonQuery:
 					fieldDesc.Type = "geopoint"
+				case *query.GeoShapeQuery:
+					fieldDesc.Type = "geoshape"
 				case *query.MatchQuery:
 					fieldDesc.Type = "text"
 					fieldDesc.Analyzer = qqq.Analyzer
