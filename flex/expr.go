@@ -107,17 +107,20 @@ func (s *SupportedExprCmpFieldConstant) Supports(fi *FlexIndex, ids Identifiers,
 func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifiers,
 	fName string, exprX, exprY expression.Expression, requestedTypes []string,
 	exprFTs FieldTypes) (bool, FieldTracks, bool, *FlexBuild, error) {
-	suffix, ok := ExpressionFieldPathSuffix(ids, exprX, s.FieldPath, nil)
-	if !ok {
-		return false, nil, false, nil, nil
+	var suffix []string
+	if ok := isEquivalentMetaIDExpr(exprX, s.FieldPath); !ok {
+		suffix, ok = ExpressionFieldPathSuffix(ids, exprX, s.FieldPath, nil)
+		if !ok {
+			return false, nil, false, nil, nil
+		}
 	}
 
 	if s.FieldPathPartial != (len(suffix) > 0) {
 		return false, nil, false, nil, nil
 	}
 
-	for _, s := range suffix {
-		if s == "" { // Complex or array element is not-sargable.
+	for _, suf := range suffix {
+		if suf == "" { // Complex or array element is not-sargable.
 			return true, nil, false, nil, nil
 		}
 	}
@@ -234,4 +237,26 @@ func (s *SupportedExprCmpFieldConstant) SupportsXY(fi *FlexIndex, ids Identifier
 		Kind: "cmpFieldConstant", Data: []string{
 			fName, fieldTrack, s.ValueType, exprY.String(),
 		}}, nil
+}
+
+// This function establishes the equivalence of:
+// meta().`id` and meta(`keyspace-alias`).`id`.
+//
+// p.s. The field path for docid_prefix and docid_regexp indexes is
+// set to meta().`id`.
+func isEquivalentMetaIDExpr(expr expression.Expression, fieldPath []string) bool {
+	if f, ok := expr.(*expression.Field); ok {
+		if m, ok := f.First().(*expression.Meta); ok {
+			if f.Second() != nil {
+				metaIdExpr := m.Name() + "()." + f.Second().String()
+				for _, p := range fieldPath {
+					if p == metaIdExpr {
+						return true
+					}
+				}
+			}
+		}
+	}
+
+	return false
 }

@@ -2011,3 +2011,128 @@ func TestMB52163(t *testing.T) {
 			expectedQueryStr, resp.SearchQuery)
 	}
 }
+
+// MB-52465
+func TestFlexNeedForFiltering(t *testing.T) {
+	tests := []struct {
+		indexDef []byte
+		queryStr string
+	}{
+		{
+			indexDef: []byte(`{
+				"name": "temp",
+				"type": "fulltext-index",
+				"sourceName": "travel-sample",
+				"params": {
+					"doc_config": {
+						"mode": "type_field",
+						"type_field": "type"
+					},
+					"mapping": {
+						"default_mapping": {
+							"enabled": false
+						},
+						"types": {
+							"xyz": {
+								"dynamic": true,
+								"enabled": true,
+								"default_analyzer": "keyword"
+							}
+						}
+					},
+					"store": {
+						"indexType": "scorch"
+					}
+				}
+			}`),
+			queryStr: `t.type = "xyz" AND t.country = "US"`,
+		},
+		{
+			indexDef: []byte(`{
+				"name": "temp",
+				"type": "fulltext-index",
+				"sourceName": "travel-sample",
+				"params": {
+					"doc_config": {
+						"mode": "docid_prefix",
+						"docid_prefix_delim": "-"
+					},
+					"mapping": {
+						"default_mapping": {
+							"enabled": false
+						},
+						"types": {
+							"xyz": {
+								"dynamic": true,
+								"enabled": true,
+								"default_analyzer": "keyword"
+							}
+						}
+					},
+					"store": {
+						"indexType": "scorch"
+					}
+				}
+			}`),
+			queryStr: `meta(t).id LIKE "xyz-%" AND t.country = "US"`,
+		},
+		{
+			indexDef: []byte(`{
+				"name": "temp",
+				"type": "fulltext-index",
+				"sourceName": "travel-sample",
+				"params": {
+					"doc_config": {
+						"mode": "docid_regexp",
+						"docid_regexp": ".*xyz.*"
+					},
+					"mapping": {
+						"default_mapping": {
+							"enabled": false
+						},
+						"types": {
+							"xyz": {
+								"dynamic": true,
+								"enabled": true,
+								"default_analyzer": "keyword"
+							}
+						}
+					},
+					"store": {
+						"indexType": "scorch"
+					}
+				}
+			}`),
+			queryStr: `meta(t).id LIKE "%xyz%" AND t.country = "US"`,
+		},
+	}
+
+	for i := range tests {
+		index, err := setupSampleIndex(tests[i].indexDef)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		queryExpr, err := parser.Parse(tests[i].queryStr)
+		if err != nil {
+			t.Fatal(tests[i].queryStr, err)
+		}
+		flexRequest := &datastore.FTSFlexRequest{
+			Keyspace: "t",
+			Pred:     queryExpr,
+		}
+
+		resp, n1qlErr := index.SargableFlex("0", flexRequest)
+		if n1qlErr != nil {
+			t.Fatal(n1qlErr)
+		}
+
+		if resp == nil {
+			t.Fatalf("[%d] Expected a valid response", i+1)
+		}
+
+		if resp.RespFlags&datastore.FTS_FLEXINDEX_EXACT == 0 {
+			t.Errorf("[%d] Expecting an exact result, shouldn't be a need for filtering", i+1)
+		}
+	}
+}
