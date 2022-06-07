@@ -99,7 +99,7 @@ func BleveToCondFlexIndexes(name, uuid string, im *mapping.IndexMappingImpl,
 				&FieldInfo{FieldPath: typeFieldPath, FieldType: "text"})
 		case "docid_prefix", "scope.collection.docid_prefix",
 			"docid_regexp", "scope.collection.docid_regexp":
-			typeFieldPath = []string{"meta().id"}
+			typeFieldPath = []string{"meta().`id`"}
 		default:
 			return nil, fmt.Errorf("unsupported docConfig.mode: %v", mode)
 		}
