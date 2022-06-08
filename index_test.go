@@ -65,7 +65,16 @@ func TestBuildQueryWithCtlTimeout(t *testing.T) {
 	}
 }
 
-// =============================================================================
+// MB-52476
+func TestNilQueryValue(t *testing.T) {
+	index, err := setupSampleIndex(util.SampleLandmarkIndexDef)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// test nil query value.Value
+	_ = index.buildQueryAndCheckIfSargable("", nil, nil, nil)
+}
 
 func TestIndexSargabilityTypeFieldWithSpecialCharacter(t *testing.T) {
 	// For this test we're going to consider an index definition with
