@@ -680,12 +680,14 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 
 	rv.count = count
 	if rv.count == 0 {
-		// if field(s) not available within the query, check if it's
-		// a match all query
-		if que, err := bq.ParseQuery(sr.Q); err == nil {
-			if _, ok := que.(*bq.MatchAllQuery); ok {
-				rv.count = 1
-				return rv
+		if sr != nil {
+			// if field(s) not available within the query, check if it's
+			// a match all query
+			if que, err := bq.ParseQuery(sr.Q); err == nil {
+				if _, ok := que.(*bq.MatchAllQuery); ok {
+					rv.count = 1
+					return rv
+				}
 			}
 		}
 
