@@ -371,3 +371,8 @@ func GetNodeDefs(srvConfig *ftsConfig) (*cbgt.NodeDefs, error) {
 
 	return nodeDefs, nil
 }
+
+// SetDeploymentModel lets n1fty know the mode of operation.
+func SetDeploymentModel(serverless bool) {
+	// FIXME
+}
