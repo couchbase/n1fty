@@ -372,7 +372,21 @@ func GetNodeDefs(srvConfig *ftsConfig) (*cbgt.NodeDefs, error) {
 	return nodeDefs, nil
 }
 
+// -----------------------------------------------------------------------------
+
+// Atomic updates to variable to determine if system is
+// in serverless mode or not - can take values 0 or 1 only.
+var serverlessMode uint32
+
 // SetDeploymentModel lets n1fty know the mode of operation.
 func SetDeploymentModel(serverless bool) {
-	// FIXME
+	if serverless {
+		atomic.StoreUint32(&serverlessMode, 1)
+	} else {
+		atomic.StoreUint32(&serverlessMode, 0)
+	}
+}
+
+func IsServerlessMode() bool {
+	return atomic.LoadUint32(&serverlessMode) == 1
 }
