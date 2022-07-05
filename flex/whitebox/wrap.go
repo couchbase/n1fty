@@ -142,7 +142,7 @@ func (s *WrapDatastore) GetSystemCollection(bucketName string) (datastore.Keyspa
 	return nil, nil
 }
 
-func (s *WrapDatastore) CheckSysCollection(bucketName, requestId string) errors.Error {
+func (s *WrapDatastore) CheckSystemCollection(bucketName, requestId string) errors.Error {
 	return nil
 }
 
