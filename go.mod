@@ -41,7 +41,7 @@ replace github.com/couchbase/godbc => ../godbc
 replace github.com/couchbase/regulator => ../regulator
 
 require (
-	github.com/blevesearch/bleve/v2 v2.3.3
+	github.com/blevesearch/bleve/v2 v2.3.4-0.20220713165037-1cbcfd5fdbbb
 	github.com/blevesearch/sear v0.0.5
 	github.com/buger/jsonparser v1.1.1
 	github.com/couchbase/cbauth v0.1.1
@@ -62,13 +62,13 @@ require (
 	github.com/bits-and-blooms/bitset v1.2.2 // indirect
 	github.com/blevesearch/bleve-mapping-ui v0.4.0 // indirect
 	github.com/blevesearch/bleve_index_api v1.0.2 // indirect
-	github.com/blevesearch/geo v0.1.12-0.20220606102651-aab42add3121 // indirect
+	github.com/blevesearch/geo v0.1.12 // indirect
 	github.com/blevesearch/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/blevesearch/go-porterstemmer v1.0.3 // indirect
 	github.com/blevesearch/goleveldb v1.0.1 // indirect
 	github.com/blevesearch/gtreap v0.1.1 // indirect
 	github.com/blevesearch/mmap-go v1.0.4 // indirect
-	github.com/blevesearch/scorch_segment_api/v2 v2.1.0 // indirect
+	github.com/blevesearch/scorch_segment_api/v2 v2.1.1 // indirect
 	github.com/blevesearch/segment v0.9.0 // indirect
 	github.com/blevesearch/snowballstem v0.9.0 // indirect
 	github.com/blevesearch/upsidedown_store_api v1.0.1 // indirect
@@ -77,7 +77,7 @@ require (
 	github.com/blevesearch/zapx/v12 v12.3.4 // indirect
 	github.com/blevesearch/zapx/v13 v13.3.4 // indirect
 	github.com/blevesearch/zapx/v14 v14.3.4 // indirect
-	github.com/blevesearch/zapx/v15 v15.3.4 // indirect
+	github.com/blevesearch/zapx/v15 v15.3.5-0.20220713163830-ae843e553177 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/couchbase/blance v0.1.1 // indirect
 	github.com/couchbase/eventing-ee v0.0.0-00010101000000-000000000000 // indirect
