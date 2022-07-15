@@ -138,6 +138,18 @@ func (s *WrapDatastore) TransactionDeltaKeyScan(keyspace string, conn *datastore
 	defer conn.Sender().Close()
 }
 
+func (s *WrapDatastore) CreateSystemCBOStats(requestId string) errors.Error {
+	return nil
+}
+
+func (s *WrapDatastore) GetSystemCBOStats() (datastore.Keyspace, errors.Error) {
+	return nil, nil
+}
+
+func (s *WrapDatastore) HasSystemCBOStats() (bool, errors.Error) {
+	return false, nil
+}
+
 func (s *WrapDatastore) GetSystemCollection(bucketName string) (datastore.Keyspace, errors.Error) {
 	return nil, nil
 }
