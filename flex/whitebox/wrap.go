@@ -9,8 +9,6 @@
 package whitebox
 
 import (
-	"net/http"
-
 	"github.com/couchbase/query/auth"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
@@ -63,15 +61,15 @@ func (s *WrapDatastore) NamespaceByName(name string) (p datastore.Namespace, e e
 	return &WrapNamespace{Parent: s, W: ns}, err
 }
 
-func (s *WrapDatastore) Authorize(p *auth.Privileges, c *auth.Credentials) (auth.AuthenticatedUsers, errors.Error) {
+func (s *WrapDatastore) Authorize(p *auth.Privileges, c *auth.Credentials) errors.Error {
 	return s.W.Authorize(p, c)
 }
 
 func (s *WrapDatastore) PreAuthorize(p *auth.Privileges) {
 }
 
-func (s *WrapDatastore) CredsString(r *http.Request) string {
-	return s.W.CredsString(r)
+func (s *WrapDatastore) CredsString(c *auth.Credentials) string {
+	return s.W.CredsString(c)
 }
 
 func (s *WrapDatastore) SetLogLevel(level logging.Level) {
