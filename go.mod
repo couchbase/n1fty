@@ -49,7 +49,7 @@ require (
 	github.com/couchbase/hebrew v0.0.0-00010101000000-000000000000
 	github.com/couchbase/moss v0.3.0
 	github.com/couchbase/query v0.0.0-00010101000000-000000000000
-	golang.org/x/net v0.0.0-20211215060638-4ddde0e984e9
+	golang.org/x/net v0.0.0-20220728211354-c7608f3a8462
 	google.golang.org/grpc v1.24.0
 )
 
@@ -103,8 +103,8 @@ require (
 	github.com/santhosh-tekuri/jsonschema v1.2.4 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
 	go.etcd.io/bbolt v1.3.6 // indirect
-	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a // indirect
-	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a // indirect
+	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
+	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/genproto v0.0.0-20180817151627-c66870c02cf8 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
