@@ -202,8 +202,8 @@ func TestDynamicIndexSargabilityWithIncompatibleAnalyzer(t *testing.T) {
 		t.Fatal(n1qlErr)
 	}
 
-	if count != 0 {
-		t.Fatalf("Expected count of 0, as query is not sargable for index,"+
+	if count != 1 {
+		t.Fatalf("Allow count of 1, despite analyzer mismatch for query,"+
 			" but got: %v", count)
 	}
 }

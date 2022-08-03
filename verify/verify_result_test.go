@@ -92,27 +92,22 @@ func TestVerifyResultWithoutIndexOption(t *testing.T) {
 		options: nil,
 	}
 
-	test := struct {
-		input  []byte
-		expect bool
-	}{
-		input:  []byte(`{"details": {"startDate": "2019-03-21 12:00:00"}}`),
-		expect: true,
-	}
+	input := []byte(`{"details": {"startDate": "2019-03-21 12:00:00"}}`)
+	expect := false // Because without index context, standard analyzer is applied to text
 
 	v, err := NewVerify("`temp_keyspace`", q.field, q.query, q.options, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	got, err := v.Evaluate(value.NewValue(test.input))
+	got, err := v.Evaluate(value.NewValue(input))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if got != test.expect {
+	if got != expect {
 		t.Fatalf("Expected: %v, Got %v, for doc: %v",
-			test.expect, got, string(test.input))
+			expect, got, string(input))
 	}
 }
 
@@ -223,37 +218,60 @@ func TestMB39592(t *testing.T) {
 	item.SetAttachment("meta", map[string]interface{}{"id": "key"})
 	item.SetId("key")
 
+	indexParams := []byte(`
+	{
+		"doc_config": {
+			"mode": "type_field",
+			"type_field": "type"
+		},
+		"mapping": {
+			"default_analyzer": "keyword",
+			"default_field": "_all",
+			"default_mapping": {
+				"dynamic": true,
+				"enabled": true
+			},
+			"default_type": "_default",
+			"type_field": "_type"
+		},
+		"store": {
+			"indexType": "scorch"
+		}
+	}`)
+
+	bp := cbft.NewBleveParams()
+	err := json.Unmarshal(indexParams, bp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	im, ok := bp.Mapping.(*mapping.IndexMappingImpl)
+	if !ok {
+		t.Fatal("Unable to set up index mapping")
+	}
+
+	util.SetIndexMapping("temp", &util.MappingDetails{
+		UUID:       "tempUUID",
+		SourceName: "temp_keyspace",
+		IMapping:   im,
+		DocConfig:  &bp.DocConfig,
+		Scope:      "_default",
+		Collection: "_default",
+	})
+	options := value.NewValue(map[string]interface{}{
+		"index": "temp",
+	})
+
+	// MB-53231 will loosen up these rules a bit, so providing context
+	// becomes necessary for validation in case of "non-analytic" queries.
 	for _, q := range []map[string]interface{}{
 		{"match": "xyz", "field": "name"},
 		{"wildcard": "Eng?neer?ng", "field": "dept"},
+		{"wildcard": "Eng?neer?ng"}, // MB-41536
 	} {
+
 		queryVal := value.NewValue(q)
-		v, err := NewVerify("`temp_keyspace`", "", queryVal, nil, 1)
-		if err != nil {
-			t.Fatal(queryVal, err)
-		}
-
-		ret, err := v.Evaluate(item)
-		if err != nil {
-			t.Fatal(queryVal, err)
-		}
-
-		if !ret {
-			t.Fatalf("Expected evaluation for key to succeed for `%v`", queryVal)
-		}
-	}
-}
-
-func TestMB41536(t *testing.T) {
-	item := value.NewAnnotatedValue([]byte(`{"name":"xyz","dept":"Engineering"}`))
-	item.SetAttachment("meta", map[string]interface{}{"id": "key"})
-	item.SetId("key")
-
-	for _, q := range []map[string]interface{}{
-		{"wildcard": "Eng?neer?ng"},
-	} {
-		queryVal := value.NewValue(q)
-		v, err := NewVerify("`temp_keyspace`", "", queryVal, nil, 1)
+		v, err := NewVerify("`temp_keyspace._default._default`", "", queryVal, options, 1)
 		if err != nil {
 			t.Fatal(queryVal, err)
 		}
@@ -841,12 +859,56 @@ func TestMB47473(t *testing.T) {
 	item.SetAttachment("meta", map[string]interface{}{"id": "key"})
 	item.SetId("key")
 
+	indexParams := []byte(`
+	{
+		"doc_config": {
+			"mode": "type_field",
+			"type_field": "type"
+		},
+		"mapping": {
+			"default_analyzer": "keyword",
+			"default_field": "_all",
+			"default_mapping": {
+				"dynamic": true,
+				"enabled": true
+			},
+			"default_type": "_default",
+			"type_field": "_type"
+		},
+		"store": {
+			"indexType": "scorch"
+		}
+	}`)
+
+	bp := cbft.NewBleveParams()
+	err := json.Unmarshal(indexParams, bp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	im, ok := bp.Mapping.(*mapping.IndexMappingImpl)
+	if !ok {
+		t.Fatal("Unable to set up index mapping")
+	}
+
+	util.SetIndexMapping("temp", &util.MappingDetails{
+		UUID:       "tempUUID",
+		SourceName: "temp_keyspace",
+		IMapping:   im,
+		DocConfig:  &bp.DocConfig,
+		Scope:      "_default",
+		Collection: "_default",
+	})
+	options := value.NewValue(map[string]interface{}{
+		"index": "temp",
+	})
+
 	q := map[string]interface{}{
 		"field":    "name",
 		"wildcard": "K*",
 	}
 	queryVal := value.NewValue(q)
-	v, err := NewVerify("`temp_keyspace`", "", queryVal, nil, 1)
+	v, err := NewVerify("`temp_keyspace._default._default`", "", queryVal, options, 1)
 	if err != nil {
 		t.Fatal(queryVal, err)
 	}
@@ -1054,5 +1116,117 @@ func TestMB52263_Verify(t *testing.T) {
 	if !got {
 		t.Fatal("Expected key to pass evaluation")
 	}
+}
 
+func TestMB53231(t *testing.T) {
+	indexParams := []byte(`
+	{
+		"mapping": {
+			"analysis": {
+				"analyzers": {
+					"custom-ngram-3": {
+						"token_filters": [
+						"ngram_min_3_max_8"
+						],
+						"tokenizer": "single",
+						"type": "custom"
+					}
+				},
+				"token_filters": {
+					"ngram_min_3_max_8": {
+						"max": 8,
+						"min": 3,
+						"type": "ngram"
+					}
+				}
+			},
+			"default_analyzer": "standard",
+			"default_mapping": {
+				"dynamic": false,
+				"enabled": true,
+				"properties": {
+					"field1": {
+						"enabled": true,
+						"dynamic": false,
+						"fields": [
+						{
+							"analyzer": "custom-ngram-3",
+							"index": true,
+							"name": "field1",
+							"type": "text"
+						}
+						]
+					},
+					"field2": {
+						"enabled": true,
+						"dynamic": false,
+						"fields": [
+						{
+							"analyzer": "custom-ngram-3",
+							"index": true,
+							"name": "field2",
+							"type": "text"
+						}
+						]
+					}
+				}
+			},
+			"type_field": "_type"
+		},
+		"store": {
+			"indexType": "scorch"
+		}
+	}
+	`)
+
+	bp := cbft.NewBleveParams()
+	err := json.Unmarshal(indexParams, bp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	im, ok := bp.Mapping.(*mapping.IndexMappingImpl)
+	if !ok {
+		t.Fatal("Unable to set up index mapping")
+	}
+
+	util.SetIndexMapping("temp", &util.MappingDetails{
+		UUID:       "tempUUID",
+		SourceName: "temp_keyspace",
+		IMapping:   im,
+		DocConfig:  &bp.DocConfig,
+		Scope:      "_default",
+		Collection: "_default",
+	})
+
+	item := value.NewAnnotatedValue([]byte(`{
+		"field1": "ABCDEFGHIJ",
+		"field2": "0123456789"
+	}`))
+	item.SetAttachment("meta", map[string]interface{}{"id": "key"})
+	item.SetId("key")
+
+	q := value.NewValue(map[string]interface{}{
+		"match":    "ABCDEF",
+		"field":    "field1",
+		"analyzer": "keyword",
+	})
+
+	options := value.NewValue(map[string]interface{}{
+		"index": "temp",
+	})
+
+	v, err := NewVerify("`temp_keyspace._default._default`", "", q, options, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := v.Evaluate(item)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !got {
+		t.Fatal("Expected key to pass evaluation")
+	}
 }

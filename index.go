@@ -652,9 +652,11 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			}
 
 		} else {
-			if f.Type == "text" && f.Analyzer == "" {
-				// set analyzer to defaultAnalyzer for those query fields of type:text,
-				// that don't have an explicit analyzer set already.
+			if f.Type == "text" {
+				// Overwrite the analyzer in the query to defaultAnalyzer, so we can
+				// allow any kind of analytic query regardless of the index definition.
+				// p.s. remember we also account for the field with the defaultAnalyzer
+				// regardless of a specific definition (MB-53231)
 				f.Analyzer = i.defaultAnalyzer
 				f.DateFormat = ""
 			} else if f.Type == "datetime" && f.DateFormat == "" {

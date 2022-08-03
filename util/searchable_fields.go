@@ -676,7 +676,7 @@ func FetchFieldsToSearchFromQuery(que query.Query) (map[SearchField]struct{}, er
 					Name: fq.Field(),
 				}
 
-				switch qqq := fq.(type) {
+				switch fq.(type) {
 				case *query.BoolFieldQuery:
 					fieldDesc.Type = "boolean"
 				case *query.NumericRangeQuery:
@@ -689,14 +689,10 @@ func FetchFieldsToSearchFromQuery(que query.Query) (map[SearchField]struct{}, er
 					fieldDesc.Type = "geopoint"
 				case *query.GeoShapeQuery:
 					fieldDesc.Type = "geoshape"
-				case *query.MatchQuery:
-					fieldDesc.Type = "text"
-					fieldDesc.Analyzer = qqq.Analyzer
-				case *query.MatchPhraseQuery:
-					fieldDesc.Type = "text"
-					fieldDesc.Analyzer = qqq.Analyzer
 				default:
-					// The analyzer expectation for the following queries is keyword:
+					// The rest are all of Type: "text"
+					//   - *query.MatchQuery
+					//   - *query.MatchPhraseQuery
 					//   - *query.TermQuery
 					//   - *query.PhraseQuery
 					//   - *query.MultiPhraseQuery
@@ -705,7 +701,6 @@ func FetchFieldsToSearchFromQuery(que query.Query) (map[SearchField]struct{}, er
 					//   - *query.RegexpQuery
 					//   - *query.WildcardQuery
 					fieldDesc.Type = "text"
-					fieldDesc.Analyzer = "keyword"
 				}
 
 				queryFields[fieldDesc] = struct{}{}
