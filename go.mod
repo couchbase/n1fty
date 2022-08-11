@@ -44,7 +44,7 @@ require (
 	github.com/blevesearch/bleve/v2 v2.3.4-0.20220810122446-d89c6c0a6873
 	github.com/blevesearch/sear v0.0.5
 	github.com/buger/jsonparser v1.1.1
-	github.com/couchbase/cbauth v0.1.1
+	github.com/couchbase/cbauth v0.1.2
 	github.com/couchbase/cbft v0.0.0-00010101000000-000000000000
 	github.com/couchbase/cbgt v0.0.0-00010101000000-000000000000
 	github.com/couchbase/clog v0.1.0
