@@ -17,6 +17,7 @@ import (
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/datastore/file"
 	"github.com/couchbase/query/datastore/system"
+	"github.com/couchbase/query/accounting/stub"
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/execution"
 	"github.com/couchbase/query/logging"
@@ -41,8 +42,9 @@ func NewServer(dir string, c *WrapCallbacks) (*server.Server, error) {
 	}
 
 	wds := &WrapDatastore{W: ds, C: c}
+	accountingStoreStub, _ := accounting_stub.NewAccountingStore("")
 
-	sys, err := system.NewDatastore(wds)
+	sys, err := system.NewDatastore(wds, accountingStoreStub)
 	if err != nil {
 		return nil, err
 	}
