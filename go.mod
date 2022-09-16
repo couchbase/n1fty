@@ -85,8 +85,8 @@ require (
 	github.com/couchbase/ghistogram v0.1.0 // indirect
 	github.com/couchbase/go-couchbase v0.1.1 // indirect
 	github.com/couchbase/go_json v0.0.0-20220330123059-4473a21887c8 // indirect
-	github.com/couchbase/gocb/v2 v2.5.2 // indirect
-	github.com/couchbase/gocbcore/v10 v10.1.4 // indirect
+	github.com/couchbase/gocb/v2 v2.5.3-0.20220915151107-bba7053674ed // indirect
+	github.com/couchbase/gocbcore/v10 v10.1.5-0.20220914162543-e8fb96235d17 // indirect
 	github.com/couchbase/gocbcore/v9 v9.1.8 // indirect
 	github.com/couchbase/gomemcached v0.1.5-0.20220627085811-f29815b6005a // indirect
 	github.com/couchbase/gometa v0.0.0-20220803182802-05cb6b2e299f // indirect
