@@ -88,7 +88,7 @@ require (
 	github.com/couchbase/gocb/v2 v2.5.3-0.20220915151107-bba7053674ed // indirect
 	github.com/couchbase/gocbcore/v10 v10.1.5-0.20220914162543-e8fb96235d17 // indirect
 	github.com/couchbase/gocbcore/v9 v9.1.8 // indirect
-	github.com/couchbase/gomemcached v0.1.5-0.20220627085811-f29815b6005a // indirect
+	github.com/couchbase/gomemcached v0.1.5-0.20220916124424-884dec4ebb14 // indirect
 	github.com/couchbase/gometa v0.0.0-20220803182802-05cb6b2e299f // indirect
 	github.com/couchbase/indexing v0.0.0-00010101000000-000000000000 // indirect
 	github.com/couchbase/query-ee v0.0.0-00010101000000-000000000000 // indirect
