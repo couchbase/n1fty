@@ -65,6 +65,10 @@ func (s *WrapDatastore) Authorize(p *auth.Privileges, c *auth.Credentials) error
 	return s.W.Authorize(p, c)
 }
 
+func (s *WrapDatastore) AdminUser(node string) (string, string, error) {
+	return "", "", nil
+}
+
 func (s *WrapDatastore) PreAuthorize(p *auth.Privileges) {
 }
 
