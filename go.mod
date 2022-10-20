@@ -41,7 +41,7 @@ replace github.com/couchbase/godbc => ../godbc
 replace github.com/couchbase/regulator => ../regulator
 
 require (
-	github.com/blevesearch/bleve/v2 v2.3.4
+	github.com/blevesearch/bleve/v2 v2.3.5
 	github.com/blevesearch/sear v0.0.5
 	github.com/buger/jsonparser v1.1.1
 	github.com/couchbase/cbauth v0.1.3
@@ -61,26 +61,26 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.2.2 // indirect
 	github.com/blevesearch/bleve-mapping-ui v0.4.0 // indirect
-	github.com/blevesearch/bleve_index_api v1.0.3 // indirect
-	github.com/blevesearch/geo v0.1.13 // indirect
+	github.com/blevesearch/bleve_index_api v1.0.4 // indirect
+	github.com/blevesearch/geo v0.1.15 // indirect
 	github.com/blevesearch/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/blevesearch/go-porterstemmer v1.0.3 // indirect
 	github.com/blevesearch/goleveldb v1.0.1 // indirect
 	github.com/blevesearch/gtreap v0.1.1 // indirect
 	github.com/blevesearch/mmap-go v1.0.4 // indirect
-	github.com/blevesearch/scorch_segment_api/v2 v2.1.2 // indirect
+	github.com/blevesearch/scorch_segment_api/v2 v2.1.3 // indirect
 	github.com/blevesearch/segment v0.9.0 // indirect
 	github.com/blevesearch/snowballstem v0.9.0 // indirect
 	github.com/blevesearch/upsidedown_store_api v1.0.1 // indirect
-	github.com/blevesearch/vellum v1.0.8 // indirect
-	github.com/blevesearch/zapx/v11 v11.3.5 // indirect
-	github.com/blevesearch/zapx/v12 v12.3.5 // indirect
-	github.com/blevesearch/zapx/v13 v13.3.5 // indirect
-	github.com/blevesearch/zapx/v14 v14.3.5 // indirect
-	github.com/blevesearch/zapx/v15 v15.3.5 // indirect
+	github.com/blevesearch/vellum v1.0.9 // indirect
+	github.com/blevesearch/zapx/v11 v11.3.6 // indirect
+	github.com/blevesearch/zapx/v12 v12.3.6 // indirect
+	github.com/blevesearch/zapx/v13 v13.3.6 // indirect
+	github.com/blevesearch/zapx/v14 v14.3.6 // indirect
+	github.com/blevesearch/zapx/v15 v15.3.6 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/cloudfoundry/gosigar v1.3.4 // indirect
-	github.com/couchbase/blance v0.1.1 // indirect
+	github.com/couchbase/blance v0.1.3 // indirect
 	github.com/couchbase/eventing-ee v0.0.0-00010101000000-000000000000 // indirect
 	github.com/couchbase/ghistogram v0.1.0 // indirect
 	github.com/couchbase/go-couchbase v0.1.1 // indirect
@@ -90,7 +90,7 @@ require (
 	github.com/couchbase/gocbcore/v9 v9.1.8 // indirect
 	github.com/couchbase/gomemcached v0.1.5-0.20220916124424-884dec4ebb14 // indirect
 	github.com/couchbase/gometa v0.0.0-20220803182802-05cb6b2e299f // indirect
-	github.com/couchbase/indexing v0.0.0-00010101000000-000000000000 // indirect
+	github.com/couchbase/indexing v0.0.0-20220923223016-071e9308c875 // indirect
 	github.com/couchbase/query-ee v0.0.0-00010101000000-000000000000 // indirect
 	github.com/couchbase/regulator v0.0.0-00010101000000-000000000000 // indirect
 	github.com/couchbasedeps/go-curl v0.0.0-20190830233031-f0b2afc926ec // indirect
@@ -116,7 +116,7 @@ require (
 	github.com/santhosh-tekuri/jsonschema v1.2.4 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20201027041543-1326539a0a0a // indirect
 	go.etcd.io/bbolt v1.3.6 // indirect
-	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
+	golang.org/x/crypto v0.0.0-20220924013350-4ba4fb4dd9e7 // indirect
 	golang.org/x/sys v0.0.0-20220804214406-8e32c043e418 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/genproto v0.0.0-20200825200019-8632dd797987 // indirect
