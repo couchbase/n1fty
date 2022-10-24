@@ -179,8 +179,8 @@ type WrapNamespace struct {
 	W      datastore.Namespace
 }
 
-func (p *WrapNamespace) DatastoreId() string {
-	return p.W.DatastoreId()
+func (p *WrapNamespace) Datastore() datastore.Datastore {
+	return p.Parent
 }
 
 func (p *WrapNamespace) Id() string {
@@ -229,7 +229,8 @@ func (p *WrapNamespace) BucketByName(name string) (datastore.Bucket, errors.Erro
 	return p.W.BucketByName(name)
 }
 
-func (p *WrapNamespace) Objects(x bool) ([]datastore.Object, errors.Error) {
+func (p *WrapNamespace) Objects(credentials *auth.Credentials, preload bool) (
+	[]datastore.Object, errors.Error) {
 	return nil, nil
 }
 
