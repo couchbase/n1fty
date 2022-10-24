@@ -63,12 +63,8 @@ var DefaultConnPoolSize = 5
 // ErrFeatureUnavailable indicates the feature unavailability in cluster
 var ErrFeatureUnavailable = fmt.Errorf("feature unavailable in cluster")
 
-var rsource rand.Source
-var r1 *rand.Rand
-
 func init() {
-	rsource = rand.NewSource(time.Now().UnixNano())
-	r1 = rand.New(rsource)
+	rand.Seed(time.Now().UnixNano())
 }
 
 type ftsClient struct {
@@ -81,7 +77,7 @@ func (c *ftsClient) getGrpcClient() pb.SearchServiceClient {
 		return nil
 	}
 	// pick a random fts node
-	randomNodeIndex := r1.Intn(len(c.servers))
+	randomNodeIndex := rand.Intn(len(c.servers))
 	// pick its conn pool
 	connPool := c.gRPCConnMap[c.servers[randomNodeIndex]]
 	if len(connPool) == 0 {
