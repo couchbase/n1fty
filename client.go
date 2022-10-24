@@ -84,7 +84,7 @@ func (c *ftsClient) getGrpcClient() pb.SearchServiceClient {
 		return nil
 	}
 	// pick a random connection from pool
-	conn := connPool[r1.Intn(len(connPool))]
+	conn := connPool[rand.Intn(len(connPool))]
 	return pb.NewSearchServiceClient(conn)
 }
 
