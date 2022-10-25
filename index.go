@@ -622,7 +622,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			// type isn't available, likely because query value wasn't available;
 			// check field name against all possible types
 			for _, typ := range []string{
-				"boolean", "number", "text", "datetime", "geopoint"} {
+				"boolean", "number", "text", "datetime", "geopoint", "geoshape"} {
 				f.Type = typ
 				if typ == "text" {
 					f.Analyzer = i.defaultAnalyzer
