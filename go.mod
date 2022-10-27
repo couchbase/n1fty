@@ -60,7 +60,7 @@ require (
 	github.com/RoaringBitmap/roaring v0.9.4 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.2.2 // indirect
-	github.com/blevesearch/bleve-mapping-ui v0.4.0 // indirect
+	github.com/blevesearch/bleve-mapping-ui v0.5.1 // indirect
 	github.com/blevesearch/bleve_index_api v1.0.4 // indirect
 	github.com/blevesearch/geo v0.1.15 // indirect
 	github.com/blevesearch/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
@@ -85,8 +85,8 @@ require (
 	github.com/couchbase/ghistogram v0.1.0 // indirect
 	github.com/couchbase/go-couchbase v0.1.1 // indirect
 	github.com/couchbase/go_json v0.0.0-20220330123059-4473a21887c8 // indirect
-	github.com/couchbase/gocb/v2 v2.5.3-0.20220915151107-bba7053674ed // indirect
-	github.com/couchbase/gocbcore/v10 v10.1.5-0.20220914162543-e8fb96235d17 // indirect
+	github.com/couchbase/gocb/v2 v2.5.4 // indirect
+	github.com/couchbase/gocbcore/v10 v10.1.6 // indirect
 	github.com/couchbase/gocbcore/v9 v9.1.8 // indirect
 	github.com/couchbase/gomemcached v0.1.5-0.20220916124424-884dec4ebb14 // indirect
 	github.com/couchbase/gometa v0.0.0-20220803182802-05cb6b2e299f // indirect
