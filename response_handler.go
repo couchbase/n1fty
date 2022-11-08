@@ -26,7 +26,13 @@ import (
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/logging"
+	"github.com/couchbase/query/tenant"
 	"github.com/couchbase/query/value"
+
+	"github.com/couchbase/regulator"
+	"github.com/couchbase/regulator/config"
+	"github.com/couchbase/regulator/metering"
+	"github.com/couchbase/regulator/utils"
 )
 
 type responseHandler struct {
@@ -148,17 +154,17 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 			firstResponseByte = true
 		}
 
-		switch r := results.Contents.(type) {
+		switch res := results.Contents.(type) {
 		case *pb.StreamSearchResults_Hits:
-			hits = r.Hits.Bytes
-			numHits = r.Hits.Total
+			hits = res.Hits.Bytes
+			numHits = res.Hits.Total
 
 		case *pb.StreamSearchResults_SearchResult:
-			if r.SearchResult == nil {
+			if res.SearchResult == nil {
 				break
 			}
 
-			searchStatus, _, _, err := jsonparser.Get(r.SearchResult, "status")
+			searchStatus, _, _, err := jsonparser.Get(res.SearchResult, "status")
 			if err != nil || len(searchStatus) == 0 {
 				conn.Error(util.N1QLError(err, "error in retrieving status"))
 				return
@@ -183,12 +189,33 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 				}
 			}
 
-			hits, _, _, err = jsonparser.Get(r.SearchResult, "hits")
+			hits, _, _, err = jsonparser.Get(res.SearchResult, "hits")
 			if err != nil {
 				conn.Error(util.N1QLError(err, "error in retrieving hits"))
 				return
 			}
 
+			if IsServerlessMode() {
+				diskBytesRead, _, _, err := jsonparser.Get(res.SearchResult, "bytesRead")
+				if err != nil {
+					conn.Error(util.N1QLError(err, "error in retrieving read units"+
+						" for this query"))
+					return
+				}
+				bytesRead, err := strconv.ParseUint(string(diskBytesRead), 10, 64)
+				if err != nil {
+					conn.Error(util.N1QLError(err, "error in parsing read units"+
+						" for this query"))
+					return
+				}
+
+				rus, err := getReadUnits(r.i.indexDef.SourceName, bytesRead)
+				if err != nil {
+					conn.Error(util.N1QLError(err, "error in read units conversion"))
+					return
+				}
+				conn.RecordFtsRU(tenant.Unit(rus))
+			}
 			numHits = 0
 		}
 
@@ -245,6 +272,38 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 			ftsDur = time.Now()
 		}
 	}
+}
+
+func getThrottleLimit(ctx regulator.Ctx) utils.Limit {
+	bCtx, _ := ctx.(regulator.BucketCtx)
+	rCfg := config.GetConfig()
+	searchHandle := config.ResolveSettingsHandle(regulator.Search, ctx)
+	return rCfg.GetConfiguredLimitForBucket(bCtx.Bucket(), searchHandle)
+}
+
+func getReadUnits(bucket string, bytes uint64) (uint64, error) {
+	rus, err := metering.SearchReadToRU(bytes)
+	if err != nil {
+		return 0, err
+	}
+	context := regulator.NewBucketCtx(bucket)
+
+	// Note that this capping of read units is still under inspection
+	// so its still a WIP. Also, currently keeping the max indexes
+	// per bucket to the default value as of now.
+	// This capping logic is essentially going to be resolved when
+	// we bring done the huge deficit issue that's highlighted (MB-54505)
+	throttleLimit := uint64(getThrottleLimit(context))
+	if rus.Whole() > throttleLimit {
+		maxIndexCountPerSource := 20
+		rus, err = regulator.NewUnits(regulator.Search, 0,
+			throttleLimit/uint64(maxIndexCountPerSource*10))
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	return rus.Whole(), err
 }
 
 func (r *responseHandler) cleanupBackfill() {
