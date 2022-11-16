@@ -64,7 +64,6 @@ require (
 	github.com/blevesearch/bleve-mapping-ui v0.5.1 // indirect
 	github.com/blevesearch/bleve_index_api v1.0.4 // indirect
 	github.com/blevesearch/geo v0.1.15 // indirect
-	github.com/blevesearch/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/blevesearch/go-porterstemmer v1.0.3 // indirect
 	github.com/blevesearch/goleveldb v1.0.1 // indirect
 	github.com/blevesearch/gtreap v0.1.1 // indirect
@@ -94,7 +93,7 @@ require (
 	github.com/couchbase/indexing v0.0.0-20220923223016-071e9308c875 // indirect
 	github.com/couchbase/query-ee v0.0.0-00010101000000-000000000000 // indirect
 	github.com/couchbase/regulator v0.0.0-00010101000000-000000000000 // indirect
-	github.com/couchbase/tools-common v0.0.0-20220928120928-69aba4a231be // indirect
+	github.com/couchbase/tools-common v0.0.0-20221109180603-a4213f4d9c25 // indirect
 	github.com/couchbasedeps/go-curl v0.0.0-20190830233031-f0b2afc926ec // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dustin/go-jsonpointer v0.0.0-20140810065344-75939f54b39e // indirect
