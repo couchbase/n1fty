@@ -52,6 +52,7 @@ require (
 	github.com/couchbase/hebrew v0.0.0-00010101000000-000000000000
 	github.com/couchbase/moss v0.3.0
 	github.com/couchbase/query v0.0.0-00010101000000-000000000000
+	github.com/couchbase/regulator v0.0.0-00010101000000-000000000000
 	golang.org/x/net v0.0.0-20220923203811-8be639271d50
 	google.golang.org/grpc v1.49.0
 )
@@ -92,7 +93,6 @@ require (
 	github.com/couchbase/gometa v0.0.0-20220803182802-05cb6b2e299f // indirect
 	github.com/couchbase/indexing v0.0.0-20220923223016-071e9308c875 // indirect
 	github.com/couchbase/query-ee v0.0.0-00010101000000-000000000000 // indirect
-	github.com/couchbase/regulator v0.0.0-00010101000000-000000000000 // indirect
 	github.com/couchbase/tools-common v0.0.0-20221109180603-a4213f4d9c25 // indirect
 	github.com/couchbasedeps/go-curl v0.0.0-20190830233031-f0b2afc926ec // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
