@@ -3,7 +3,8 @@
 if [ $# -eq 0 ]
   then
     echo "No test name provided"
-	exit
+    echo "USAGE: ./run_test.sh <regexp_to_match_test(s)>"
+    exit
 fi
 
 export CBPATH="$PWD/../../../../.."
