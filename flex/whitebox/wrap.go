@@ -72,10 +72,6 @@ func (s *WrapDatastore) AdminUser(node string) (string, string, error) {
 func (s *WrapDatastore) PreAuthorize(p *auth.Privileges) {
 }
 
-func (s *WrapDatastore) CredsString(c *auth.Credentials) string {
-	return s.W.CredsString(c)
-}
-
 func (s *WrapDatastore) SetLogLevel(level logging.Level) {
 	s.W.SetLogLevel(level)
 }
@@ -166,6 +162,14 @@ func (s *WrapDatastore) EnableStorageAudit(val bool) {
 
 func (s *WrapDatastore) GetUserBuckets(c *auth.Credentials) []string {
 	return []string{}
+}
+
+func (s *WrapDatastore) GetImpersonateBuckets(string, string) []string {
+        return []string{}
+}
+
+func (s *WrapDatastore) CredsString(*auth.Credentials) (string, string) {
+        return "", ""
 }
 
 func (s *WrapDatastore) GetUserUUID(creds *auth.Credentials) string {
