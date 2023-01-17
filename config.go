@@ -10,7 +10,6 @@ package n1fty
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"strings"
@@ -284,7 +283,7 @@ func (c *n1ftyConfig) processConfig(conf map[string]interface{}) {
 
 // best effort cleanup as tmpdir may change during restart
 func cleanupTmpFiles(olddir string) {
-	files, err := ioutil.ReadDir(olddir)
+	files, err := os.ReadDir(olddir)
 	if err != nil {
 		return
 	}
@@ -298,14 +297,16 @@ func cleanupTmpFiles(olddir string) {
 	}
 
 	for _, file := range files {
-		fname := path.Join(olddir, file.Name())
-		mtime := file.ModTime()
-		since := (time.Since(mtime).Seconds() * 1000) * 2 // twice the long search
-		if (strings.Contains(fname, backfillPrefix)) &&
-			int64(since) > searchTimeout {
-			logging.Infof("n1fty: removing old file %v, last modified @ %v",
-				fname, mtime)
-			os.Remove(fname)
+		if fInfo, err := file.Info(); err == nil {
+			fname := path.Join(olddir, file.Name())
+			mtime := fInfo.ModTime()
+			since := (time.Since(mtime).Seconds() * 1000) * 2 // twice the long search
+			if (strings.Contains(fname, backfillPrefix)) &&
+				int64(since) > searchTimeout {
+				logging.Infof("n1fty: removing old file %v, last modified @ %v",
+					fname, mtime)
+				os.Remove(fname)
+			}
 		}
 	}
 }
@@ -319,7 +320,7 @@ func (c *n1ftyConfig) GetConfig() map[string]interface{} {
 }
 
 func getDefaultTmpDir() string {
-	file, err := ioutil.TempFile("", backfillPrefix)
+	file, err := os.CreateTemp("", backfillPrefix)
 	if err != nil {
 		return ""
 	}

@@ -13,7 +13,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"sync"
@@ -383,7 +382,7 @@ func initBackFill(logPrefix, requestID string, rh *responseHandler) (*gob.Encode
 	*gob.Decoder, *os.File, error) {
 	prefix := backfillPrefix + strconv.Itoa(os.Getpid())
 
-	tmpfile, err := ioutil.TempFile(getBackfillSpaceDir(), prefix)
+	tmpfile, err := os.CreateTemp(getBackfillSpaceDir(), prefix)
 	if err != nil {
 		fmsg := "%v %s creating backfill file, err: %v\n"
 		return nil, nil, nil, fmt.Errorf(fmsg, logPrefix, requestID, err)

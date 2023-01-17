@@ -11,7 +11,7 @@ package whitebox
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"github.com/blevesearch/bleve/v2/mapping"
@@ -149,9 +149,9 @@ func (i *Index) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 	path := i.Parent.Keyspace.NamespaceId() + "/" +
 		i.Parent.Keyspace.Id()
 
-	entries, err1 := ioutil.ReadDir(path)
+	entries, err1 := os.ReadDir(path)
 	if err1 != nil {
-		connError(util.N1QLError(err1, "ioutil.ReadDir"))
+		connError(util.N1QLError(err1, "os.ReadDir"))
 		return
 	}
 
@@ -160,9 +160,9 @@ func (i *Index) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 			continue
 		}
 
-		bytes, err2 := ioutil.ReadFile(path + "/" + entry.Name())
+		bytes, err2 := os.ReadFile(path + "/" + entry.Name())
 		if err2 != nil {
-			connError(util.N1QLError(err2, "ioutil.ReadFile"))
+			connError(util.N1QLError(err2, "os.ReadFile"))
 			return
 		}
 

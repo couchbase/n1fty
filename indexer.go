@@ -13,8 +13,9 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -197,7 +198,7 @@ func (i *FTSIndexer) SetConnectionSecurityConfig(
 			caFile = conf.CertFile
 		}
 
-		newSecurityConfig.certInBytes, err = ioutil.ReadFile(caFile)
+		newSecurityConfig.certInBytes, err = os.ReadFile(caFile)
 		if err != nil {
 			logging.Fatalf("Failed to load certificate file, err: %v", err)
 		}
@@ -573,7 +574,7 @@ func (i *FTSIndexer) fetchBleveMaxResultWindow() (int, error) {
 		return 0, fmt.Errorf("status code: %v", resp.StatusCode)
 	}
 
-	bodyBuf, err := ioutil.ReadAll(resp.Body)
+	bodyBuf, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return 0, err
 	}

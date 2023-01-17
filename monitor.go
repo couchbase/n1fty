@@ -9,7 +9,7 @@
 package n1fty
 
 import (
-	"io/ioutil"
+	"os"
 	"path"
 	"strings"
 	"sync"
@@ -69,7 +69,7 @@ func (m *monitor) backfillMonitor() {
 		<-tick.C
 
 		backfillDir := getBackfillSpaceDir()
-		files, err := ioutil.ReadDir(backfillDir)
+		files, err := os.ReadDir(backfillDir)
 		if err != nil {
 			logging.Warnf("n1fty backfill monitor failed to read dir,"+
 				" err: %v", err)
@@ -78,9 +78,11 @@ func (m *monitor) backfillMonitor() {
 
 		var size int64
 		for _, file := range files {
-			fname := path.Join(backfillDir, file.Name())
-			if strings.Contains(fname, backfillPrefix) {
-				size += file.Size()
+			if fInfo, err := file.Info(); err == nil {
+				fname := path.Join(backfillDir, file.Name())
+				if strings.Contains(fname, backfillPrefix) {
+					size += fInfo.Size()
+				}
 			}
 		}
 
