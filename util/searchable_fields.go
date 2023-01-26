@@ -689,6 +689,8 @@ func FetchFieldsToSearchFromQuery(que query.Query) (map[SearchField]struct{}, er
 					fieldDesc.Type = "geopoint"
 				case *query.GeoShapeQuery:
 					fieldDesc.Type = "geoshape"
+				case *query.IPRangeQuery:
+					fieldDesc.Type = "IP"
 				default:
 					// The rest are all of Type: "text"
 					//   - *query.MatchQuery
