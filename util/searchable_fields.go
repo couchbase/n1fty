@@ -695,6 +695,8 @@ func FetchFieldsToSearchFromQuery(que query.Query) (map[SearchField]struct{}, er
 				case *query.MatchPhraseQuery:
 					fieldDesc.Type = "text"
 					fieldDesc.Analyzer = qqq.Analyzer
+				case *query.IPRangeQuery:
+					fieldDesc.Type = "IP"
 				default:
 					// The analyzer expectation for the following queries is keyword:
 					//   - *query.TermQuery
