@@ -126,6 +126,17 @@ func (this *Request) Result(item value.AnnotatedValue) bool {
 	return true
 }
 
+func (this *Request) LogLevel() logging.Level {
+	return logging.INFO
+}
+
+func (this *Request) Alive() bool {
+	return true
+}
+
+func (this *Request) Loga(x logging.Level, y func() string) {
+}
+
 // ------------------------------------------------------------
 
 func ExecuteStatement(s *server.Server, stmt string,
