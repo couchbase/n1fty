@@ -212,7 +212,7 @@ func (c *n1ftyConfig) SetParam(name string, val interface{}) errors.Error {
 			return err
 		}
 		c.processConfig(tempconf)
-		logging.Infof("n1ftyConfig - Setting param %v %v", name, val)
+		logging.Infof("n1fty: Config - Setting param %v %v", name, val)
 		conf[name] = val
 	} else {
 		conf = make(map[string]interface{})
@@ -229,7 +229,7 @@ func (c *n1ftyConfig) validateConfig(conf map[string]interface{}) errors.Error {
 
 	if v, ok := conf[backfillSpaceDir]; ok {
 		if _, ok1 := v.(string); !ok1 {
-			err := fmt.Errorf("n1fty Invalid Config.. key: %v, val: %v",
+			err := fmt.Errorf("n1fty: Invalid Config.. key: %v, val: %v",
 				backfillSpaceDir, v)
 			return util.N1QLError(err, err.Error())
 		}
@@ -237,7 +237,7 @@ func (c *n1ftyConfig) validateConfig(conf map[string]interface{}) errors.Error {
 
 	if v, ok := conf[backfillSpaceLimit]; ok {
 		if _, ok1 := v.(int64); !ok1 {
-			err := fmt.Errorf("n1fty Invalid Config.. key: %v, val: %v",
+			err := fmt.Errorf("n1fty: Invalid Config.. key: %v, val: %v",
 				backfillSpaceLimit, v)
 			return util.N1QLError(err, err.Error())
 		}
@@ -245,7 +245,7 @@ func (c *n1ftyConfig) validateConfig(conf map[string]interface{}) errors.Error {
 
 	if v, ok := conf[searchTimeoutMS]; ok {
 		if _, ok1 := v.(int64); !ok1 {
-			err := fmt.Errorf("n1fty Invalid Config.. key: %v, val: %v",
+			err := fmt.Errorf("n1fty: Invalid Config.. key: %v, val: %v",
 				searchTimeoutMS, v)
 			return util.N1QLError(err, err.Error())
 		}

@@ -113,10 +113,10 @@ OUTER:
 		for j := 0; j < DefaultConnPoolSize; j++ {
 			conn, err := grpc.Dial(hostPort, opts...)
 			if err != nil {
-				logging.Infof("client: grpc.Dial for host: %s, err: %v", hostPort, err)
+				logging.Infof("n1fty: client: grpc.Dial for host: %s, err: %v", hostPort, err)
 				continue OUTER
 			}
-			logging.Infof("client: grpc client connection #%d created for host: %v", j, hostPort)
+			logging.Infof("n1fty: client: grpc client connection #%d created for host: %v", j, hostPort)
 			c.gRPCConnMap[hostPort] = append(c.gRPCConnMap[hostPort], conn)
 		}
 		// after the connections are ready, add the server to the servers list
@@ -211,7 +211,7 @@ func setupFTSClient(nodeDefs *cbgt.NodeDefs) (*ftsClient, error) {
 	} else if !secConfig.disableNonSSLPorts && len(hosts) > 0 {
 		gRPCOpts = append(gRPCOpts, grpc.WithInsecure())
 	} else {
-		logging.Warnf("client: hosts error, config: {encryptionEnabled: %v,"+
+		logging.Warnf("n1fty: client: hosts error, config: {encryptionEnabled: %v,"+
 			" disableNonSSLPorts: %v}, hosts: %v, sslHosts: %v",
 			secConfig.encryptionEnabled, secConfig.disableNonSSLPorts,
 			hosts, sslHosts)

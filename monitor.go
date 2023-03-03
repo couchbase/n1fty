@@ -71,7 +71,7 @@ func (m *monitor) backfillMonitor() {
 		backfillDir := getBackfillSpaceDir()
 		files, err := os.ReadDir(backfillDir)
 		if err != nil {
-			logging.Warnf("n1fty backfill monitor failed to read dir,"+
+			logging.Warnf("n1fty: backfill monitor failed to read dir,"+
 				" err: %v", err)
 			continue
 		}
@@ -111,7 +111,7 @@ func (m *monitor) logStats() {
 			totalSearch := atomic.LoadInt64(&i.stats.TotalSearch)
 			totalBackfills := atomic.LoadInt64(&i.stats.TotalBackFills)
 
-			fmsg := `n1fty bucket-scope-keyspace: %q.%q.%q {` +
+			fmsg := `n1fty: bucket-scope-keyspace: %q.%q.%q {` +
 				`"n1fty_search_count":%v,"n1fty_search_duration":%v,` +
 				`"n1fty_fts_duration":%v,` +
 				`"n1fty_ttfb_duration":%v,"n1fty_n1ql_duration":%v,` +

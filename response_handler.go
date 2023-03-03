@@ -84,14 +84,14 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 
 			atomic.AddInt64(&backfillFin, 1)
 
-			logging.Infof("response_handler: %v %q finished backfill for %v ",
+			logging.Infof("n1fty: response_handler: %v %q finished backfill for %v ",
 				logPrefix, r.requestID, name)
 
 			// TODO: revisit this for better pattern?
 			recover() // need this because entryChannel() would have closed
 		}()
 
-		logging.Infof("response_handler: %v %q started backfill for %v",
+		logging.Infof("n1fty: response_handler: %v %q started backfill for %v",
 			logPrefix, r.requestID, name)
 
 		for {
@@ -223,7 +223,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 
 		if backfillLimit > 0 && tmpfile == nil &&
 			(uint64(cp-ln) < numHits) {
-			logging.Infof("response_handler: buffer overflow [cap %d len %d],"+
+			logging.Infof("n1fty: response_handler: buffer overflow [cap %d len %d],"+
 				" initiating backfill", cp, ln)
 			enc, dec, tmpfile, err = initBackFill(logPrefix, r.requestID, r)
 			if err != nil {
@@ -311,7 +311,7 @@ func (r *responseHandler) cleanupBackfill() {
 		fname := r.backfillFile.Name()
 		if err := os.Remove(fname); err != nil {
 			fmsg := "%v remove backfill file %v unexpected failure: %v\n"
-			logging.Errorf("response_handler: cleanupBackfills, err: %v",
+			logging.Errorf("n1fty: response_handler: cleanupBackfills, err: %v",
 				fmt.Errorf(fmsg, fname, err))
 		}
 		atomic.AddInt64(&r.i.indexer.stats.TotalBackFills, 1)
