@@ -41,7 +41,7 @@ replace github.com/couchbase/godbc => ../godbc
 replace github.com/couchbase/regulator => ../regulator
 
 require (
-	github.com/blevesearch/bleve/v2 v2.3.7
+	github.com/blevesearch/bleve/v2 v2.3.8-0.20230405142240-0c48a9e6c298
 	github.com/blevesearch/sear v0.1.0
 	github.com/buger/jsonparser v1.1.1
 	github.com/couchbase/cbauth v0.1.9
@@ -53,7 +53,7 @@ require (
 	github.com/couchbase/moss v0.3.0
 	github.com/couchbase/query v0.0.0-00010101000000-000000000000
 	github.com/couchbase/regulator v0.0.0-00010101000000-000000000000
-	golang.org/x/net v0.0.0-20220923203811-8be639271d50
+	golang.org/x/net v0.8.0
 	google.golang.org/grpc v1.49.0
 )
 
@@ -89,7 +89,7 @@ require (
 	github.com/couchbase/gocb/v2 v2.5.4 // indirect
 	github.com/couchbase/gocbcore/v10 v10.1.7 // indirect
 	github.com/couchbase/gocbcore/v9 v9.1.8 // indirect
-	github.com/couchbase/gomemcached v0.1.5-0.20220916124424-884dec4ebb14 // indirect
+	github.com/couchbase/gomemcached v0.2.1 // indirect
 	github.com/couchbase/gometa v0.0.0-20220803182802-05cb6b2e299f // indirect
 	github.com/couchbase/indexing v0.0.0-20220923223016-071e9308c875 // indirect
 	github.com/couchbase/query-ee v0.0.0-00010101000000-000000000000 // indirect
@@ -123,10 +123,10 @@ require (
 	github.com/stretchr/testify v1.8.1 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20201027041543-1326539a0a0a // indirect
 	go.etcd.io/bbolt v1.3.6 // indirect
-	golang.org/x/crypto v0.0.0-20220924013350-4ba4fb4dd9e7 // indirect
+	golang.org/x/crypto v0.7.0 // indirect
 	golang.org/x/exp v0.0.0-20220921164117-439092de6870 // indirect
-	golang.org/x/sys v0.0.0-20220919091848-fb04ddd9f9c8 // indirect
-	golang.org/x/text v0.4.0 // indirect
+	golang.org/x/sys v0.6.0 // indirect
+	golang.org/x/text v0.8.0 // indirect
 	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af // indirect
 	google.golang.org/genproto v0.0.0-20220923205249-dd2d53f1fffc // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
