@@ -233,7 +233,7 @@ func (p *WrapNamespace) BucketByName(name string) (datastore.Bucket, errors.Erro
 	return p.W.BucketByName(name)
 }
 
-func (p *WrapNamespace) Objects(credentials *auth.Credentials, preload bool) (
+func (p *WrapNamespace) Objects(credentials *auth.Credentials, filter func(string) bool, preload bool) (
 	[]datastore.Object, errors.Error) {
 	return nil, nil
 }
