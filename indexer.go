@@ -75,8 +75,7 @@ type FTSIndexer struct {
 	// sync RWMutex protects following fields
 	m sync.RWMutex
 
-	closed                     bool
-	newSecurityConfigAvailable bool
+	closed bool
 
 	client   *ftsClient
 	nodeDefs *cbgt.NodeDefs
@@ -179,6 +178,17 @@ func (i *FTSIndexer) SetConnectionSecurityConfig(
 		return
 	}
 
+	i.cfg.bumpVersion() // bypass cfg version check in refresh
+	i.refresh(true)
+}
+
+// Indexer agnostic
+func SetConnectionSecurityConfig(
+	conf *datastore.ConnectionSecurityConfig) {
+	if conf == nil {
+		return
+	}
+
 	newSecurityConfig := &securityConfig{
 		tlsPreference:      &conf.TLSConfig,
 		encryptionEnabled:  conf.ClusterEncryptionConfig.EncryptData,
@@ -204,15 +214,29 @@ func (i *FTSIndexer) SetConnectionSecurityConfig(
 		}
 	}
 
-	updateSecurityConfig(newSecurityConfig)
+	// used to get cluster level options like bleveMaxResultWindow
 	updateHttpClient(newSecurityConfig.certInBytes)
 
-	i.securityConfigRefreshed()
+	ftsClientInst.connPoolMutex.Lock()
 
-	// bump the cfg version as this needs a force refresh
-	i.cfg.bumpVersion()
+	updateSecurityConfig(newSecurityConfig)
 
-	i.refresh(true)
+	// if no indexers are available, then no need to update connection pools
+	mr.m.RLock()
+	if len(mr.indexers) == 0 {
+		mr.m.RUnlock()
+		ftsClientInst.connPoolMutex.Unlock()
+		return
+	}
+	mr.m.RUnlock()
+
+	err := ftsClientInst.updateConnPoolsLOCKED(true)
+	ftsClientInst.connPoolMutex.Unlock()
+
+	if err != nil {
+		logging.Infof("n1fty: failed to update connection pools on "+
+			"SecConfigChange, err: %v", err)
+	}
 }
 
 // Close is an implementation of io.Closer interface
@@ -225,9 +249,6 @@ func (i *FTSIndexer) Close() error {
 		return nil
 	}
 	i.closed = true
-	if i.client != nil {
-		i.client.close()
-	}
 	i.m.Unlock()
 
 	i.cfg.unSubscribe(i.namespace + "$" + i.bucket + "$" + i.scope + "$" + i.keyspace)
@@ -363,19 +384,11 @@ func (i *FTSIndexer) reset() {
 	i.mapIndexesByID = nil
 	i.mapIndexesByName = nil
 	i.nodeDefs = nil
-	if i.client != nil {
-		i.client.close()
-	}
+	i.client = nil
 	i.m.Unlock()
 }
 
 // -----------------------------------------------------------------------------
-
-func (i *FTSIndexer) securityConfigRefreshed() {
-	i.m.Lock()
-	i.newSecurityConfigAvailable = true
-	i.m.Unlock()
-}
 
 func (i *FTSIndexer) refresh(force bool) errors.Error {
 	if !force && (i.nodeDefs == nil || len(i.nodeDefs.NodeDefs) == 0) {
@@ -508,24 +521,15 @@ func (i *FTSIndexer) initClient(nodeDefs *cbgt.NodeDefs) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 	if i.client != nil &&
-		i.nodeDefsUnchangedLOCKED(nodeDefs) &&
-		!i.newSecurityConfigAvailable {
+		i.nodeDefsUnchangedLOCKED(nodeDefs) {
 		return nil
 	}
 
-	// setup new client
-	client, err := setupFTSClient(nodeDefs)
-	if err != nil {
-		return err
+	if i.client == nil {
+		i.client = ftsClientInst
 	}
 
-	if i.client != nil {
-		i.client.close()
-	}
-
-	i.client = client
 	i.nodeDefs = nodeDefs
-	i.newSecurityConfigAvailable = false
 
 	return nil
 }

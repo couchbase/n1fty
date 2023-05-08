@@ -94,6 +94,12 @@ func (c *ftsConfig) Listen() {
 				c.m1.Lock()
 				c.nodeDefs = nodeDefs
 				c.m1.Unlock()
+
+				err = ftsClientInst.updateConnPools(false)
+				if err != nil {
+					logging.Infof("n1fty: failed to update connection pools "+
+						"on TopologyChange, err: %v", err)
+				}
 			}
 
 			if ev.Key == cbgt.INDEX_DEFS_KEY {
@@ -131,6 +137,10 @@ func (c *ftsConfig) initConfig() {
 	once.Do(func() {
 		c.cfg.Subscribe(cbgt.INDEX_DEFS_KEY, c.eventCh)
 		c.cfg.Subscribe(cbgt.CfgNodeDefsKey(cbgt.NODE_DEFS_KNOWN), c.eventCh)
+
+		// When the first FTSIndexer is created and refreshed, it will
+		// trigger the connection pools to be updated for the first time.
+		ftsClientInst.updateConnPools(true)
 	})
 }
 

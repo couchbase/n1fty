@@ -280,11 +280,15 @@ func (i *FTSIndex) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 		return
 	}
 
-	client := ftsClient.getGrpcClient()
+	client, connPool, clientConn := ftsClient.getGrpcClient()
 	if client == nil {
+		//todo: Better error message
 		conn.Error(util.N1QLError(nil, "gRPC client unavailable, try refreshing"))
 		return
 	}
+	defer func() {
+		connPool.yield(clientConn)
+	}()
 
 	stream, err := client.Search(ctx, searchReq)
 	if err != nil || stream == nil {
