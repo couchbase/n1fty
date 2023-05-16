@@ -39,7 +39,7 @@ replace github.com/couchbase/goutils => ../goutils
 replace github.com/couchbase/godbc => ../godbc
 
 require (
-	github.com/blevesearch/bleve/v2 v2.3.4-0.20230405174606-780ae8f3f7ca
+	github.com/blevesearch/bleve/v2 v2.3.4-0.20230516194620-e37055a334e8
 	github.com/blevesearch/sear v0.0.5
 	github.com/buger/jsonparser v1.1.1
 	github.com/couchbase/cbauth v0.1.1
@@ -73,7 +73,7 @@ require (
 	github.com/blevesearch/zapx/v12 v12.3.4 // indirect
 	github.com/blevesearch/zapx/v13 v13.3.4 // indirect
 	github.com/blevesearch/zapx/v14 v14.3.4 // indirect
-	github.com/blevesearch/zapx/v15 v15.3.4 // indirect
+	github.com/blevesearch/zapx/v15 v15.3.5-0.20230516194434-edc21be64631 // indirect
 	github.com/couchbase/blance v0.1.1 // indirect
 	github.com/couchbase/clog v0.1.0 // indirect
 	github.com/couchbase/eventing-ee v0.0.0-00010101000000-000000000000 // indirect
