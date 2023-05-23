@@ -165,11 +165,11 @@ func (s *WrapDatastore) GetUserBuckets(c *auth.Credentials) []string {
 }
 
 func (s *WrapDatastore) GetImpersonateBuckets(string, string) []string {
-        return []string{}
+	return []string{}
 }
 
 func (s *WrapDatastore) CredsString(*auth.Credentials) (string, string) {
-        return "", ""
+	return "", ""
 }
 
 func (s *WrapDatastore) GetUserUUID(creds *auth.Credentials) string {
@@ -304,20 +304,20 @@ func (b *WrapKeyspace) Fetch(keys []string, keysMap map[string]value.AnnotatedVa
 	return b.W.Fetch(keys, keysMap, context, subPaths)
 }
 
-func (b *WrapKeyspace) Insert(inserts value.Pairs, context datastore.QueryContext) (value.Pairs, errors.Errors) {
-	return b.W.Insert(inserts, context)
+func (b *WrapKeyspace) Insert(inserts value.Pairs, context datastore.QueryContext, preserveMutations bool) (int, value.Pairs, errors.Errors) {
+	return b.W.Insert(inserts, context, preserveMutations)
 }
 
-func (b *WrapKeyspace) Update(updates value.Pairs, context datastore.QueryContext) (value.Pairs, errors.Errors) {
-	return b.W.Update(updates, context)
+func (b *WrapKeyspace) Update(updates value.Pairs, context datastore.QueryContext, preserveMutations bool) (int, value.Pairs, errors.Errors) {
+	return b.W.Update(updates, context, preserveMutations)
 }
 
-func (b *WrapKeyspace) Upsert(upserts value.Pairs, context datastore.QueryContext) (value.Pairs, errors.Errors) {
-	return b.W.Upsert(upserts, context)
+func (b *WrapKeyspace) Upsert(upserts value.Pairs, context datastore.QueryContext, preserveMutations bool) (int, value.Pairs, errors.Errors) {
+	return b.W.Upsert(upserts, context, preserveMutations)
 }
 
-func (b *WrapKeyspace) Delete(deletes value.Pairs, context datastore.QueryContext) (value.Pairs, errors.Errors) {
-	return b.W.Delete(deletes, context)
+func (b *WrapKeyspace) Delete(deletes value.Pairs, context datastore.QueryContext, preserveMutations bool) (int, value.Pairs, errors.Errors) {
+	return b.W.Delete(deletes, context, preserveMutations)
 }
 
 func (b *WrapKeyspace) Release(close bool) {
