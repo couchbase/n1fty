@@ -54,12 +54,12 @@ require (
 	github.com/couchbase/query v0.0.0-00010101000000-000000000000
 	github.com/couchbase/regulator v0.0.0-00010101000000-000000000000
 	golang.org/x/net v0.8.0
-	google.golang.org/grpc v1.49.0
+	google.golang.org/grpc v1.51.0
 )
 
 require (
 	github.com/RoaringBitmap/roaring v0.9.4 // indirect
-	github.com/aws/aws-sdk-go v1.44.113 // indirect
+	github.com/aws/aws-sdk-go v1.44.170 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.2.2 // indirect
 	github.com/blevesearch/bleve-mapping-ui v0.5.1 // indirect
@@ -93,7 +93,7 @@ require (
 	github.com/couchbase/gometa v0.0.0-20220803182802-05cb6b2e299f // indirect
 	github.com/couchbase/indexing v0.0.0-20220923223016-071e9308c875 // indirect
 	github.com/couchbase/query-ee v0.0.0-00010101000000-000000000000 // indirect
-	github.com/couchbase/tools-common v0.0.0-20221109180603-a4213f4d9c25 // indirect
+	github.com/couchbase/tools-common v0.0.0-20230509082151-9eb473de4ccf // indirect
 	github.com/couchbasedeps/go-curl v0.0.0-20190830233031-f0b2afc926ec // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dustin/go-jsonpointer v0.0.0-20140810065344-75939f54b39e // indirect
@@ -124,11 +124,11 @@ require (
 	github.com/youmark/pkcs8 v0.0.0-20201027041543-1326539a0a0a // indirect
 	go.etcd.io/bbolt v1.3.6 // indirect
 	golang.org/x/crypto v0.7.0 // indirect
-	golang.org/x/exp v0.0.0-20220921164117-439092de6870 // indirect
+	golang.org/x/exp v0.0.0-20221229233502-02c3fc3b3eb4 // indirect
 	golang.org/x/sys v0.6.0 // indirect
 	golang.org/x/text v0.8.0 // indirect
-	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af // indirect
-	google.golang.org/genproto v0.0.0-20220923205249-dd2d53f1fffc // indirect
+	golang.org/x/time v0.3.0 // indirect
+	google.golang.org/genproto v0.0.0-20221227171554-f9683d7f8bef // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
