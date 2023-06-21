@@ -36,8 +36,7 @@ import (
 // These tests seem to break in buildbot environment.
 // To execute these tests in a local dev environment...
 //
-//   WHITEBOX=y go test ./flex/whitebox
-//
+//	WHITEBOX=y go test ./flex/whitebox
 func checkSkipTest(t *testing.T) bool {
 	if os.Getenv("WHITEBOX") == "y" {
 		return false

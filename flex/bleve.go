@@ -24,9 +24,10 @@ import (
 var DefaultTypeFieldPath = []string{"type"}
 
 // Extracts scope, collection and type names typeMapping:
-//     "scope.collection.type" => "scope", "collection", "type"
-//     "scope.collection"      => "scope", "collection", ""
-//     "type"                  => "_default", "_default", "type"
+//
+//	"scope.collection.type" => "scope", "collection", "type"
+//	"scope.collection"      => "scope", "collection", ""
+//	"type"                  => "_default", "_default", "type"
 func extractScopeCollTypeNames(t string) (string, string, string) {
 	scopeCollType := strings.SplitN(t, ".", 3)
 	if len(scopeCollType) == 1 {

@@ -29,8 +29,8 @@ func init() {
 }
 
 // NewVerify expects nameAndKeyspace to be either of:
-//     - `bucket_name`
-//     - `bucket_name.scope_name.collection_name`
+//   - `bucket_name`
+//   - `bucket_name.scope_name.collection_name`
 func NewVerify(nameAndKeyspace, field string, query, options value.Value,
 	parallelism int) (
 	datastore.Verify, errors.Error) {

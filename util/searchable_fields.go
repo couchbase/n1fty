@@ -476,11 +476,13 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 // limited, simple cases of datastore.FTSIndex supportability...
 //
 // A) there's only an enabled default mapping (with no other type
-//    mappings), where the returned typeStr will be nil.
+//
+//	mappings), where the returned typeStr will be nil.
 //
 // B) more than one type mapping is OK for as long as the default
-//    mapping is NOT enabled, where typeStrs will be for example ..
-//    &types{{"beer":true}, {"brewery":true}, ..]}
+//
+//	mapping is NOT enabled, where typeStrs will be for example ..
+//	&types{{"beer":true}, {"brewery":true}, ..]}
 func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 	indexedCount int64, typeStrs *Types, dynamicMappings map[string]string,
 	allFieldSearchable bool, defaultAnalyzer string, defaultDateTimeParser string) {

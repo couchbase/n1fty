@@ -315,22 +315,22 @@ type sargableRV struct {
 // Sargable checks if the provided request is applicable for the index.
 //
 // Return parameters:
-// - sargable_count: This is the number of fields whose names along with
-//                   analyzers from the built query matched with that of
-//                   the index definition, for now all of query fields or 0.
-// - indexed_count:  This is the total number of indexed fields within the
-//                   the FTS index.
-// - exact:          True if the query would produce no false positives
-//                   using this FTS index.
-//                   (place holder for when partial sargability is supported)
-// - opaque:         The map of certain contextual data that can be re-used
-//                   as query iterates through several FTSIndexes.
-//                   (in-out parameter)
+//   - sargable_count: This is the number of fields whose names along with
+//     analyzers from the built query matched with that of
+//     the index definition, for now all of query fields or 0.
+//   - indexed_count:  This is the total number of indexed fields within the
+//     the FTS index.
+//   - exact:          True if the query would produce no false positives
+//     using this FTS index.
+//     (place holder for when partial sargability is supported)
+//   - opaque:         The map of certain contextual data that can be re-used
+//     as query iterates through several FTSIndexes.
+//     (in-out parameter)
 //
 // Contents of opaque:
-//     - an entry for query field-type-analyzers
-//     - an entry for searchable fields obtained from index option
-//     - an entry for the search request generated from the query & field.
+//   - an entry for query field-type-analyzers
+//   - an entry for searchable fields obtained from index option
+//   - an entry for the search request generated from the query & field.
 //
 // The caller will have to make the decision on which index to choose based
 // on the sargable_count (higher the better), indexed_count (lower the better),

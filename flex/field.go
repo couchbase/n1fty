@@ -45,11 +45,14 @@ func (a Identifiers) Push(bs expression.Bindings, max int) (Identifiers, bool) {
 // ReverseExpand finds the identifierName in the identifiers and on
 // success will reverse-append the expansions onto the out slice.
 // For example, if identifiers is...
-//   [ Identifier{"w",   ["v", "address", "city"]},
-//     Identifier{"v",   ["emp", "locations"]},
-//     Identifier{"emp", nil} ],
+//
+//	[ Identifier{"w",   ["v", "address", "city"]},
+//	  Identifier{"v",   ["emp", "locations"]},
+//	  Identifier{"emp", nil} ],
+//
 // and identifierName is "w", and out is [], then returned will be...
-//   ["city", "address", "locations"], true
+//
+//	["city", "address", "locations"], true
 func (a Identifiers) ReverseExpand(
 	identifierName string, out []string) ([]string, bool) {
 	for _, identifier := range a {
