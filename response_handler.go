@@ -195,7 +195,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 			}
 
 			if IsServerlessMode() {
-				diskBytesRead, _, _, err := jsonparser.Get(res.SearchResult, "bytesRead")
+				diskBytesRead, _, _, err := jsonparser.Get(res.SearchResult, "cost")
 				if err != nil {
 					conn.Error(util.N1QLError(err, "error in retrieving read units"+
 						" for this query"))
