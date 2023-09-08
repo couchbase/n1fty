@@ -176,6 +176,10 @@ func (s *WrapDatastore) GetUserUUID(creds *auth.Credentials) string {
 	return ""
 }
 
+func (b *WrapDatastore) DropSystemCBOStats() errors.Error {
+	return nil
+}
+
 // ------------------------------------------------------------------------
 
 type WrapNamespace struct {
@@ -300,8 +304,8 @@ func (b *WrapKeyspace) Indexers() ([]datastore.Indexer, errors.Error) {
 }
 
 func (b *WrapKeyspace) Fetch(keys []string, keysMap map[string]value.AnnotatedValue,
-	context datastore.QueryContext, subPaths []string) errors.Errors {
-	return b.W.Fetch(keys, keysMap, context, subPaths)
+	context datastore.QueryContext, subPaths []string, projection []string) errors.Errors {
+	return b.W.Fetch(keys, keysMap, context, subPaths, projection)
 }
 
 func (b *WrapKeyspace) Insert(inserts value.Pairs, context datastore.QueryContext, preserveMutations bool) (int, value.Pairs, errors.Errors) {
