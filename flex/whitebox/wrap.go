@@ -324,7 +324,7 @@ func (b *WrapKeyspace) Delete(deletes value.Pairs, context datastore.QueryContex
 	return b.W.Delete(deletes, context, preserveMutations)
 }
 
-func (b *WrapKeyspace) SetSubDoc(key string, elems value.Pairs, context QueryContext) (value.Pairs, errors.Error) {
+func (b *WrapKeyspace) SetSubDoc(key string, elems value.Pairs, context datastore.QueryContext) (value.Pairs, errors.Error) {
 	return b.W.SetSubDoc(key, elems, context)
 }
 
