@@ -686,7 +686,7 @@ func FetchFieldsToSearchFromQuery(que query.Query) (map[SearchField]struct{}, er
 					fieldDesc.Type = "boolean"
 				case *query.NumericRangeQuery:
 					fieldDesc.Type = "number"
-				case *query.DateRangeQuery:
+				case *query.DateRangeStringQuery:
 					fieldDesc.Type = "datetime"
 				case *query.GeoBoundingBoxQuery,
 					*query.GeoDistanceQuery,
