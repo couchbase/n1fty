@@ -304,8 +304,8 @@ func (b *WrapKeyspace) Indexers() ([]datastore.Indexer, errors.Error) {
 }
 
 func (b *WrapKeyspace) Fetch(keys []string, keysMap map[string]value.AnnotatedValue,
-	context datastore.QueryContext, subPaths []string, projection []string) errors.Errors {
-	return b.W.Fetch(keys, keysMap, context, subPaths, projection)
+	context datastore.QueryContext, subPaths []string, projection []string, useSubDoc bool) errors.Errors {
+	return b.W.Fetch(keys, keysMap, context, subPaths, projection, useSubDoc)
 }
 
 func (b *WrapKeyspace) Insert(inserts value.Pairs, context datastore.QueryContext, preserveMutations bool) (int, value.Pairs, errors.Errors) {
