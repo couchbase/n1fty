@@ -390,8 +390,8 @@ func GetNodeDefs(srvConfig *ftsConfig) (*cbgt.NodeDefs, error) {
 var serverlessMode uint32
 
 // SetDeploymentModel lets n1fty know the mode of operation.
-func SetDeploymentModel(serverless bool) {
-	if serverless {
+func SetDeploymentModel(deploymentModel string) {
+	if deploymentModel == datastore.DEPLOYMENT_MODEL_SERVERLESS {
 		atomic.StoreUint32(&serverlessMode, 1)
 	} else {
 		atomic.StoreUint32(&serverlessMode, 0)

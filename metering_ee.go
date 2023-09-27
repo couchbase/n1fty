@@ -49,4 +49,3 @@ func getReadUnits(bucket string, bytes uint64) (uint64, error) {
 
 	return rus.Whole(), err
 }
-
