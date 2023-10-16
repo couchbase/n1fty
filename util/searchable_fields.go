@@ -24,6 +24,7 @@ type SearchField struct {
 	Type       string
 	Analyzer   string
 	DateFormat string
+	Dims       int
 }
 
 // Types is a wrapper that allows for a nil (pointer) value that's
@@ -591,6 +592,8 @@ func ProcessDocumentMapping(im *mapping.IndexMappingImpl,
 			if searchField.DateFormat == "" {
 				searchField.DateFormat = defaultDateTimeParser
 			}
+		} else if f.Type == "vector" {
+			searchField.Dims = f.Dims
 		}
 
 		if _, exists := m[searchField]; exists {
