@@ -87,7 +87,6 @@ require (
 	github.com/couchbase/gometa v0.0.0-20200717102231-b0e38b71d711 // indirect
 	github.com/couchbase/indexing v0.0.0-00010101000000-000000000000 // indirect
 	github.com/couchbase/query-ee v0.0.0-00010101000000-000000000000 // indirect
-	github.com/couchbasedeps/go-curl v0.0.0-20190830233031-f0b2afc926ec // indirect
 	github.com/dustin/go-jsonpointer v0.0.0-20140810065344-75939f54b39e // indirect
 	github.com/dustin/gojson v0.0.0-20150115165335-af16e0e771e2 // indirect
 	github.com/elazarl/go-bindata-assetfs v1.0.1 // indirect
