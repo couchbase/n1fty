@@ -127,6 +127,10 @@ func BuildIndexMappingOnFields(queryFields map[SearchField]struct{}, defaultAnal
 		if field.Type == "datetime" && dateFormat == "" {
 			dateFormat = defaultDateTimeParser
 		}
+		var dims int
+		if field.Type == "vector" {
+			dims = field.Dims
+		}
 
 		if len(subs) == 1 {
 			m.Properties[subs[0]].Fields = append(m.Fields, &mapping.FieldMapping{
@@ -136,6 +140,7 @@ func BuildIndexMappingOnFields(queryFields map[SearchField]struct{}, defaultAnal
 				DateFormat:         dateFormat,
 				Index:              true,
 				IncludeTermVectors: true,
+				Dims:               dims,
 			})
 		} else {
 			// length == 2
@@ -144,6 +149,7 @@ func BuildIndexMappingOnFields(queryFields map[SearchField]struct{}, defaultAnal
 				Type:       field.Type,
 				Analyzer:   analyzer,
 				DateFormat: dateFormat,
+				Dims:       dims,
 			}, m.Properties[subs[0]])
 		}
 
@@ -245,6 +251,11 @@ func ParseQueryToSearchRequest(field string, input value.Value) (
 	}
 
 	queryFields, err = FetchFieldsToSearchFromQuery(q)
+	if err != nil {
+		return nil, nil, 0, false, err
+	}
+
+	queryFields, err = extractKNNQueryFields(rv, queryFields)
 	if err != nil {
 		return nil, nil, 0, false, err
 	}

@@ -130,6 +130,7 @@ func (v *VerifyCtx) initVerifyCtx() errors.Error {
 			if idxMapping == nil {
 				return util.N1QLError(nil, "index object not a valid mapping")
 			}
+			idxMapping = OptimizeIndexMapping(idxMapping, "", "", queryFields)
 		} else {
 			return util.N1QLError(nil, "unrecognizable index option")
 		}
