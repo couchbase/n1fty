@@ -94,10 +94,25 @@ type ftsClient struct {
 // Instance of ftsClient
 var ftsClientInst *ftsClient
 
+func getUpdateReason(isSecCfgChanged bool) string {
+	if isSecCfgChanged {
+		return "SecurityConfigChange"
+	}
+	return "TopologyChange"
+}
+
 func (c *ftsClient) updateConnPools(isSecCfgChanged bool) error {
 	c.connPoolMutex.Lock()
 	defer c.connPoolMutex.Unlock()
 
+	defer func() {
+		logging.Infof("n1fty: updateConnPools done, event:%v, servers:%v, "+
+			"avaiableHosts:%v", getUpdateReason(isSecCfgChanged), c.servers,
+			c.availableHosts)
+	}()
+
+	logging.Infof("n1fty: updateConnPools start, event:%v",
+		getUpdateReason(isSecCfgChanged))
 	return c.updateConnPoolsLOCKED(isSecCfgChanged)
 }
 
@@ -188,7 +203,7 @@ func (c *ftsClient) updateConnPoolsLOCKED(isSecCfgChanged bool) error {
 
 		// close stale pools
 		for _, connPool := range stalePoolsRefs {
-			connPool.close()
+			connPool.close(getUpdateReason(true))
 		}
 
 		// remove stale pool entries
@@ -250,10 +265,13 @@ func (c *ftsClient) updateConnPoolsLOCKED(isSecCfgChanged bool) error {
 	}
 
 	// Cleanup
-	if len(removedHosts) != 0 {
-		c.closeConnPoolsLOCKED(removedHosts)
-		c.connOpts.delete(removedHosts)
+	for _, removedHost := range removedHosts {
+		if connPool, ok := c.connPool[removedHost]; ok {
+			connPool.close(getUpdateReason(false))
+			delete(c.connPool, removedHost)
+		}
 	}
+	c.connOpts.delete(removedHosts)
 
 	return nil
 }
@@ -286,16 +304,6 @@ func (c *ftsClient) getGrpcClient() (
 	}
 
 	return pb.NewSearchServiceClient(conn), connPool, conn
-}
-
-// Closes connection pools for given hosts
-func (c *ftsClient) closeConnPoolsLOCKED(hosts []string) {
-	for _, host := range hosts {
-		if connPool, ok := c.connPool[host]; ok {
-			connPool.close()
-			delete(c.connPool, host)
-		}
-	}
 }
 
 func (c *ftsClient) reconcileServers(
