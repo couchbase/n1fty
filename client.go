@@ -22,6 +22,7 @@ import (
 
 	"github.com/couchbase/cbauth"
 	"github.com/couchbase/cbgt"
+	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/logging"
 
 	pb "github.com/couchbase/cbft/protobuf"
@@ -250,6 +251,11 @@ func (c *ftsClient) updateConnPoolsLOCKED(isSecCfgChanged bool) error {
 
 	// previously unavailable hosts which became available
 	nowAvailableHosts := c.connOpts.updateHostsAvailability(secConfig)
+
+	// Some of the nowAvailableHosts may be removedHosts
+	nowAvailableHosts = cbgt.StringsRemoveStrings(nowAvailableHosts,
+		removedHosts)
+
 	availableHosts = append(availableHosts, nowAvailableHosts...)
 
 	if len(availableHosts) != 0 {
@@ -406,6 +412,8 @@ func (g *grpcOpts) updateHostsAvailability(
 	return
 }
 
+const maxConnRetryAttempts = 10
+
 // This function update(or create) grpc.DialOption(s) for given hosts
 // and cache them
 //
@@ -431,13 +439,21 @@ func (g *grpcOpts) update(
 		}
 	}
 
+	startSleepMS, maxSleepMS, backoffFactor := 50, 500, float32(1.5)
+	// Around 10 attempts (maxConnRetryAttempts) in a span of ~2s
 	for _, host := range hosts {
-		cbUser, cbPasswd, err := cbauth.GetHTTPServiceAuth(host)
+		var cbUser, cbPasswd string
+		err := util.ExponentialBackoffRetry(func() error {
+			var err error
+			cbUser, cbPasswd, err = cbauth.GetHTTPServiceAuth(host)
+			return err
+		}, startSleepMS, maxSleepMS, backoffFactor, maxConnRetryAttempts)
+
 		if err != nil {
 			// it is possible that some hosts may be unreachable during
 			// a cluster operation, so ignore error here; see: MB-40125
 			logging.Infof("n1fty: host:%v unavailable, failed to get "+
-				"credentials", host)
+				"credentials, err: %v", host, err)
 			g.unAvailHosts[host] = struct{}{}
 			continue
 		}

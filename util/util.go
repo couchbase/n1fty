@@ -20,6 +20,7 @@ import (
 	"github.com/blevesearch/bleve/v2/mapping"
 	"github.com/blevesearch/bleve/v2/search/query"
 	"github.com/couchbase/cbft"
+	"github.com/couchbase/cbgt"
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/value"
 )
@@ -342,4 +343,39 @@ func GetBleveMaxResultWindow() uint64 {
 
 func SetBleveMaxResultWindow(v uint64) {
 	atomic.StoreUint64(&bleveMaxResultWindow, v)
+}
+
+// See also: cbgt.ExponentialBackoffLoop().
+//
+// extra params:
+//
+// @retryAttempts: cap the number of tries (negative value means infinite tries)
+//
+// returns err if retryAttempts is exceeded without success.
+func ExponentialBackoffRetry(f func() error, startSleepMS int, maxSleepMS int,
+	backoffFactor float32, retryAttempts int) error {
+	var err error
+	tries := 0
+
+	if retryAttempts == 0 {
+		return f()
+	}
+
+	cbgt.ExponentialBackoffLoop("", func() int {
+		tries += 1
+		if retryAttempts > 0 && tries > retryAttempts {
+			err = fmt.Errorf("ExpontentialBackoffRetry: too many tries, "+
+				"err: %v", err)
+			return -1 // stop the loop
+		}
+
+		err = f()
+		if err != nil {
+			return 0 // continue the loop
+		}
+
+		return -1 // stop the loop
+	}, startSleepMS, backoffFactor, maxSleepMS)
+
+	return err
 }
