@@ -22,6 +22,7 @@ import (
 
 	"github.com/couchbase/cbauth"
 	"github.com/couchbase/cbgt"
+	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/logging"
 
 	pb "github.com/couchbase/cbft/protobuf"
@@ -94,10 +95,25 @@ type ftsClient struct {
 // Instance of ftsClient
 var ftsClientInst *ftsClient
 
+func getUpdateReason(isSecCfgChanged bool) string {
+	if isSecCfgChanged {
+		return "SecurityConfigChange"
+	}
+	return "TopologyChange"
+}
+
 func (c *ftsClient) updateConnPools(isSecCfgChanged bool) error {
 	c.connPoolMutex.Lock()
 	defer c.connPoolMutex.Unlock()
 
+	defer func() {
+		logging.Infof("n1fty: updateConnPools done, event:%v, servers:%v, "+
+			"avaiableHosts:%v", getUpdateReason(isSecCfgChanged), c.servers,
+			c.availableHosts)
+	}()
+
+	logging.Infof("n1fty: updateConnPools start, event:%v",
+		getUpdateReason(isSecCfgChanged))
 	return c.updateConnPoolsLOCKED(isSecCfgChanged)
 }
 
@@ -188,7 +204,7 @@ func (c *ftsClient) updateConnPoolsLOCKED(isSecCfgChanged bool) error {
 
 		// close stale pools
 		for _, connPool := range stalePoolsRefs {
-			connPool.close()
+			connPool.close(getUpdateReason(true))
 		}
 
 		// remove stale pool entries
@@ -235,6 +251,11 @@ func (c *ftsClient) updateConnPoolsLOCKED(isSecCfgChanged bool) error {
 
 	// previously unavailable hosts which became available
 	nowAvailableHosts := c.connOpts.updateHostsAvailability(secConfig)
+
+	// Some of the nowAvailableHosts may be removedHosts
+	nowAvailableHosts = cbgt.StringsRemoveStrings(nowAvailableHosts,
+		removedHosts)
+
 	availableHosts = append(availableHosts, nowAvailableHosts...)
 
 	if len(availableHosts) != 0 {
@@ -250,10 +271,13 @@ func (c *ftsClient) updateConnPoolsLOCKED(isSecCfgChanged bool) error {
 	}
 
 	// Cleanup
-	if len(removedHosts) != 0 {
-		c.closeConnPoolsLOCKED(removedHosts)
-		c.connOpts.delete(removedHosts)
+	for _, removedHost := range removedHosts {
+		if connPool, ok := c.connPool[removedHost]; ok {
+			connPool.close(getUpdateReason(false))
+			delete(c.connPool, removedHost)
+		}
 	}
+	c.connOpts.delete(removedHosts)
 
 	return nil
 }
@@ -286,16 +310,6 @@ func (c *ftsClient) getGrpcClient() (
 	}
 
 	return pb.NewSearchServiceClient(conn), connPool, conn
-}
-
-// Closes connection pools for given hosts
-func (c *ftsClient) closeConnPoolsLOCKED(hosts []string) {
-	for _, host := range hosts {
-		if connPool, ok := c.connPool[host]; ok {
-			connPool.close()
-			delete(c.connPool, host)
-		}
-	}
 }
 
 func (c *ftsClient) reconcileServers(
@@ -398,6 +412,8 @@ func (g *grpcOpts) updateHostsAvailability(
 	return
 }
 
+const maxConnRetryAttempts = 10
+
 // This function update(or create) grpc.DialOption(s) for given hosts
 // and cache them
 //
@@ -423,13 +439,21 @@ func (g *grpcOpts) update(
 		}
 	}
 
+	startSleepMS, maxSleepMS, backoffFactor := 50, 500, float32(1.5)
+	// Around 10 attempts (maxConnRetryAttempts) in a span of ~2s
 	for _, host := range hosts {
-		cbUser, cbPasswd, err := cbauth.GetHTTPServiceAuth(host)
+		var cbUser, cbPasswd string
+		err := util.ExponentialBackoffRetry(func() error {
+			var err error
+			cbUser, cbPasswd, err = cbauth.GetHTTPServiceAuth(host)
+			return err
+		}, startSleepMS, maxSleepMS, backoffFactor, maxConnRetryAttempts)
+
 		if err != nil {
 			// it is possible that some hosts may be unreachable during
 			// a cluster operation, so ignore error here; see: MB-40125
 			logging.Infof("n1fty: host:%v unavailable, failed to get "+
-				"credentials", host)
+				"credentials, err: %v", host, err)
 			g.unAvailHosts[host] = struct{}{}
 			continue
 		}

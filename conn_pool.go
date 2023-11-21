@@ -227,10 +227,11 @@ func (cp *connPool) yield(connectn *grpc.ClientConn) {
 	}
 }
 
-func (cp *connPool) close() {
+func (cp *connPool) close(reason string) {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.Infof("%v Close() crashed: %v", cp.logPrefix, r)
+			logging.Infof("%v Close() request with reason:%v, crashed: %v",
+				cp.logPrefix, reason, r)
 		}
 	}()
 	cp.stopCh <- true
@@ -239,7 +240,7 @@ func (cp *connPool) close() {
 	for conn := range cp.connections {
 		conn.Close()
 	}
-	logging.Infof("%v pool closed", cp.logPrefix)
+	logging.Infof("%v pool closed, reason:%v", cp.logPrefix, reason)
 	return
 }
 
