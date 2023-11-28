@@ -102,9 +102,52 @@ func getUpdateReason(isSecCfgChanged bool) string {
 	return "TopologyChange"
 }
 
+// This function deals with events of indexers count crossing 0 to 1 and vice-versa
+//
+// param @indexersExist: passed as true if indexers count went from 0 to 1 and vice-versa
+func (c *ftsClient) updateConnPoolsOnIndexersChange(indexersExist bool) {
+	c.connPoolMutex.Lock()
+	defer c.connPoolMutex.Unlock()
+	defer func() {
+		logging.Infof("n1fty: updateConnPools done, event:IndexerExist-%v, "+
+			"servers:%v, avaiableHosts:%v", indexersExist, c.servers,
+			c.availableHosts)
+	}()
+
+	logging.Infof("n1fty: updateConnPools start, event: IndexerExist-%v",
+		indexersExist)
+
+	secConfig := loadSecurityConfig()
+	// previously unavailable hosts which became available
+	nowAvailableHosts := c.connOpts.updateHostsAvailability(secConfig)
+	c.availHostsMutex.Lock()
+	c.availableHosts = append(c.availableHosts, nowAvailableHosts...)
+	c.availHostsMutex.Unlock()
+
+	// Indexers existence toggled from 0 to 1
+	if indexersExist {
+		for _, host := range c.availableHosts {
+			c.connPool[host] = newConnPool(host)
+		}
+		return
+	}
+
+	// Indexers existence toggled from 1 to 0
+	// close all conn pools
+	for host, _ := range c.connPool {
+		c.connPool[host].close("NoIndexerExist")
+		delete(c.connPool, host)
+	}
+}
+
 func (c *ftsClient) updateConnPools(isSecCfgChanged bool) error {
 	c.connPoolMutex.Lock()
 	defer c.connPoolMutex.Unlock()
+
+	indexersExists := false
+	mr.m.RLock()
+	indexersExists = len(mr.indexers) != 0
+	mr.m.RUnlock()
 
 	defer func() {
 		logging.Infof("n1fty: updateConnPools done, event:%v, servers:%v, "+
@@ -112,9 +155,9 @@ func (c *ftsClient) updateConnPools(isSecCfgChanged bool) error {
 			c.availableHosts)
 	}()
 
-	logging.Infof("n1fty: updateConnPools start, event:%v",
-		getUpdateReason(isSecCfgChanged))
-	return c.updateConnPoolsLOCKED(isSecCfgChanged)
+	logging.Infof("n1fty: updateConnPools start, event:%v, indexersExist:%v",
+		getUpdateReason(isSecCfgChanged), indexersExists)
+	return c.updateConnPoolsLOCKED(isSecCfgChanged, indexersExists)
 }
 
 // This function updates (or creates) connection pools based on events like
@@ -124,7 +167,7 @@ func (c *ftsClient) updateConnPools(isSecCfgChanged bool) error {
 // Effect on on-going requests:
 //   - TopologyChange: Ongoing reqs to removed nodes will be failed
 //   - SecurityConfigChange: All ongoing reqs will be failed
-func (c *ftsClient) updateConnPoolsLOCKED(isSecCfgChanged bool) error {
+func (c *ftsClient) updateConnPoolsLOCKED(isSecCfgChanged, indexersExists bool) error {
 	// ## Fetch new topology and reconcile with existing topology
 
 	nodeDefs, err := GetNodeDefs(srvConfig)
@@ -191,8 +234,10 @@ func (c *ftsClient) updateConnPoolsLOCKED(isSecCfgChanged bool) error {
 		}
 
 		if err == nil { // connection options update was successful
-			for _, host := range availableHosts {
-				c.connPool[host] = newConnPool(host)
+			if indexersExists {
+				for _, host := range availableHosts {
+					c.connPool[host] = newConnPool(host)
+				}
 			}
 
 			c.availHostsMutex.Lock()
@@ -201,6 +246,15 @@ func (c *ftsClient) updateConnPoolsLOCKED(isSecCfgChanged bool) error {
 		}
 
 		// Cleanup
+
+		// connOpts cache cleanup
+		c.connOpts.delete(removedHosts)
+
+		// Previous Event was Indexers Existence Toggle
+		// Which would have closed all the conn pools already
+		if !indexersExists {
+			return nil
+		}
 
 		// close stale pools
 		for _, connPool := range stalePoolsRefs {
@@ -217,9 +271,6 @@ func (c *ftsClient) updateConnPoolsLOCKED(isSecCfgChanged bool) error {
 				delete(c.connPool, host)
 			}
 		}
-
-		// connOpts cache cleanup
-		c.connOpts.delete(removedHosts)
 
 		return nil
 	}
@@ -260,8 +311,10 @@ func (c *ftsClient) updateConnPoolsLOCKED(isSecCfgChanged bool) error {
 
 	if len(availableHosts) != 0 {
 		// Start connection pools for availableHosts
-		for _, host := range availableHosts {
-			c.connPool[host] = newConnPool(host)
+		if indexersExists {
+			for _, host := range availableHosts {
+				c.connPool[host] = newConnPool(host)
+			}
 		}
 
 		// Start serving queries from availableHosts also
@@ -271,13 +324,20 @@ func (c *ftsClient) updateConnPoolsLOCKED(isSecCfgChanged bool) error {
 	}
 
 	// Cleanup
+	c.connOpts.delete(removedHosts)
+
+	// Previous Event was Indexers Existence Toggle
+	// Which would have closed all the conn pools already
+	if !indexersExists {
+		return nil
+	}
+
 	for _, removedHost := range removedHosts {
 		if connPool, ok := c.connPool[removedHost]; ok {
 			connPool.close(getUpdateReason(false))
 			delete(c.connPool, removedHost)
 		}
 	}
-	c.connOpts.delete(removedHosts)
 
 	return nil
 }
