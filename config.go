@@ -80,7 +80,7 @@ func (c *ftsConfig) Listen() {
 		case ev := <-c.eventCh:
 			// first bump the version so that the subscribers can
 			// verify the updated version with their cached one.
-			atomic.AddUint64(&c.version, 1)
+			c.bumpVersion()
 
 			if ev.Key == nodeDefsKnownKey {
 				nodeDefs, _, err := cbgt.CfgGetNodeDefs(c.cfg, "known")
@@ -137,10 +137,6 @@ func (c *ftsConfig) initConfig() {
 	once.Do(func() {
 		c.cfg.Subscribe(cbgt.INDEX_DEFS_KEY, c.eventCh)
 		c.cfg.Subscribe(cbgt.CfgNodeDefsKey(cbgt.NODE_DEFS_KNOWN), c.eventCh)
-
-		// When the first FTSIndexer is created and refreshed, it will
-		// trigger the connection pools to be updated for the first time.
-		ftsClientInst.updateConnPools(true)
 	})
 }
 

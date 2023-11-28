@@ -167,6 +167,9 @@ func newFTSIndexer(serverIn, namespace, bucket, scope, collection, keyspace stri
 		indexer.namespace+"$"+indexer.bucket+"$"+indexer.scope+"$"+indexer.keyspace,
 		indexer)
 
+	indexer.cfg.bumpVersion()
+	indexer.refresh(true)
+
 	return indexer, nil
 }
 
@@ -174,19 +177,25 @@ func newFTSIndexer(serverIn, namespace, bucket, scope, collection, keyspace stri
 
 func (i *FTSIndexer) SetConnectionSecurityConfig(
 	conf *datastore.ConnectionSecurityConfig) {
-	if conf == nil {
-		return
-	}
-
-	i.cfg.bumpVersion() // bypass cfg version check in refresh
-	i.refresh(true)
+	// Since we no longer have dedicated pools per indexer, we don't need to
+	// update the pools on Indexer.SetConnectionSecurityConfig.
+	// Instead, security config change will be handled by the
+	// Datastore.SetConnectionSecurityConfig
 }
 
-// Indexer agnostic
-func SetConnectionSecurityConfig(
-	conf *datastore.ConnectionSecurityConfig) {
+// return true if refresh succeeded
+func refreshSecurityConfig(conf *datastore.ConnectionSecurityConfig) bool {
+	logging.Infof("n1fty: Receive security change notification")
 	if conf == nil {
-		return
+		logging.Warnf("n1fty: cannot refresh certificate, nil connection " +
+			"security config")
+		return false
+	}
+
+	if len(conf.CertFile) == 0 || len(conf.KeyFile) == 0 {
+		logging.Warnf("n1fty: cannot refresh certificate, certificate location " +
+			"is missing")
+		return false
 	}
 
 	newSecurityConfig := &securityConfig{
@@ -195,44 +204,50 @@ func SetConnectionSecurityConfig(
 		disableNonSSLPorts: conf.ClusterEncryptionConfig.DisableNonSSLPorts,
 	}
 
-	if len(conf.CertFile) != 0 && len(conf.KeyFile) != 0 {
-		certificate, err := cbtls.LoadX509KeyPair(conf.CertFile, conf.KeyFile,
-			conf.TLSConfig.PrivateKeyPassphrase)
-		if err != nil {
-			logging.Fatalf("n1fty: Failed to generate SSL certificate, err: %v", err)
-		}
-		newSecurityConfig.certificate = &certificate
+	certificate, err := cbtls.LoadX509KeyPair(conf.CertFile, conf.KeyFile,
+		conf.TLSConfig.PrivateKeyPassphrase)
+	if err != nil {
+		logging.Fatalf("n1fty: Failed to generate SSL certificate, err: %v", err)
+		return false
+	}
+	newSecurityConfig.certificate = &certificate
 
-		caFile := conf.CAFile
-		if len(caFile) == 0 {
-			caFile = conf.CertFile
-		}
+	caFile := conf.CAFile
+	if len(caFile) == 0 {
+		caFile = conf.CertFile
+	}
 
-		newSecurityConfig.certInBytes, err = os.ReadFile(caFile)
-		if err != nil {
-			logging.Fatalf("n1fty: Failed to load certificate file, err: %v", err)
-		}
+	newSecurityConfig.certInBytes, err = os.ReadFile(caFile)
+	if err != nil {
+		logging.Fatalf("n1fty: Failed to load certificate file, err: %v", err)
+		return false
 	}
 
 	// used to get cluster level options like bleveMaxResultWindow
 	updateHttpClient(newSecurityConfig.certInBytes)
 
+	// updateConnPools load security config to create/update grpcOpts cache
+	// with new security config
+	// thus, if an updateConnPools is in-flight, wait for it to complete
+	// before updating the security config
 	ftsClientInst.connPoolMutex.Lock()
-
 	updateSecurityConfig(newSecurityConfig)
-
-	// if no indexers are available, then no need to update connection pools
-	mr.m.RLock()
-	if len(mr.indexers) == 0 {
-		mr.m.RUnlock()
-		ftsClientInst.connPoolMutex.Unlock()
-		return
-	}
-	mr.m.RUnlock()
-
-	err := ftsClientInst.updateConnPoolsLOCKED(true)
 	ftsClientInst.connPoolMutex.Unlock()
 
+	logging.Infof("n1fty: Certificate refreshed successfully with "+
+		"certFile %v, keyFile %v, caFile %v", conf.CertFile, conf.KeyFile,
+		conf.CAFile)
+	return true
+}
+
+// Indexer agnostic
+func SetConnectionSecurityConfig(
+	conf *datastore.ConnectionSecurityConfig) {
+	if !refreshSecurityConfig(conf) {
+		return
+	}
+
+	err := ftsClientInst.updateConnPools(true)
 	if err != nil {
 		logging.Infof("n1fty: failed to update connection pools on "+
 			"SecConfigChange, err: %v", err)
