@@ -490,7 +490,7 @@ func (g *grpcOpts) update(
 
 	availableHosts := []string{}
 
-	if isSecCfgChanged {
+	if isSecCfgChanged || len(g.commonOpts) == 0 {
 		err := g.updateCommonLOCKED(connType, secConfig)
 		if err != nil {
 			logging.Infof("n1fty: failed to update common grpc options"+

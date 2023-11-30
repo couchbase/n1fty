@@ -430,9 +430,6 @@ func (i *FTSIndexer) refresh(force bool) errors.Error {
 		// reset any previous valid states
 		i.reset()
 
-		// initialize the cfg (in case it hasn't been already)
-		// before returning so that the metakv changes will be subscribed
-		i.cfg.initConfig()
 		return nil
 	}
 
@@ -472,7 +469,6 @@ func (i *FTSIndexer) refresh(force bool) errors.Error {
 	// supporting go routines.
 	i.init.Do(func() {
 		mr.registerIndexer(i)
-		i.cfg.initConfig()
 
 		// perform bleveMaxResultWindow initialisation only
 		// once per FTSIndexer instance.
