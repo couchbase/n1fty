@@ -149,6 +149,7 @@ func BuildIndexMappingOnFields(queryFields map[SearchField]struct{}, defaultAnal
 				Type:       field.Type,
 				Analyzer:   analyzer,
 				DateFormat: dateFormat,
+				Dims:       dims,
 			}, m.Properties[subs[0]])
 		}
 

@@ -142,6 +142,9 @@ func optimizeDocumentMapping(queryFields map[util.SearchField]struct{},
 					if f.DateFormat == "" {
 						dateFormat = defaultDateTimeParser
 					}
+				} else if f.Type == "vector" {
+					// no need for similarity metric for verify/evaluation
+					f.Similarity = ""
 				}
 
 				ftrack := strings.Join(fpath, ".")
@@ -151,6 +154,7 @@ func optimizeDocumentMapping(queryFields map[util.SearchField]struct{},
 					Type:       f.Type,
 					Analyzer:   analyzer,
 					DateFormat: dateFormat,
+					Dims:       f.Dims,
 				}]
 				if !exists {
 					_, exists = queryFields[util.SearchField{
