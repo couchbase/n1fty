@@ -226,13 +226,7 @@ func refreshSecurityConfig(conf *datastore.ConnectionSecurityConfig) bool {
 	// used to get cluster level options like bleveMaxResultWindow
 	updateHttpClient(newSecurityConfig.certInBytes)
 
-	// updateConnPools load security config to create/update grpcOpts cache
-	// with new security config
-	// thus, if an updateConnPools is in-flight, wait for it to complete
-	// before updating the security config
-	ftsClientInst.connPoolMutex.Lock()
 	updateSecurityConfig(newSecurityConfig)
-	ftsClientInst.connPoolMutex.Unlock()
 
 	logging.Infof("n1fty: Certificate refreshed successfully with "+
 		"certFile %v, keyFile %v, caFile %v", conf.CertFile, conf.KeyFile,
@@ -241,16 +235,18 @@ func refreshSecurityConfig(conf *datastore.ConnectionSecurityConfig) bool {
 }
 
 // Indexer agnostic
-func SetConnectionSecurityConfig(
-	conf *datastore.ConnectionSecurityConfig) {
+func SetConnectionSecurityConfig(conf *datastore.ConnectionSecurityConfig) {
+	ftsClientInst.m.Lock()
+	defer ftsClientInst.m.Unlock()
+
 	if !refreshSecurityConfig(conf) {
 		return
 	}
 
-	err := ftsClientInst.updateConnPools(true)
+	err := ftsClientInst.updateConnPoolsLOCKED(securityConfigChange)
 	if err != nil {
 		logging.Infof("n1fty: failed to update connection pools on "+
-			"SecConfigChange, err: %v", err)
+			"securityConfigChange, err: %v", err)
 	}
 }
 

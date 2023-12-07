@@ -97,7 +97,7 @@ func (c *ftsConfig) Listen() {
 				c.nodeDefs = nodeDefs
 				c.m1.Unlock()
 
-				err = ftsClientInst.updateConnPools(false)
+				err = ftsClientInst.updateConnPools(topologyChange)
 				if err != nil {
 					logging.Infof("n1fty: failed to update connection pools "+
 						"on TopologyChange, err: %v", err)
