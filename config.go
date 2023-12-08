@@ -69,6 +69,8 @@ func init() {
 		logging.Infof("n1fty: ftsConfig err: %v", err)
 	}
 
+	srvConfig.cfg.Subscribe(cbgt.INDEX_DEFS_KEY, srvConfig.eventCh)
+	srvConfig.cfg.Subscribe(cbgt.CfgNodeDefsKey(cbgt.NODE_DEFS_KNOWN), srvConfig.eventCh)
 	go srvConfig.Listen()
 }
 
@@ -95,7 +97,7 @@ func (c *ftsConfig) Listen() {
 				c.nodeDefs = nodeDefs
 				c.m1.Unlock()
 
-				err = ftsClientInst.updateConnPools(false)
+				err = ftsClientInst.updateConnPools(topologyChange)
 				if err != nil {
 					logging.Infof("n1fty: failed to update connection pools "+
 						"on TopologyChange, err: %v", err)
@@ -131,13 +133,6 @@ func (c *ftsConfig) Listen() {
 			c.m.Unlock()
 		}
 	}
-}
-
-func (c *ftsConfig) initConfig() {
-	once.Do(func() {
-		c.cfg.Subscribe(cbgt.INDEX_DEFS_KEY, c.eventCh)
-		c.cfg.Subscribe(cbgt.CfgNodeDefsKey(cbgt.NODE_DEFS_KNOWN), c.eventCh)
-	})
 }
 
 func (c *ftsConfig) subscribe(key string, i datastore.Indexer) {

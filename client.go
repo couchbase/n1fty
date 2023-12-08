@@ -22,7 +22,6 @@ import (
 
 	"github.com/couchbase/cbauth"
 	"github.com/couchbase/cbgt"
-	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/logging"
 
 	pb "github.com/couchbase/cbft/protobuf"
@@ -62,481 +61,365 @@ var DefaultGrpcMaxSendMsgSize = 1024 * 1024 * 50 // 50 MB
 // ErrFeatureUnavailable indicates the feature unavailability in cluster
 var ErrFeatureUnavailable = fmt.Errorf("feature unavailable in cluster")
 
+type ftsClient struct {
+	m sync.RWMutex // Protects the fields that follow.
+
+	// cache the list of host:port info for all the fts nodes in the cluster.
+	// Useful for reconcilation during topology change.
+	hosts []string
+
+	sslHostsAvailable    bool // are there any grpc-ssl fts hosts in the cluster?
+	nonSslHostsAvailable bool // are there any grpc-non-ssl fts hosts in the cluster?
+
+	// cache the grpc.DialOption(s) for all the servers
+	// access to methods of grpcOpts is protected by ftsClient.m
+	connOpts *grpcOpts
+
+	// Depends on sslHostsAvailable, nonSslHostsAvailable and the security config
+	// params (like: encryptionEnabled, disabledNonSSLPorts)
+	//
+	// connType is __nilConnType when there are no fts nodes in the cluster.
+	// or, fts nodes are not able to satisfy the security config params requirement.
+	//
+	// Updated on TopologyChange and SecurityConfigChange events
+	connType connectionType
+
+	// A connPool per fts node
+	connPool map[string]*connPool
+}
+
 type connectionType int
 
 const (
 	sslConn connectionType = iota
 	nonSslConn
+	__nilConnType
 )
+
+type connPoolUpdateEvent int
+
+const (
+	// includes changes to cluster encryption settings and/or certs tls config
+	// settings
+	securityConfigChange connPoolUpdateEvent = iota
+	// tied to cbgt.Cfg notification corresponding to NodeDefsKnown key.
+	// includes addition/removal of fts nodes in the cluster
+	topologyChange
+	// signalled when indexers count goes from 0 to 1 and vice-versa
+	indexerAvailabilityChange
+)
+
+// event tags
+var eventTags = map[connPoolUpdateEvent]string{
+	securityConfigChange:      "SecurityConfigChange",
+	topologyChange:            "TopologyChange",
+	indexerAvailabilityChange: "IndexerAvailabilityChange",
+}
+
+// Instance of ftsClient
+var ftsClientInst *ftsClient
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
 
 	ftsClientInst = &ftsClient{
 		connPool: make(map[string]*connPool),
-		connOpts: newGrpcOpts(),
+		connType: __nilConnType,
 	}
+	ftsClientInst.connOpts = newGrpcOpts(ftsClientInst)
 }
 
-type ftsClient struct {
-	connOpts *grpcOpts
-	servers  []string // cluster's hosts ( used for reconcilation)
+func (c *ftsClient) resetLOCKED() {
+	c.hosts = nil
+	c.sslHostsAvailable = false
+	c.nonSslHostsAvailable = false
+	c.connType = __nilConnType
+	c.connOpts.reset()
 
-	// a write-lock on this mutex will make all new queries to wait.
-	availHostsMutex sync.RWMutex
-	availableHosts  []string // cluster's reachable hosts (creds available)
-
-	connPoolMutex sync.Mutex // serialize updates to connPool
-	// A connPool per host, these are shadowed under availableHosts.
-	// A query will only be served from a connPool if its host is available.
-	connPool map[string]*connPool
-}
-
-// Instance of ftsClient
-var ftsClientInst *ftsClient
-
-func getUpdateReason(isSecCfgChanged bool) string {
-	if isSecCfgChanged {
-		return "SecurityConfigChange"
-	}
-	return "TopologyChange"
-}
-
-// This function deals with events of indexers count crossing 0 to 1 and vice-versa
-//
-// param @indexersExist: passed as true if indexers count went from 0 to 1 and vice-versa
-func (c *ftsClient) updateConnPoolsOnIndexersChange(indexersExist bool) {
-	c.connPoolMutex.Lock()
-	defer c.connPoolMutex.Unlock()
-	defer func() {
-		logging.Infof("n1fty: updateConnPools done, event:IndexerExist-%v, "+
-			"servers:%v, avaiableHosts:%v", indexersExist, c.servers,
-			c.availableHosts)
-	}()
-
-	logging.Infof("n1fty: updateConnPools start, event: IndexerExist-%v",
-		indexersExist)
-
-	secConfig := loadSecurityConfig()
-	// previously unavailable hosts which became available
-	nowAvailableHosts := c.connOpts.updateHostsAvailability(secConfig)
-	c.availHostsMutex.Lock()
-	c.availableHosts = append(c.availableHosts, nowAvailableHosts...)
-	c.availHostsMutex.Unlock()
-
-	// Indexers existence toggled from 0 to 1
-	if indexersExist {
-		for _, host := range c.availableHosts {
-			c.connPool[host] = newConnPool(host)
-		}
-		return
-	}
-
-	// Indexers existence toggled from 1 to 0
 	// close all conn pools
 	for host, _ := range c.connPool {
-		c.connPool[host].close("NoIndexerExist")
+		c.connPool[host].close("Reset")
 		delete(c.connPool, host)
 	}
 }
 
-func (c *ftsClient) updateConnPools(isSecCfgChanged bool) error {
-	c.connPoolMutex.Lock()
-	defer c.connPoolMutex.Unlock()
-
-	indexersExists := false
-	mr.m.RLock()
-	indexersExists = len(mr.indexers) != 0
-	mr.m.RUnlock()
-
-	defer func() {
-		logging.Infof("n1fty: updateConnPools done, event:%v, servers:%v, "+
-			"avaiableHosts:%v", getUpdateReason(isSecCfgChanged), c.servers,
-			c.availableHosts)
-	}()
-
-	logging.Infof("n1fty: updateConnPools start, event:%v, indexersExist:%v",
-		getUpdateReason(isSecCfgChanged), indexersExists)
-	return c.updateConnPoolsLOCKED(isSecCfgChanged, indexersExists)
+func (c *ftsClient) updateConnTypeLOCKED() {
+	secConfig := loadSecurityConfig()
+	if secConfig.encryptionEnabled && c.sslHostsAvailable {
+		c.connType = sslConn
+	} else if !secConfig.disableNonSSLPorts && c.nonSslHostsAvailable {
+		c.connType = nonSslConn
+	} else {
+		logging.Errorf("n1fty: hosts unable to satisfy the security config "+
+			"{encryptionEnabled: %v, disableNonSSLPorts: %v}",
+			secConfig.encryptionEnabled, secConfig.disableNonSSLPorts)
+		c.connType = __nilConnType
+	}
 }
 
-// This function updates (or creates) connection pools based on events like
-//   - TopologyChange
-//   - SecurityConfigChange
-//
-// Effect on on-going requests:
-//   - TopologyChange: Ongoing reqs to removed nodes will be failed
-//   - SecurityConfigChange: All ongoing reqs will be failed
-func (c *ftsClient) updateConnPoolsLOCKED(isSecCfgChanged, indexersExists bool) error {
-	// ## Fetch new topology and reconcile with existing topology
-
-	nodeDefs, err := GetNodeDefs(srvConfig)
-	if err != nil {
-		logging.Errorf("n1fty: GetNodeDefs, err: %v", err)
-		return fmt.Errorf("GetNodeDefs failed [err: %v]", err)
-	}
-
-	if nodeDefs == nil || len(nodeDefs.NodeDefs) == 0 {
-		return fmt.Errorf("hosts (ssl/non-ssl) unavailable")
-	}
-
-	hosts, sslHosts := extractHosts(nodeDefs)
-	if len(hosts) == 0 && len(sslHosts) == 0 {
-		return ErrFeatureUnavailable
-	}
-
-	var newTopology []string
-	var connType connectionType
-
-	secConfig := loadSecurityConfig()
-	if secConfig.encryptionEnabled && len(sslHosts) > 0 {
-		newTopology = sslHosts
-		connType = sslConn
-	} else if !secConfig.disableNonSSLPorts && len(hosts) > 0 {
-		newTopology = hosts // non-ssl hosts
-		connType = nonSslConn
-	} else {
-		logging.Warnf("n1fty: client: hosts error, config: {encryptionEnabled:"+
-			" %v, disableNonSSLPorts: %v}, hosts: %v, sslHosts: %v",
-			secConfig.encryptionEnabled, secConfig.disableNonSSLPorts,
-			hosts, sslHosts)
-		return fmt.Errorf("hosts (ssl/non-ssl) unavailable")
-	}
-
-	// reconcile topology
-	keepHosts := cbgt.StringsIntersectStrings(c.servers, newTopology)
-	removedHosts := cbgt.StringsRemoveStrings(c.servers, newTopology)
-	addedHosts := cbgt.StringsRemoveStrings(newTopology, keepHosts)
-
-	if len(addedHosts) != 0 || len(removedHosts) != 0 {
-		c.servers = newTopology
-	}
-
-	// ## Handle SecurityConfigChange Event
-
-	if isSecCfgChanged {
-		availableHosts, err := c.connOpts.update(
-			newTopology, connType, isSecCfgChanged, secConfig)
-
+// useful for updating connection options and/or creating new connection pools
+func (c *ftsClient) createConnPoolsLOCKED(hosts []string,
+	updateConnOpts, createPools bool) error {
+	if updateConnOpts {
+		// create/update dial options for hosts
+		err := c.connOpts.updateHostOpts(hosts)
 		if err != nil {
-			logging.Infof("n1fty: failed to create/update connOpts for "+
-				"hosts:%+v, err: %v", newTopology, err)
-			c.availHostsMutex.Lock()
-			c.availableHosts = nil
-			c.availHostsMutex.Unlock()
-		}
-
-		// all existing pools have stale connections,
-		// store refs to close them later
-		stalePoolsRefs := []*connPool{}
-		for _, connPool := range c.connPool {
-			stalePoolsRefs = append(stalePoolsRefs, connPool)
-		}
-
-		if err == nil { // connection options update was successful
-			if indexersExists {
-				for _, host := range availableHosts {
-					c.connPool[host] = newConnPool(host)
-				}
-			}
-
-			c.availHostsMutex.Lock()
-			c.availableHosts = availableHosts
-			c.availHostsMutex.Unlock()
-		}
-
-		// Cleanup
-
-		// connOpts cache cleanup
-		c.connOpts.delete(removedHosts)
-
-		// Previous Event was Indexers Existence Toggle
-		// Which would have closed all the conn pools already
-		if !indexersExists {
-			return nil
-		}
-
-		// close stale pools
-		for _, connPool := range stalePoolsRefs {
-			connPool.close(getUpdateReason(true))
-		}
-
-		// remove stale pool entries
-		availableHostsSet := make(map[string]struct{})
-		for _, host := range availableHosts {
-			availableHostsSet[host] = struct{}{}
-		}
-		for host, _ := range c.connPool {
-			if _, ok := availableHostsSet[host]; !ok {
-				delete(c.connPool, host)
-			}
-		}
-
-		return nil
-	}
-
-	// ## Handle TopologyChange
-
-	// Stop new queries from picking up conn object from removed hosts.
-	if len(removedHosts) > 0 {
-		c.availHostsMutex.Lock()
-		c.availableHosts = cbgt.StringsRemoveStrings(c.availableHosts, removedHosts)
-		c.availHostsMutex.Unlock()
-	}
-
-	// start connection pools for addedHosts
-
-	var availableHosts []string
-	var addedAvailableHosts []string
-	if len(addedHosts) > 0 {
-		addedAvailableHosts, err = c.connOpts.update(
-			addedHosts, connType, isSecCfgChanged, secConfig)
-
-		if err != nil {
-			logging.Infof("n1fty: failed to create/update connOpts for "+
-				"hosts:%+v, err: %v", addedHosts, err)
-		} else {
-			availableHosts = append(availableHosts, addedAvailableHosts...)
+			c.resetLOCKED()
+			return fmt.Errorf("failed to update grpc opts for hosts, err: %v", err)
 		}
 	}
 
-	// previously unavailable hosts which became available
-	nowAvailableHosts := c.connOpts.updateHostsAvailability(secConfig)
-
-	// Some of the nowAvailableHosts may be removedHosts
-	nowAvailableHosts = cbgt.StringsRemoveStrings(nowAvailableHosts,
-		removedHosts)
-
-	availableHosts = append(availableHosts, nowAvailableHosts...)
-
-	if len(availableHosts) != 0 {
-		// Start connection pools for availableHosts
-		if indexersExists {
-			for _, host := range availableHosts {
-				c.connPool[host] = newConnPool(host)
-			}
-		}
-
-		// Start serving queries from availableHosts also
-		c.availHostsMutex.Lock()
-		c.availableHosts = append(c.availableHosts, availableHosts...)
-		c.availHostsMutex.Unlock()
-	}
-
-	// Cleanup
-	c.connOpts.delete(removedHosts)
-
-	// Previous Event was Indexers Existence Toggle
-	// Which would have closed all the conn pools already
-	if !indexersExists {
-		return nil
-	}
-
-	for _, removedHost := range removedHosts {
-		if connPool, ok := c.connPool[removedHost]; ok {
-			connPool.close(getUpdateReason(false))
-			delete(c.connPool, removedHost)
+	if createPools {
+		for _, host := range hosts {
+			c.connPool[host] = newConnPool(host)
 		}
 	}
 
 	return nil
 }
 
+// useful for cleaning up connection options and/or closing connection pools
+func (c *ftsClient) closeConnPoolsLOCKED(hosts []string, reason string,
+	cleanupConnOpts bool, deletePools bool) {
+	if cleanupConnOpts {
+		c.connOpts.delete(hosts)
+	}
+
+	if deletePools {
+		for _, host := range hosts {
+			if connPool, ok := c.connPool[host]; ok {
+				connPool.close(reason)
+				delete(c.connPool, host)
+			}
+		}
+	}
+}
+
+func (c *ftsClient) updateConnPools(event connPoolUpdateEvent) error {
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	return c.updateConnPoolsLOCKED(event)
+}
+
+func (c *ftsClient) updateConnPoolsLOCKED(event connPoolUpdateEvent) error {
+	logging.Infof("n1fty: updateConnPools start, event:%v", eventTags[event])
+	defer func() {
+		logging.Infof("n1fty: updateConnPools done, hosts:%v", c.hosts)
+	}()
+
+	switch event {
+	case securityConfigChange:
+		return c.onSecurityConfigChange()
+	case topologyChange:
+		return c.onTopologyChange()
+	case indexerAvailabilityChange:
+		c.onIndexerAvailabilityChange()
+	default:
+		return fmt.Errorf("unknown event")
+	}
+
+	return nil
+}
+
+func (c *ftsClient) onSecurityConfigChange() error {
+	indexerAvail := IsIndexerAvailable()
+	logging.Infof("n1fty: onSecurityConfigChange, indexerAvail:%v", indexerAvail)
+
+	if len(c.hosts) == 0 {
+		return nil
+	}
+
+	c.updateConnTypeLOCKED()
+	if c.connType == __nilConnType {
+		c.resetLOCKED()
+		return fmt.Errorf("nil connection type")
+	}
+
+	// # Update Connection Pools
+	// SecurityConfigChange is involved in the book-keeping of connection options.
+	// Whether to materialize conn pool creation/deletion is decided by the
+	// indexer availability.
+	//
+	// Close existing stale connection pools and create new ones.
+	c.closeConnPoolsLOCKED(c.hosts, eventTags[securityConfigChange], true, indexerAvail)
+	if err := c.createConnPoolsLOCKED(c.hosts, true, indexerAvail); err != nil {
+		c.resetLOCKED()
+		return fmt.Errorf("failed to create connection pools, err: %v", err)
+	}
+
+	return nil
+}
+
+func (c *ftsClient) onTopologyChange() error {
+	indexerAvail := IsIndexerAvailable()
+	logging.Infof("n1fty: onTopologyChange, indexerAvail:%v", indexerAvail)
+
+	// ## Fetch new topology and reconcile with existing topology
+
+	nodeDefs, err := GetNodeDefs(srvConfig)
+	if err != nil {
+		c.resetLOCKED()
+		return fmt.Errorf("GetNodeDefs failed, err: %v", err)
+	}
+
+	if nodeDefs == nil || len(nodeDefs.NodeDefs) == 0 {
+		c.resetLOCKED()
+		return fmt.Errorf("GetNodeDefs, err: hosts unavailable")
+	}
+
+	nonSslHosts, sslHosts := extractHosts(nodeDefs)
+
+	// no fts nodes in the cluster support grpc
+	if len(nonSslHosts) == 0 && len(sslHosts) == 0 {
+		c.resetLOCKED()
+		return ErrFeatureUnavailable
+	}
+
+	c.sslHostsAvailable = len(sslHosts) != 0
+	c.nonSslHostsAvailable = len(nonSslHosts) != 0
+
+	c.updateConnTypeLOCKED()
+	if c.connType == __nilConnType {
+		c.resetLOCKED()
+		return fmt.Errorf("nil connection type")
+	}
+
+	var newHosts []string
+	if c.connType == sslConn {
+		newHosts = sslHosts
+	} else {
+		newHosts = nonSslHosts
+	}
+
+	// reconcile topology
+	keepHosts := cbgt.StringsIntersectStrings(c.hosts, newHosts)
+	removedHosts := cbgt.StringsRemoveStrings(c.hosts, newHosts)
+	addedHosts := cbgt.StringsRemoveStrings(newHosts, keepHosts)
+	logging.Infof("n1fty: onTopologyChange, keepHosts:%v, removedHosts:%v, "+
+		"addedHosts:%v", keepHosts, removedHosts, addedHosts)
+
+	// update hosts
+	c.hosts = newHosts
+
+	// # Update Conn Pools
+	// Topology Change is involved in the book-keeping of connection options.
+	// Whether to materialize conn pool creation/deletion is decided by the
+	// indexer availability.
+	//
+	// close pools corresponding to removed hosts and create new ones for added hosts.
+	c.closeConnPoolsLOCKED(removedHosts, eventTags[topologyChange], true,
+		indexerAvail)
+	if err := c.createConnPoolsLOCKED(addedHosts, true, indexerAvail); err != nil {
+		c.resetLOCKED()
+		return fmt.Errorf("failed to create connection pools, err: %v", err)
+	}
+
+	return nil
+}
+
+// Handler for indexer availability change event.
+// The mutex n1fty.monitor.m is expected to be locked for the entire duration of this
+// function execution. This is to handle multiple concurrent indexer availability
+// change events.
+func (c *ftsClient) onIndexerAvailabilityChange() {
+	indexerAvail := (len(mr.indexers) != 0)
+	logging.Infof("n1fty: onIndexerAvailabilityChange, indexer available:%v",
+		indexerAvail)
+
+	// # Update Conn Pools
+	// We don't need to update the connection options here, as book-keeping of it
+	// is already done in onTopologyChange and onSecurityConfigChange.
+	//
+	// On IndexerAvailabilityChange, we bring-up/tear-down the connection pools.
+	if indexerAvail { // indexers count went from 0 -> 1
+		c.createConnPoolsLOCKED(c.hosts, false, true)
+	} else { // indexers count goes went 1 -> 0
+		c.closeConnPoolsLOCKED(c.hosts, eventTags[indexerAvailabilityChange],
+			false, true)
+	}
+}
+
 func (c *ftsClient) getGrpcClient() (
 	pb.SearchServiceClient, *connPool, *grpc.ClientConn) {
-	c.availHostsMutex.RLock()
-	defer c.availHostsMutex.RUnlock()
+	c.m.RLock()
+	defer c.m.RUnlock()
 
-	if len(c.availableHosts) == 0 {
-		logging.Infof("n1fty: getGrpcClient, err: No Available search service host")
+	if len(c.hosts) == 0 {
+		logging.Infof("n1fty: getGrpcClient, err: search host unavailable")
 		return nil, nil, nil
 	}
 
-	// Pick a random available FTS node
-	randomNodeIndex := rand.Intn(len(c.availableHosts))
+	// randomly pick a search host
+	hostIdx := rand.Intn(len(c.hosts))
 
-	connPool, ok := c.connPool[c.availableHosts[randomNodeIndex]]
+	connPool, ok := c.connPool[c.hosts[hostIdx]]
 	if !ok {
-		logging.Infof("n1fty: No connection pool for %v",
-			c.availableHosts[randomNodeIndex])
+		logging.Infof("n1fty: getGrpcClient, err: no connection pool exist for %v",
+			c.hosts[hostIdx])
 		return nil, nil, nil
 	}
 
 	conn, err := connPool.get()
 	if err != nil {
-		logging.Infof("n1fty: Failed to Get a connection from pool:%v, "+
-			"error:%v", c.availableHosts[randomNodeIndex], err)
+		logging.Infof("n1fty: getGrpcClient, err: failed to get a connection "+
+			"object from pool:%v, error:%v", c.hosts[hostIdx], err)
 		return nil, nil, nil
 	}
 
 	return pb.NewSearchServiceClient(conn), connPool, conn
 }
 
-func (c *ftsClient) reconcileServers(
-	newServers []string) (addedServers, removedServers []string) {
-	oldServers := c.servers
-
-	oldServerSet := make(map[string]struct{})
-	for _, s := range oldServers {
-		oldServerSet[s] = struct{}{}
-	}
-
-	newServerSet := make(map[string]struct{})
-	for _, s := range newServers {
-		newServerSet[s] = struct{}{}
-	}
-
-	for _, server := range newServers {
-		if _, ok := oldServerSet[server]; !ok {
-			addedServers = append(addedServers, server)
-		}
-	}
-
-	for _, server := range oldServers {
-		if _, ok := newServerSet[server]; !ok {
-			removedServers = append(removedServers, server)
-		}
-	}
-
-	return
-}
-
 // -----------------------------------------------------------------------------
 
-// concurrent safe grpc.Dialoption(s) cache
+// for concurrent access use under client.m lock.
 type grpcOpts struct {
-	mu           sync.RWMutex
-	commonOpts   []grpc.DialOption            // host agnostic
-	hostOpts     map[string][]grpc.DialOption // host: {commonOpts + creds}
-	unAvailHosts map[string]struct{}          // cbauth failed to get creds
+	client *ftsClient
+
+	// common dial options for all the hosts
+	commonOpts []grpc.DialOption
+
+	// commonOpts + host specific options
+	hostOpts map[string][]grpc.DialOption
 }
 
-func newGrpcOpts() *grpcOpts {
+func newGrpcOpts(client *ftsClient) *grpcOpts {
 	return &grpcOpts{
-		hostOpts:     make(map[string][]grpc.DialOption),
-		unAvailHosts: make(map[string]struct{}),
+		hostOpts: make(map[string][]grpc.DialOption),
+		client:   client,
 	}
+}
+
+func (g *grpcOpts) reset() {
+	g.commonOpts = nil
+	g.hostOpts = make(map[string][]grpc.DialOption)
 }
 
 func (g *grpcOpts) delete(hosts []string) {
 	if hosts == nil || len(hosts) == 0 {
 		return
 	}
-	g.mu.Lock()
-	defer g.mu.Unlock()
 
 	for _, host := range hosts {
 		delete(g.hostOpts, host)
-		delete(g.unAvailHosts, host)
 	}
 }
 
 func (g *grpcOpts) get(host string) ([]grpc.DialOption, bool) {
-	g.mu.RLock()
-	defer g.mu.RUnlock()
-
 	opts, ok := g.hostOpts[host]
 	return opts, ok
 }
 
-// Retry reaching out to previously unavailable hosts
-func (g *grpcOpts) updateHostsAvailability(
-	secConfig *securityConfig) (nowAvailableHosts []string) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
+// update dial options common to all the hosts.
+// handles security config changes.
+func (g *grpcOpts) updateCommonOpts() error {
+	secConfig := loadSecurityConfig()
 
-	for host := range g.unAvailHosts {
-		cbUser, cbPasswd, err := cbauth.GetHTTPServiceAuth(host)
-		if err != nil {
-			// This host is still unreachable
-			continue
-		}
-
-		// mark host available
-		logging.Infof("n1fty: host:%v became available", host)
-		delete(g.unAvailHosts, host)
-		nowAvailableHosts = append(nowAvailableHosts, host)
-
-		// copy g.commonOpts
-		g.hostOpts[host] = make([]grpc.DialOption, len(g.commonOpts))
-		copy(g.hostOpts[host], g.commonOpts)
-
-		g.hostOpts[host] = append(
-			g.hostOpts[host], grpc.WithPerRPCCredentials(&basicAuthCreds{
-				username:                 cbUser,
-				password:                 cbPasswd,
-				requireTransportSecurity: secConfig.encryptionEnabled,
-			}))
+	connType := g.client.connType
+	if connType == __nilConnType {
+		return fmt.Errorf("nil connection type")
 	}
 
-	return
-}
-
-const maxConnRetryAttempts = 10
-
-// This function update(or create) grpc.DialOption(s) for given hosts
-// and cache them
-//
-// Return list of unavailable hosts and error if any
-func (g *grpcOpts) update(
-	hosts []string, connType connectionType, isSecCfgChanged bool,
-	secConfig *securityConfig) ([]string, error) {
-	if len(hosts) == 0 {
-		return nil, nil
-	}
-
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	availableHosts := []string{}
-
-	if isSecCfgChanged {
-		err := g.updateCommonLOCKED(connType, secConfig)
-		if err != nil {
-			logging.Infof("n1fty: failed to update common grpc options"+
-				", err:%v", err)
-			return availableHosts, err
-		}
-	}
-
-	startSleepMS, maxSleepMS, backoffFactor := 50, 500, float32(1.5)
-	// Around 10 attempts (maxConnRetryAttempts) in a span of ~2s
-	for _, host := range hosts {
-		var cbUser, cbPasswd string
-		err := util.ExponentialBackoffRetry(func() error {
-			var err error
-			cbUser, cbPasswd, err = cbauth.GetHTTPServiceAuth(host)
-			return err
-		}, startSleepMS, maxSleepMS, backoffFactor, maxConnRetryAttempts)
-
-		if err != nil {
-			// it is possible that some hosts may be unreachable during
-			// a cluster operation, so ignore error here; see: MB-40125
-			logging.Infof("n1fty: host:%v unavailable, failed to get "+
-				"credentials, err: %v", host, err)
-			g.unAvailHosts[host] = struct{}{}
-			continue
-		}
-
-		availableHosts = append(availableHosts, host)
-		delete(g.unAvailHosts, host)
-
-		// copy common grpc options for the host
-		g.hostOpts[host] = make([]grpc.DialOption, len(g.commonOpts))
-		copy(g.hostOpts[host], g.commonOpts)
-
-		g.hostOpts[host] = append(g.hostOpts[host],
-			grpc.WithPerRPCCredentials(&basicAuthCreds{
-				username:                 cbUser,
-				password:                 cbPasswd,
-				requireTransportSecurity: secConfig.encryptionEnabled,
-			}))
-	}
-
-	return availableHosts, nil
-}
-
-func (g *grpcOpts) updateCommonLOCKED(connType connectionType, secConfig *securityConfig) error {
 	gRPCOpts := []grpc.DialOption{
 		grpc.WithBackoffMaxDelay(DefaultGrpcMaxBackOffDelay),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
@@ -554,7 +437,7 @@ func (g *grpcOpts) updateCommonLOCKED(connType connectionType, secConfig *securi
 		),
 	}
 
-	if connType == sslConn {
+	if g.client.connType == sslConn {
 		certPool := x509.NewCertPool()
 		ok := certPool.AppendCertsFromPEM(secConfig.certInBytes)
 		if !ok {
@@ -562,13 +445,45 @@ func (g *grpcOpts) updateCommonLOCKED(connType connectionType, secConfig *securi
 		}
 		cred := credentials.NewClientTLSFromCert(certPool, "")
 		gRPCOpts = append(gRPCOpts, grpc.WithTransportCredentials(cred))
-	} else if connType == nonSslConn {
+	} else { // non-ssl
 		gRPCOpts = append(gRPCOpts, grpc.WithInsecure())
-	} else {
-		return fmt.Errorf("hosts (ssl/non-ssl) unavailable")
 	}
 
 	g.commonOpts = gRPCOpts
+	return nil
+}
+
+// This function update(or create) grpc.DialOption(s) for given hosts
+// and cache them
+func (g *grpcOpts) updateHostOpts(hosts []string) error {
+	if len(hosts) == 0 {
+		return nil
+	}
+
+	if g.client.connType == __nilConnType {
+		return fmt.Errorf("nil connection type")
+	}
+
+	if len(g.commonOpts) == 0 {
+		err := g.updateCommonOpts()
+		if err != nil {
+			return fmt.Errorf("failed to update common grpc options, err: %v", err)
+		}
+	}
+
+	secConfig := loadSecurityConfig()
+
+	for _, host := range hosts {
+		g.hostOpts[host] = make([]grpc.DialOption, len(g.commonOpts))
+		copy(g.hostOpts[host], g.commonOpts)
+
+		g.hostOpts[host] = append(g.hostOpts[host],
+			grpc.WithPerRPCCredentials(&basicAuthCreds{
+				host:                     host,
+				requireTransportSecurity: secConfig.encryptionEnabled,
+			}))
+	}
+
 	return nil
 }
 
@@ -578,16 +493,21 @@ func (g *grpcOpts) updateCommonLOCKED(connType connectionType, secConfig *securi
 // that transforms the username and password into a base64 encoded value
 // similar to HTTP Basic xxx
 type basicAuthCreds struct {
-	username                 string
-	password                 string
+	host                     string // host:port
 	requireTransportSecurity bool
 }
 
 // GetRequestMetadata sets the value for "authorization" key
 func (b *basicAuthCreds) GetRequestMetadata(context.Context, ...string) (
 	map[string]string, error) {
+	username, password, err := cbauth.GetHTTPServiceAuth(b.host)
+	if err != nil {
+		logging.Warnf("n1fty: GetRequestMetadata, err: %v", err)
+		return nil, err
+	}
+
 	return map[string]string{
-		"authorization": "Basic " + basicAuth(b.username, b.password),
+		"authorization": "Basic " + basicAuth(username, password),
 	}, nil
 }
 
@@ -605,7 +525,7 @@ func basicAuth(username, password string) string {
 // ------------------------------Utility Functions------------------------------
 
 func extractHosts(nodeDefs *cbgt.NodeDefs) ([]string, []string) {
-	hosts := []string{}
+	nonSslHosts := []string{}
 	sslHosts := []string{}
 
 	for _, v := range nodeDefs.NodeDefs {
@@ -614,7 +534,7 @@ func extractHosts(nodeDefs *cbgt.NodeDefs) ([]string, []string) {
 		if err == nil && extrasBindGRPC != nil {
 			if bindGRPCstr, ok := extrasBindGRPC.(string); ok {
 				if bindGRPCstr != "" {
-					hosts = append(hosts, bindGRPCstr)
+					nonSslHosts = append(nonSslHosts, bindGRPCstr)
 					grpcFeatureSupport = true
 				}
 			}
@@ -635,5 +555,50 @@ func extractHosts(nodeDefs *cbgt.NodeDefs) ([]string, []string) {
 		}
 	}
 
-	return hosts, sslHosts
+	return nonSslHosts, sslHosts
+}
+
+func IsIndexerAvailable() bool {
+	numIndexers := 0
+	mr.m.RLock()
+	numIndexers = len(mr.indexers)
+	mr.m.RUnlock()
+
+	return numIndexers != 0
+}
+
+func getTopologyAndConnType() ([]string, connectionType, error) {
+	nodeDefs, err := GetNodeDefs(srvConfig)
+	if err != nil {
+		logging.Errorf("n1fty: GetNodeDefs, err: %v", err)
+		return nil, __nilConnType, fmt.Errorf("GetNodeDefs failed [err: %v]", err)
+	}
+
+	if nodeDefs == nil || len(nodeDefs.NodeDefs) == 0 {
+		return nil, __nilConnType, fmt.Errorf("hosts (ssl/non-ssl) unavailable")
+	}
+
+	hosts, sslHosts := extractHosts(nodeDefs)
+	if len(hosts) == 0 && len(sslHosts) == 0 {
+		return nil, __nilConnType, ErrFeatureUnavailable
+	}
+
+	var newTopology []string
+	var connType connectionType
+
+	secConfig := loadSecurityConfig()
+	if secConfig.encryptionEnabled && len(sslHosts) > 0 {
+		newTopology = sslHosts
+		connType = sslConn
+	} else if !secConfig.disableNonSSLPorts && len(hosts) > 0 {
+		newTopology = hosts // non-ssl hosts
+		connType = nonSslConn
+	} else {
+		logging.Warnf("n1fty: client: hosts error, config: {encryptionEnabled:"+
+			" %v, disableNonSSLPorts: %v}, hosts: %v, sslHosts: %v",
+			secConfig.encryptionEnabled, secConfig.disableNonSSLPorts,
+			hosts, sslHosts)
+		return nil, __nilConnType, fmt.Errorf("hosts (ssl/non-ssl) unavailable")
+	}
+	return newTopology, connType, nil
 }

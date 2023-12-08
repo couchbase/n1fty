@@ -45,11 +45,11 @@ type monitor struct {
 func (m *monitor) registerIndexer(i *FTSIndexer) {
 	if i != nil {
 		m.m.Lock()
-		// Update the connection pools, if indexers count goes from 0 -> 1
-		if len(m.indexers) == 0 {
-			ftsClientInst.updateConnPoolsOnIndexersChange(true)
-		}
 		m.indexers[i.BucketId()+i.ScopeId()+i.KeyspaceId()] = i
+		// Update the connection pools, if indexers count goes from 0 -> 1
+		if len(m.indexers) == 1 {
+			ftsClientInst.updateConnPools(indexerAvailabilityChange)
+		}
 		m.m.Unlock()
 	}
 }
@@ -57,11 +57,11 @@ func (m *monitor) registerIndexer(i *FTSIndexer) {
 func (m *monitor) unregisterIndexer(i *FTSIndexer) {
 	if i != nil {
 		m.m.Lock()
-		// Update the connection pools, if indexers count goes from 1 -> 0
-		if len(m.indexers) == 1 {
-			ftsClientInst.updateConnPoolsOnIndexersChange(false)
-		}
 		delete(mr.indexers, i.BucketId()+i.ScopeId()+i.KeyspaceId())
+		// Update the connection pools, if indexers count goes from 1 -> 0
+		if len(m.indexers) == 0 {
+			ftsClientInst.updateConnPools(indexerAvailabilityChange)
+		}
 		m.m.Unlock()
 	}
 }

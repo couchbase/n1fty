@@ -116,8 +116,9 @@ func newConnPool(host string) *connPool {
 func (cp *connPool) mkConn(host string) (*grpc.ClientConn, error) {
 	connOpts, ok := ftsClientInst.connOpts.get(host)
 	if !ok {
-		logging.Infof("%v failed to make connection, host(%v) unreachable "+
-			"(no grpc options)", cp.logPrefix, host)
+		logging.Infof("%v failed to make connection object, no grpc options "+
+			"for host:%v", cp.logPrefix, host)
+		return nil, fmt.Errorf("no grpc options for host:%v", host)
 	}
 
 	conn, err := grpc.Dial(host, connOpts...)
