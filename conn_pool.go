@@ -116,14 +116,14 @@ func newConnPool(host string) *connPool {
 func (cp *connPool) mkConn(host string) (*grpc.ClientConn, error) {
 	connOpts, ok := ftsClientInst.connOpts.get(host)
 	if !ok {
-		logging.Infof("%v failed to make connection object, no grpc options "+
+		logging.Errorf("%v failed to make connection object, no grpc options "+
 			"for host:%v", cp.logPrefix, host)
 		return nil, fmt.Errorf("no grpc options for host:%v", host)
 	}
 
 	conn, err := grpc.Dial(host, connOpts...)
 	if err != nil {
-		logging.Infof("n1fty: client: grpc.Dial for host: %s, err: %v",
+		logging.Errorf("n1fty: client: grpc.Dial for host: %s, err: %v",
 			host, err)
 		return nil, err
 	}
@@ -231,7 +231,7 @@ func (cp *connPool) yield(connectn *grpc.ClientConn) {
 func (cp *connPool) close(reason string) {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.Infof("%v Close() request with reason:%v, crashed: %v",
+			logging.Errorf("%v Close() request with reason:%v, crashed: %v",
 				cp.logPrefix, reason, r)
 		}
 	}()

@@ -245,8 +245,20 @@ func SetConnectionSecurityConfig(conf *datastore.ConnectionSecurityConfig) {
 
 	err := ftsClientInst.updateConnPoolsLOCKED(securityConfigChange)
 	if err != nil {
-		logging.Infof("n1fty: failed to update connection pools on "+
+		logging.Errorf("n1fty: failed to update connection pools on "+
 			"securityConfigChange, err: %v", err)
+	}
+
+	// Change in security settings such as encryption, disableNonSSLPorts
+	// may require a topology change to update the connection pools.
+	//
+	// For example, if encryption is enabled, hosts list must be updated
+	// to use SSL ports.
+
+	err = ftsClientInst.updateConnPoolsLOCKED(topologyChange)
+	if err != nil {
+		logging.Errorf("n1fty: failed to update connection pools on "+
+			"topologyChange, err: %v", err)
 	}
 }
 

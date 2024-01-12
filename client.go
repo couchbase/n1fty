@@ -236,6 +236,11 @@ func (c *ftsClient) onSecurityConfigChange() error {
 		return fmt.Errorf("nil connection type")
 	}
 
+	err := c.connOpts.updateCommonOpts()
+	if err != nil {
+		return fmt.Errorf("failed to update common grpc options, err: %v", err)
+	}
+
 	// # Update Connection Pools
 	// SecurityConfigChange is involved in the book-keeping of connection options.
 	// Whether to materialize conn pool creation/deletion is decided by the
@@ -346,7 +351,7 @@ func (c *ftsClient) getGrpcClient() (
 	defer c.m.RUnlock()
 
 	if len(c.hosts) == 0 {
-		logging.Infof("n1fty: getGrpcClient, err: search host unavailable")
+		logging.Errorf("n1fty: getGrpcClient, err: search host unavailable")
 		return nil, nil, nil
 	}
 
@@ -355,14 +360,14 @@ func (c *ftsClient) getGrpcClient() (
 
 	connPool, ok := c.connPool[c.hosts[hostIdx]]
 	if !ok {
-		logging.Infof("n1fty: getGrpcClient, err: no connection pool exist for %v",
+		logging.Errorf("n1fty: getGrpcClient, err: no connection pool exist for %v",
 			c.hosts[hostIdx])
 		return nil, nil, nil
 	}
 
 	conn, err := connPool.get()
 	if err != nil {
-		logging.Infof("n1fty: getGrpcClient, err: failed to get a connection "+
+		logging.Errorf("n1fty: getGrpcClient, err: failed to get a connection "+
 			"object from pool:%v, error:%v", c.hosts[hostIdx], err)
 		return nil, nil, nil
 	}
