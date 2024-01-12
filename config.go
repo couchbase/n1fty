@@ -66,7 +66,7 @@ func init() {
 	cbgt.CfgMetaKvPrefix = "/fts/cbgt/cfg/"
 	srvConfig.cfg, err = cbgt.NewCfgMetaKv("", make(map[string]string))
 	if err != nil {
-		logging.Infof("n1fty: ftsConfig err: %v", err)
+		logging.Errorf("n1fty: ftsConfig err: %v", err)
 	}
 
 	srvConfig.cfg.Subscribe(cbgt.INDEX_DEFS_KEY, srvConfig.eventCh)
@@ -99,7 +99,7 @@ func (c *ftsConfig) Listen() {
 
 				err = ftsClientInst.updateConnPools(topologyChange)
 				if err != nil {
-					logging.Infof("n1fty: failed to update connection pools "+
+					logging.Errorf("n1fty: failed to update connection pools "+
 						"on TopologyChange, err: %v", err)
 				}
 			}
