@@ -10,7 +10,10 @@ package flex
 
 import (
 	"encoding/json"
+	"strings"
 
+	"github.com/blevesearch/bleve/v2/search/query"
+	"github.com/couchbase/cbft"
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/expression"
 	"github.com/couchbase/query/expression/search"
@@ -76,23 +79,40 @@ func (fi *FlexIndex) interpretSearchFunc(s *search.Search) (
 
 	queryVal := s.Query().Value()
 	field := util.CleanseField(s.FieldName())
-	if srq, ok := queryVal.Field("query"); ok {
+
+	var sr *cbft.SearchRequest
+	var q query.Query
+	var err error
+	if _, ok := queryVal.Field("query"); ok {
 		// This is a bleve SearchRequest.
 		// Continue only if it doesn't carry any other settings.
 		// This is so FLEX would not have to handle various pagination
 		// and timeout settings that could be provided within the
 		// SEARCH function for only a part of the query.
 
-		if len(queryVal.Fields()) > 1 {
+		if _, ok := queryVal.Field("knn"); ok {
+			if _, ok := queryVal.Field("knn_operator"); ok {
+				if len(queryVal.Fields()) > 3 {
+					// only query, knn and knn_operator can exist together
+					return false, nil, nil
+				}
+			} else if len(queryVal.Fields()) > 2 {
+				// only query and kNN can exist together
+				return false, nil, nil
+			}
+		} else if len(queryVal.Fields()) > 1 {
 			return false, nil, nil
 		}
 
-		queryVal = srq
-	}
-
-	q, err := util.BuildQuery(field, queryVal)
-	if err != nil {
-		return false, nil, nil
+		sr, q, err = util.BuildSearchRequest(field, queryVal)
+		if err != nil {
+			return false, nil, nil
+		}
+	} else {
+		q, err = util.BuildQuery(field, queryVal)
+		if err != nil {
+			return false, nil, nil
+		}
 	}
 
 	queryFields, err := util.FetchFieldsToSearchFromQuery(q)
@@ -102,7 +122,23 @@ func (fi *FlexIndex) interpretSearchFunc(s *search.Search) (
 
 	qBytes, _ := json.Marshal(q)
 	var qInterface map[string]interface{}
-	json.Unmarshal(qBytes, &qInterface)
+	_ = json.Unmarshal(qBytes, &qInterface)
+
+	var knnInterface []interface{}
+	var knnOperator string
+	if sr != nil && sr.KNN != nil {
+		queryFields, err = util.ExtractKNNQueryFields(sr, queryFields)
+		if err != nil {
+			return false, nil, nil
+		}
+
+		_ = json.Unmarshal(sr.KNN, &knnInterface)
+		if sr.KNNOperator != nil {
+			knnOperator = string(sr.KNNOperator)
+			// Cleanse string of double quotes
+			knnOperator = strings.Replace(knnOperator, "\"", "", -1)
+		}
+	}
 
 	fieldTracks := FieldTracks{}
 	for f := range queryFields {
@@ -118,8 +154,10 @@ func (fi *FlexIndex) interpretSearchFunc(s *search.Search) (
 	// for are indexed within the FTS index.
 	fieldTracks[FieldTrack(s.String())] = 1
 	return true, fieldTracks, &FlexBuild{
-		Kind: "searchQuery",
-		Data: qInterface,
+		Kind:        "searchRequest",
+		Data:        qInterface,
+		KNNData:     knnInterface,
+		KNNOperator: knnOperator,
 	}
 }
 
@@ -295,7 +333,9 @@ func (fi *FlexIndex) SargableAnySatisfies(ids Identifiers,
 // FlexBuild represents hierarchical state that's gathered during
 // Sargable() recursion, which can be used to formulate an index scan.
 type FlexBuild struct {
-	Kind     string
-	Children []*FlexBuild
-	Data     interface{} // Depends on the kind.
+	Kind        string
+	Children    []*FlexBuild
+	Data        interface{}   // Depends on the kind.
+	KNNData     []interface{} // Optional KNN Data, available only for SEARCH(..) functions.
+	KNNOperator string        // Optional, and applicable only when KNNData is available.
 }

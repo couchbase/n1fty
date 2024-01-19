@@ -2146,3 +2146,128 @@ func TestFlexNeedForFiltering(t *testing.T) {
 		}
 	}
 }
+
+func TestSargableFlexWithKNN(t *testing.T) {
+	index, err := setupSampleIndex([]byte(`{
+		"name": "temp",
+		"type": "fulltext-index",
+		"sourceName": "temp",
+		"params": {
+			"doc_config": {
+				"mode": "type_field",
+				"type_field": "type"
+			},
+			"mapping": {
+				"default_mapping": {
+					"enabled": true,
+					"properties": {
+						"desc": {
+							"enabled": true,
+							"fields": [
+							{
+								"analyzer": "keyword",
+								"index": true,
+								"name": "desc",
+								"type": "text"
+							}
+							]
+						},
+						"txt": {
+							"enabled": true,
+							"fields": [
+							{
+								"analyzer": "keyword",
+								"index": true,
+								"name": "txt",
+								"type": "text"
+							}
+							]
+						},
+						"vec": {
+							"enabled": true,
+							"fields": [
+							{
+								"dims": 5,
+								"index": true,
+								"name": "vec",
+								"similarity": "dot_product",
+								"type": "vector"
+							}
+							]
+						}
+					}
+				}
+			},
+			"store": {
+				"indexType": "scorch",
+				"segmentVersion": 16
+			}
+		}
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	flexExpr, _ := parser.Parse(`t.txt = "match"`)
+
+	searchExprBytes := []byte(`{
+		"query": {
+			"match": "odd",
+			"field": "desc"
+		},
+		"knn": [{
+			"field": "vec",
+			"vector": [0.1, 0.2, 0.3, 0.4, 0.5],
+			"k": 3
+		}],
+		"knn_operator": "and"
+	}`)
+	var searchExprConst map[string]interface{}
+	_ = json.Unmarshal(searchExprBytes, &searchExprConst)
+
+	searchExpr := search.NewSearch(expression.NewConstant(``),
+		expression.NewConstant(searchExprConst))
+
+	var expectQuery map[string]interface{}
+	_ = json.Unmarshal([]byte(`{"query":{"conjuncts":[{"field":"txt","term":"match"}`+
+		`,{"field":"desc","match":"odd","fuzziness":0,"prefix_length":0}]},`+
+		`"knn":[{"field":"vec","k":3,"vector":[0.1,0.2,0.3,0.4,0.5]}],`+
+		`"knn_operator":"and","score":"none"}`),
+		&expectQuery)
+
+	finalExpr := expression.NewAnd(flexExpr, searchExpr)
+
+	flexRequest := &datastore.FTSFlexRequest{
+		Keyspace: "t",
+		Pred:     finalExpr,
+	}
+
+	resp, n1qlErr := index.SargableFlex("0", flexRequest)
+	if n1qlErr != nil {
+		t.Fatal(n1qlErr)
+	}
+
+	expectedSargKeys := []string{searchExpr.String(), "txt"}
+
+	if resp == nil || len(resp.StaticSargKeys) != len(expectedSargKeys) {
+		t.Fatalf("Resp: %#v", resp)
+	}
+
+	for _, key := range expectedSargKeys {
+		if resp.StaticSargKeys[key] == nil {
+			t.Fatalf("ExpectedSargKeys: %v, Got StaticSargKeys: %v",
+				expectedSargKeys, resp.StaticSargKeys)
+		}
+	}
+
+	var gotQuery map[string]interface{}
+	if err := json.Unmarshal([]byte(resp.SearchQuery), &gotQuery); err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(expectQuery, gotQuery) {
+		t.Fatalf("Expected query: %v, Got query: %v",
+			expectQuery, resp.SearchQuery)
+	}
+
+}

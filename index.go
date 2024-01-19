@@ -790,6 +790,14 @@ func (i *FTSIndex) SargableFlex(requestId string,
 		return nil, nil
 	}
 
+	knnQuery, knnOperator, supported, err := flex.FlexBuildToKNNQuery(flexBuild, nil)
+	if err != nil {
+		return nil, util.N1QLError(err, "SargableFlex Sargable")
+	}
+	if !supported {
+		return nil, nil
+	}
+
 	if !needsFiltering {
 		// Overwrite needsFiltering (only if unset) to true if we need to
 		// for the query (involves match_all, negate).
@@ -802,6 +810,20 @@ func (i *FTSIndex) SargableFlex(requestId string,
 	searchRequest := map[string]interface{}{
 		"query": bleveQuery,
 		"score": "none",
+	}
+
+	if len(knnQuery) > 0 {
+		searchRequest["knn"] = knnQuery
+		if len(knnOperator) > 0 {
+			searchRequest["knn_operator"] = knnOperator
+		}
+		// Make search requests with kNN non-covered for now, so the
+		// query engine will be able to remove false positives.
+		// False positives can occur because of the search engine's
+		// ability to _only_ OR the kNN part with the query part.
+		// This limitation can be lifted when the operator (knn <> query)
+		// can be pushed down to the search engine.
+		needsFiltering = true
 	}
 
 	searchOptions := map[string]interface{}{

@@ -255,7 +255,7 @@ func ParseQueryToSearchRequest(field string, input value.Value) (
 		return nil, nil, 0, false, err
 	}
 
-	queryFields, err = extractKNNQueryFields(rv, queryFields)
+	queryFields, err = ExtractKNNQueryFields(rv, queryFields)
 	if err != nil {
 		return nil, nil, 0, false, err
 	}

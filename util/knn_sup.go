@@ -18,7 +18,7 @@ import (
 	"github.com/couchbase/cbft"
 )
 
-func extractKNNQueryFields(sr *cbft.SearchRequest,
+func ExtractKNNQueryFields(sr *cbft.SearchRequest,
 	queryFields map[SearchField]struct{}) (map[SearchField]struct{}, error) {
 	if sr != nil && sr.KNN != nil {
 		var knn []*bleve.KNNRequest
