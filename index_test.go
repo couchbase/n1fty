@@ -1526,6 +1526,7 @@ func TestFlexPushDownOrderOverField(t *testing.T) {
 		}
 	}
 }
+
 func TestFlexPushDownSearchFunc1(t *testing.T) {
 	index, err := setupSampleIndex(
 		util.SampleIndexDefDynamicWithAnalyzerKeyword)

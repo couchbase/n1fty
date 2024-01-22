@@ -140,6 +140,10 @@ func (s *WrapDatastore) CreateSystemCBOStats(requestId string) errors.Error {
 	return nil
 }
 
+func (s *WrapDatastore) DropSystemCBOStats() errors.Error {
+	return nil
+}
+
 func (s *WrapDatastore) GetSystemCBOStats() (datastore.Keyspace, errors.Error) {
 	return nil, nil
 }
@@ -300,8 +304,8 @@ func (b *WrapKeyspace) Indexers() ([]datastore.Indexer, errors.Error) {
 }
 
 func (b *WrapKeyspace) Fetch(keys []string, keysMap map[string]value.AnnotatedValue,
-	context datastore.QueryContext, subPaths []string) errors.Errors {
-	return b.W.Fetch(keys, keysMap, context, subPaths)
+	context datastore.QueryContext, subPaths []string, projection []string, useSubDoc bool) errors.Errors {
+	return b.W.Fetch(keys, keysMap, context, subPaths, projection, useSubDoc)
 }
 
 func (b *WrapKeyspace) Insert(inserts value.Pairs, context datastore.QueryContext, preserveMutations bool) (int, value.Pairs, errors.Errors) {
@@ -320,7 +324,7 @@ func (b *WrapKeyspace) Delete(deletes value.Pairs, context datastore.QueryContex
 	return b.W.Delete(deletes, context, preserveMutations)
 }
 
-func (b *WrapKeyspace) SetSubDoc(key string, elems value.Pairs, context QueryContext) (value.Pairs, errors.Error) {
+func (b *WrapKeyspace) SetSubDoc(key string, elems value.Pairs, context datastore.QueryContext) (value.Pairs, errors.Error) {
 	return b.W.SetSubDoc(key, elems, context)
 }
 

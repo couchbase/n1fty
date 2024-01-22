@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/search/query"
 	"github.com/couchbase/cbft"
 	pb "github.com/couchbase/cbft/protobuf"
@@ -133,24 +132,6 @@ func BuildQueryFromBytes(field string, qBytes []byte) (query.Query, error) {
 	}
 
 	return q, nil
-}
-
-func BuildQueryFromSearchRequest(field string,
-	sr *bleve.SearchRequest) (query.Query, error) {
-	if field != "" {
-		if qsq, ok := sr.Query.(*query.QueryStringQuery); ok {
-			// case where query string query is provided as an object
-			q, err := qsq.Parse()
-			if err != nil {
-				return nil, err
-			}
-			sr.Query = q
-		}
-
-		UpdateFieldsInQuery(sr.Query, field)
-	}
-
-	return sr.Query, nil
 }
 
 func BuildSearchRequest(field string, input value.Value) (*cbft.SearchRequest,

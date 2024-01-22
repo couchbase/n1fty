@@ -51,7 +51,7 @@ func NewServer(dir string, c *WrapCallbacks) (*server.Server, error) {
 
 	return server.NewServer(wds, sys, nil, nil, "json",
 		false, 10, 10, 4, 4, 0, 0, false, false, false, true,
-		server.ProfOff, false)
+		server.ProfOff, false, nil)
 }
 
 // ------------------------------------------------------------
@@ -135,6 +135,13 @@ func (this *Request) Alive() bool {
 }
 
 func (this *Request) Loga(x logging.Level, y func() string) {
+}
+
+func (this *Request) SetAdmissionWaitTime(time.Duration) {
+}
+
+func (this *Request) AdmissionWaitTime() time.Duration {
+	return 0
 }
 
 // ------------------------------------------------------------
