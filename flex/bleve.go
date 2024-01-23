@@ -296,6 +296,7 @@ var BleveSupportedTypes = map[string]bool{
 	"number":   true,
 	"boolean":  true,
 	"datetime": true,
+	"vector":   true,
 }
 
 // This map translates Bleve's supported types to types as identified
@@ -305,6 +306,7 @@ var BleveTypeConv = map[string]string{
 	"number":   "number",
 	"boolean":  "boolean",
 	"datetime": "string",
+	"vector":   "array",
 	"string":   "string",
 }
 
@@ -648,7 +650,7 @@ func FlexBuildToBleveQuery(fb *FlexBuild, prevSibling map[string]interface{}) (
 				}
 			}
 		}
-	} else if fb.Kind == "searchQuery" {
+	} else if fb.Kind == "searchRequest" {
 		if data, ok := fb.Data.(map[string]interface{}); ok {
 			return data, nil
 		}
@@ -656,6 +658,44 @@ func FlexBuildToBleveQuery(fb *FlexBuild, prevSibling map[string]interface{}) (
 	}
 
 	return nil, fmt.Errorf("FlexBuildToBleveQuery: could not convert: %+v", fb)
+}
+
+func FlexBuildToKNNQuery(fb *FlexBuild, knn []interface{}) (
+	[]interface{}, string, bool, error) {
+	if fb == nil {
+		return nil, "", false, nil
+	}
+
+	var knnOperator string
+	var supported bool
+	var err error
+	isConjunct := fb.Kind == "conjunct"
+	if isConjunct || fb.Kind == "disjunct" {
+		for _, c := range fb.Children {
+			knn, knnOperator, supported, err = FlexBuildToKNNQuery(c, knn)
+			if err != nil {
+				return nil, "", false, err
+			} else if !supported {
+				return nil, "", false, nil
+			}
+		}
+
+		return knn, knnOperator, supported, err
+	}
+
+	if fb.Kind == "searchRequest" && fb.KNNData != nil {
+		var knnData []interface{}
+		for _, entry := range fb.KNNData {
+			if data, ok := entry.(map[string]interface{}); ok {
+				knnData = append(knnData, data)
+			} else {
+				return nil, "", false, fmt.Errorf("incorrect expression: %v", fb.KNNData)
+			}
+		}
+		return knnData, fb.KNNOperator, len(knn) == 0, nil
+	}
+
+	return knn, knnOperator, true, nil
 }
 
 func MinTermRangeQuery(f string, v string, inclusive bool,

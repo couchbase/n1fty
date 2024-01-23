@@ -137,6 +137,13 @@ func (this *Request) Alive() bool {
 func (this *Request) Loga(x logging.Level, y func() string) {
 }
 
+func (this *Request) SetAdmissionWaitTime(time.Duration) {
+}
+
+func (this *Request) AdmissionWaitTime() time.Duration {
+	return 0
+}
+
 // ------------------------------------------------------------
 
 func ExecuteStatement(s *server.Server, stmt string,

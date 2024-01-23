@@ -128,7 +128,7 @@ func (s *WrapDatastore) DeleteGroup(u *datastore.Group) errors.Error {
 	return s.W.DeleteGroup(u)
 }
 
-func (s *WrapDatastore) GroupInfo() ([]value.Value, errors.Error) {
+func (s *WrapDatastore) GroupInfo() (value.Value, errors.Error) {
 	return s.W.GroupInfo()
 }
 
@@ -184,6 +184,10 @@ func (s *WrapDatastore) CreateSystemCBOStats(requestId string) errors.Error {
 	return nil
 }
 
+func (s *WrapDatastore) DropSystemCBOStats() errors.Error {
+	return nil
+}
+
 func (s *WrapDatastore) GetSystemCBOStats() (datastore.Keyspace, errors.Error) {
 	return nil, nil
 }
@@ -218,10 +222,6 @@ func (s *WrapDatastore) CredsString(*auth.Credentials) (string, string) {
 
 func (s *WrapDatastore) GetUserUUID(creds *auth.Credentials) string {
 	return ""
-}
-
-func (b *WrapDatastore) DropSystemCBOStats() errors.Error {
-	return nil
 }
 
 // ------------------------------------------------------------------------
