@@ -352,10 +352,15 @@ func BleveToFlexIndex(fi *FlexIndex, path []string, dm *mapping.DocumentMapping,
 
 		fieldPath := append([]string(nil), path...) // Copy.
 
-		fi.IndexedFields = append(fi.IndexedFields, &FieldInfo{
+		fieldInfo := &FieldInfo{
 			FieldPath: fieldPath,
 			FieldType: f.Type,
-		})
+		}
+		if fieldInfo.FieldType == "vector" {
+			fieldInfo.FieldDims = f.Dims
+		}
+
+		fi.IndexedFields = append(fi.IndexedFields, fieldInfo)
 
 		if f.DocValues || f.Store {
 			fi.SortableFields = append(fi.SortableFields, strings.Join(fieldPath, "."))

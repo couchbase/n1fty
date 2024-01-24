@@ -90,18 +90,25 @@ type FieldTracks map[FieldTrack]int
 type FieldInfo struct {
 	FieldPath []string // Ex: ["name"], ["addr", "city"], [].
 	FieldType string   // Ex: "text", "number", "boolean", "datetime".
+	FieldDims int      // Applicable to FieldType "vector".
 }
 
 type FieldInfos []*FieldInfo
 
 // ---------------------------------------------------------------
 
-func (fieldInfos FieldInfos) Contains(fieldName, fieldType, analyzer string) bool {
+func (fieldInfos FieldInfos) Contains(fieldName, fieldType, analyzer string, dims int) bool {
 	for _, fieldInfo := range fieldInfos {
-		if fieldName == strings.Join(fieldInfo.FieldPath, ".") &&
-			fieldType == fieldInfo.FieldType &&
-			(len(analyzer) == 0 || analyzer == "keyword") {
-			return true
+		if fieldName == strings.Join(fieldInfo.FieldPath, ".") {
+			if fieldType == fieldInfo.FieldType {
+				if fieldType == "vector" {
+					if dims == fieldInfo.FieldDims {
+						return true
+					}
+				} else if len(analyzer) == 0 || analyzer == "keyword" {
+					return true
+				}
+			}
 		}
 	}
 
