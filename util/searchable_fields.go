@@ -283,10 +283,6 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 			}
 		}
 
-		if entireScopeCollIndexed {
-			indexedCount = math.MaxInt64
-		}
-
 		return ProcessedIndexParams{
 			IndexMapping:          im,
 			DocConfig:             &bp.DocConfig,
@@ -369,10 +365,6 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 			}
 		}
 
-		if entireScopeCollIndexed {
-			indexedCount = math.MaxInt64
-		}
-
 		return ProcessedIndexParams{
 			IndexMapping:          im,
 			DocConfig:             dc,
@@ -447,10 +439,6 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 					}
 				}
 			}
-		}
-
-		if entireScopeCollIndexed {
-			indexedCount = math.MaxInt64
 		}
 
 		return ProcessedIndexParams{
@@ -541,6 +529,8 @@ func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 		// If one of the index's top level mappings is dynamic, the _all field
 		// will contain every field's content.
 		allFieldSearchable = true
+		// Override indexedCount to max on account of dynamic mappings
+		indexedCount = math.MaxInt64
 	}
 
 	if len(m) == 0 && len(dynamicMappings) == 0 {

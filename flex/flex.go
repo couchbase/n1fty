@@ -140,19 +140,21 @@ func (fi *FlexIndex) interpretSearchFunc(s *search.Search) (
 		}
 	}
 
-	fieldTracks := FieldTracks{}
 	for f := range queryFields {
 		// Check if the query field is either indexed or the flex index
 		// is dynamic for the query to be sargable.
-		if !fi.IndexedFields.Contains(f.Name, f.Type, f.Analyzer) &&
-			!fi.Dynamic {
+		if !fi.IndexedFields.Contains(f.Name, f.Type, f.Analyzer, f.Dims) &&
+			(f.Type == "vector" || !fi.Dynamic) {
 			return false, nil, nil
 		}
 	}
 
 	// Search expression supported only if all fields requested
 	// for are indexed within the FTS index.
-	fieldTracks[FieldTrack(s.String())] = 1
+	fieldTracks := FieldTracks{
+		FieldTrack(s.String()): 1,
+	}
+
 	return true, fieldTracks, &FlexBuild{
 		Kind:        "searchRequest",
 		Data:        qInterface,
