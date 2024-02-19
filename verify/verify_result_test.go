@@ -142,6 +142,105 @@ func TestNewVerifyWithInvalidIndexUUID(t *testing.T) {
 	}
 }
 
+func TestVerifyResultWithXattrs(t *testing.T) {
+	q := struct {
+		field   string
+		query   value.Value
+		options value.Value
+	}{
+		field: "",
+		query: value.NewValue(`_$xattrs.dept:"hand"`),
+		options: value.NewValue(map[string]interface{}{
+			"index": "temp",
+		}),
+	}
+
+	tests := []struct {
+		input  value.AnnotatedValue
+		xattrs map[string]interface{}
+		expect bool
+	}{
+		{
+			input: value.NewAnnotatedValue(
+				map[string]interface{}{
+					"name": "cersei lannister",
+				},
+			),
+			xattrs: map[string]interface{}{
+				"dept": "queen",
+			},
+			expect: false,
+		},
+		{
+			input: value.NewAnnotatedValue(
+				map[string]interface{}{
+					"name": "jaime lannister",
+				},
+			),
+			xattrs: map[string]interface{}{
+				"dept": "kings guard",
+			},
+			expect: false,
+		},
+		{
+			input: value.NewAnnotatedValue(
+				map[string]interface{}{
+					"name": "eddard stark",
+				},
+			),
+			xattrs: map[string]interface{}{
+				"dept": "hand",
+			},
+			expect: true,
+		},
+		{
+			input: value.NewAnnotatedValue(
+				map[string]interface{}{
+					"name": "robert baratheon",
+				},
+			),
+			xattrs: map[string]interface{}{
+				"dept": "king",
+			},
+			expect: false,
+		},
+		{
+			input: value.NewAnnotatedValue(
+				map[string]interface{}{
+					"name": "tyrion lannister",
+					"dept": "hand",
+				},
+			),
+			xattrs: map[string]interface{}{},
+			expect: false,
+		},
+	}
+
+	util.SetIndexMapping("temp", &util.MappingDetails{
+		SourceName: "temp_keyspace",
+		IMapping:   bleve.NewIndexMapping(),
+	})
+
+	v, err := NewVerify("`temp_keyspace`", q.field, q.query, q.options, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, test := range tests {
+
+		test.input.NewMeta()["xattrs"] = test.xattrs
+		got, err := v.Evaluate(value.NewValue(test.input))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if got != test.expect {
+			t.Fatalf("Expected: %v, Got: %v, for doc: %v, with meta: %v",
+				test.expect, got, test.input, test.input.GetMeta())
+		}
+	}
+}
+
 func TestMB33444(t *testing.T) {
 	q := struct {
 		field   string
