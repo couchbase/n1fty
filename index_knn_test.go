@@ -217,3 +217,145 @@ func TestSargableFlexWithKNNFails(t *testing.T) {
 		t.Fatalf("Expected resp to be nil as index is NOT sargable - %v", resp)
 	}
 }
+
+// MB-60523
+func TestSargableWithKNNOverDynamicMappings(t *testing.T) {
+	searchExprBytes := `{
+		"query": {
+			"match_none": {}
+		},
+		"knn": [{
+			"field": "vec",
+			"vector": [1,2,3],
+			"k": 3
+		}],
+		"knn_operator": "and"
+	}`
+
+	searchExpr, err := parser.Parse(searchExprBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		indexDef      []byte
+		expectedCount int
+	}{
+		{
+			indexDef: []byte(`{
+				"name": "temp",
+				"type": "fulltext-index",
+				"sourceName": "temp",
+				"params": {
+					"doc_config": {
+						"mode": "type_field",
+						"type_field": "type"
+					},
+					"mapping": {
+						"default_mapping": {
+							"enabled": true,
+							"dynamic": true
+						}
+					},
+					"store": {
+						"indexType": "scorch",
+						"segmentVersion": 16
+					}
+				}
+			}`),
+			expectedCount: 0,
+		},
+		{
+			indexDef: []byte(`{
+				"name": "temp",
+				"type": "fulltext-index",
+				"sourceName": "temp",
+				"params": {
+					"doc_config": {
+						"mode": "type_field",
+						"type_field": "type"
+					},
+					"mapping": {
+						"default_mapping": {
+							"enabled": true,
+							"dynamic": true,
+							"properties": {
+								"vec": {
+									"enabled": true,
+									"fields": [
+									{
+										"dims": 5,
+										"index": true,
+										"name": "vec",
+										"similarity": "dot_product",
+										"type": "vector"
+									}
+									]
+								}
+							}
+						}
+					},
+					"store": {
+						"indexType": "scorch",
+						"segmentVersion": 16
+					}
+				}
+			}`),
+			expectedCount: 0,
+		},
+		{
+			indexDef: []byte(`{
+				"name": "temp",
+				"type": "fulltext-index",
+				"sourceName": "temp",
+				"params": {
+					"doc_config": {
+						"mode": "type_field",
+						"type_field": "type"
+					},
+					"mapping": {
+						"default_mapping": {
+							"enabled": true,
+							"dynamic": true,
+							"properties": {
+								"vec": {
+									"enabled": true,
+									"fields": [
+									{
+										"dims": 3,
+										"index": true,
+										"name": "vec",
+										"similarity": "dot_product",
+										"type": "vector"
+									}
+									]
+								}
+							}
+						}
+					},
+					"store": {
+						"indexType": "scorch",
+						"segmentVersion": 16
+					}
+				}
+			}`),
+			expectedCount: 1,
+		},
+	}
+
+	for i := range tests {
+		index, err := setupSampleIndex(tests[i].indexDef)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		count, _, _, _, n1qlErr := index.Sargable("", searchExpr, expression.NewConstant(``), nil)
+		if n1qlErr != nil {
+			t.Fatal(n1qlErr)
+		}
+
+		if count != tests[i].expectedCount {
+			t.Errorf("[test-%d] sargable count expected to be %v, but got %v", i+1, tests[i].expectedCount, count)
+		}
+	}
+}
