@@ -540,8 +540,8 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		// mapping.
 		compatibleWithDynamicMapping := true
 		for f := range queryFields {
-			if f.Analyzer != "" &&
-				f.Analyzer != defaultAnalyzer {
+			if (f.Analyzer != "" && f.Analyzer != defaultAnalyzer) ||
+				(f.Type == "vector" && f.Dims > 0) {
 				compatibleWithDynamicMapping = false
 				break
 			}
