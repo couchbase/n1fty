@@ -41,7 +41,7 @@ var ParseXattrs = func(query expression.Expression) ([]string, error) {
 
 		return fields, nil
 	} else if query.Type() == value.OBJECT {
-		qBytes, err := query.Value().MarshalJSON()
+		qBytes, err := query.MarshalJSON()
 		if err != nil {
 			return nil, fmt.Errorf("n1fty: unable to marshal query")
 		}
