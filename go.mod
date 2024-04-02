@@ -74,7 +74,7 @@ require (
 	github.com/blevesearch/zapx/v13 v13.3.4 // indirect
 	github.com/blevesearch/zapx/v14 v14.3.4 // indirect
 	github.com/blevesearch/zapx/v15 v15.3.5-0.20230516194434-edc21be64631 // indirect
-	github.com/couchbase/blance v0.1.5 // indirect
+	github.com/couchbase/blance v0.1.6 // indirect
 	github.com/couchbase/clog v0.1.0 // indirect
 	github.com/couchbase/eventing-ee v0.0.0-00010101000000-000000000000 // indirect
 	github.com/couchbase/ghistogram v0.1.0 // indirect
@@ -93,6 +93,7 @@ require (
 	github.com/golang/geo v0.0.0-20210211234256-740aa86cb551 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
+	github.com/google/flatbuffers v24.3.25+incompatible // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/json-iterator/go v0.0.0-20171115153421-f7279a603ede // indirect
