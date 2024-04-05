@@ -41,10 +41,10 @@ replace github.com/couchbase/godbc => ../godbc
 replace github.com/couchbase/regulator => ../regulator
 
 require (
-	github.com/blevesearch/bleve/v2 v2.3.11-0.20240223194449-d28098a2e995
+	github.com/blevesearch/bleve/v2 v2.4.1-0.20240404152207-2d81bf0aef3a
 	github.com/blevesearch/sear v0.2.1
 	github.com/buger/jsonparser v1.1.1
-	github.com/couchbase/cbauth v0.1.11
+	github.com/couchbase/cbauth v0.1.12
 	github.com/couchbase/cbft v0.0.0-00010101000000-000000000000
 	github.com/couchbase/cbgt v0.0.0-00010101000000-000000000000
 	github.com/couchbase/clog v0.1.0
@@ -59,10 +59,10 @@ require (
 )
 
 require (
-	github.com/RoaringBitmap/roaring v1.2.3 // indirect
+	github.com/RoaringBitmap/roaring v1.9.1 // indirect
 	github.com/aws/aws-sdk-go v1.48.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/bits-and-blooms/bitset v1.2.2 // indirect
+	github.com/bits-and-blooms/bitset v1.12.0 // indirect
 	github.com/blevesearch/bleve-mapping-ui v0.5.2 // indirect
 	github.com/blevesearch/bleve_index_api v1.1.6 // indirect
 	github.com/blevesearch/geo v0.1.20 // indirect
@@ -71,7 +71,7 @@ require (
 	github.com/blevesearch/goleveldb v1.0.1 // indirect
 	github.com/blevesearch/gtreap v0.1.1 // indirect
 	github.com/blevesearch/mmap-go v1.0.4 // indirect
-	github.com/blevesearch/scorch_segment_api/v2 v2.2.8 // indirect
+	github.com/blevesearch/scorch_segment_api/v2 v2.2.11 // indirect
 	github.com/blevesearch/segment v0.9.1 // indirect
 	github.com/blevesearch/snowballstem v0.9.0 // indirect
 	github.com/blevesearch/stempel v0.2.0 // indirect
@@ -82,10 +82,10 @@ require (
 	github.com/blevesearch/zapx/v13 v13.3.10 // indirect
 	github.com/blevesearch/zapx/v14 v14.3.10 // indirect
 	github.com/blevesearch/zapx/v15 v15.3.13 // indirect
-	github.com/blevesearch/zapx/v16 v16.0.11 // indirect
+	github.com/blevesearch/zapx/v16 v16.0.13-0.20240401155140-9e2514ff3120 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cloudfoundry/gosigar v1.3.4 // indirect
-	github.com/couchbase/blance v0.1.5 // indirect
+	github.com/couchbase/blance v0.1.6 // indirect
 	github.com/couchbase/eventing-ee v0.0.0-00010101000000-000000000000 // indirect
 	github.com/couchbase/ghistogram v0.1.0 // indirect
 	github.com/couchbase/go-couchbase v0.1.1 // indirect

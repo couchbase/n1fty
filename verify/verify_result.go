@@ -210,6 +210,10 @@ func (v *VerifyCtx) Evaluate(item value.Value) (bool, errors.Error) {
 		if keyStr, ok := annotatedItem.GetId().(string); ok {
 			key = keyStr
 		}
+		xattrs := annotatedItem.GetMeta()["xattrs"]
+		if xattrs != nil {
+			item.SetField("_$xattrs", xattrs)
+		}
 	}
 
 	doc := item.Actual()
