@@ -584,6 +584,9 @@ func ProcessDocumentMapping(im *mapping.IndexMappingImpl,
 			}
 		} else if f.Type == "vector" {
 			searchField.Dims = f.Dims
+		} else if f.Type == "vector_base64" {
+			searchField.Type = "vector"
+			searchField.Dims = f.Dims
 		}
 
 		if _, exists := m[searchField]; exists {
