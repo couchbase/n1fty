@@ -9,62 +9,29 @@
 package n1fty
 
 import (
-	"encoding/json"
-	"fmt"
 	"strings"
 
-	"github.com/blevesearch/bleve/v2/search/query"
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/expression"
 	"github.com/couchbase/query/expression/search"
-	"github.com/couchbase/query/value"
 )
 
 func init() {
-
 	search.RegisterParseXattrs(ParseXattrs)
 }
 
 var ParseXattrs = func(query expression.Expression) ([]string, error) {
-
-	if query.Type() == value.STRING {
-		qStr, ok := query.Value().Actual().(string)
-		if !ok {
-			return nil, fmt.Errorf("n1fty: failed to typecase " +
-				"query of type value.STRING to string")
-		}
-
-		fields, err := parseXattrsFromString(qStr)
-		if err != nil {
-			return nil, err
-		}
-
-		return fields, nil
-	} else if query.Type() == value.OBJECT {
-		qBytes, err := query.MarshalJSON()
-		if err != nil {
-			return nil, fmt.Errorf("n1fty: unable to marshal query")
-		}
-
-		fields, err := parseXattrsFromObject(qBytes)
-		if err != nil {
-			return nil, err
-		}
-
-		return fields, nil
+	fields, _, _, _, err := util.ParseQueryToSearchRequest("", query.Value())
+	if err != nil {
+		return nil, util.N1QLError(err, "unable to interpret query")
 	}
 
-	return nil, nil
+	return obtainXattrsFields(fields)
 }
 
-func fetchXattrsKeys(query query.Query) ([]string, error) {
+func obtainXattrsFields(fields map[util.SearchField]struct{}) ([]string, error) {
 	xattrsFields := make([]string, 0)
-	queryFields, err := util.FetchFieldsToSearchFromQuery(query)
-	if err != nil {
-		return nil, fmt.Errorf("n1fty: err: %v", err)
-	}
-
-	for field, _ := range queryFields {
+	for field, _ := range fields {
 		if strings.HasPrefix(field.Name, "_$xattrs.") {
 			key := parseFirstKey(field.Name)
 			if key != "" {
@@ -77,53 +44,10 @@ func fetchXattrsKeys(query query.Query) ([]string, error) {
 }
 
 func parseFirstKey(path string) string {
-
 	keys := strings.Split(path, ".")
-
 	if len(keys) >= 2 {
 		return keys[1]
 	} else {
 		return ""
 	}
-}
-
-func parseXattrsFromObject(b []byte) ([]string, error) {
-
-	var maybeSReq map[string]interface{}
-	err := json.Unmarshal(b, &maybeSReq)
-	if err != nil {
-		return nil, fmt.Errorf("n1fty: unable to unmarshal query. err: %v", err)
-	}
-
-	val, ok := maybeSReq["query"]
-	if !ok {
-		return nil, fmt.Errorf("n1fty: query object has no query key")
-	}
-
-	var qBytes []byte
-	_, ok = val.(map[string]interface{})
-	if ok {
-		qBytes, err = json.Marshal(val)
-		if err != nil {
-			return nil, fmt.Errorf("n1fty: unable to marshal query value. err: %v", err)
-		}
-	} else {
-		qBytes = b
-	}
-
-	query, err := util.BuildQueryFromBytes("", qBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	return fetchXattrsKeys(query)
-}
-
-func parseXattrsFromString(s string) ([]string, error) {
-	query, err := util.BuildQueryFromString("", s)
-	if err != nil {
-		return nil, fmt.Errorf("n1fty: err: %v", err)
-	}
-
-	return fetchXattrsKeys(query)
 }
