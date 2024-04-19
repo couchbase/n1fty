@@ -228,7 +228,7 @@ func TestVerifyResultWithXattrs(t *testing.T) {
 
 	for _, test := range tests {
 
-		test.input.NewMeta()["xattrs"] = test.xattrs
+		test.input.SetMetaField(value.META_XATTRS, test.xattrs)
 		got, err := v.Evaluate(value.NewValue(test.input))
 		if err != nil {
 			t.Fatal(err)
@@ -236,7 +236,7 @@ func TestVerifyResultWithXattrs(t *testing.T) {
 
 		if got != test.expect {
 			t.Fatalf("Expected: %v, Got: %v, for doc: %v, with meta: %v",
-				test.expect, got, test.input, test.input.GetMeta())
+				test.expect, got, test.input, test.input.GetMetaMap())
 		}
 	}
 }
