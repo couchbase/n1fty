@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 
 	"github.com/blevesearch/bleve/v2"
+	"github.com/blevesearch/bleve/v2/document"
 	"github.com/couchbase/cbft"
 )
 
@@ -22,12 +23,19 @@ func ExtractKNNQueryFields(sr *cbft.SearchRequest,
 	queryFields map[SearchField]struct{}) (map[SearchField]struct{}, error) {
 	if sr != nil && sr.KNN != nil {
 		var knn []*bleve.KNNRequest
-		if err := json.Unmarshal(sr.KNN, &knn); err != nil {
+		var err error
+		if err = json.Unmarshal(sr.KNN, &knn); err != nil {
 			return nil, err
 		}
 
 		for _, entry := range knn {
 			if entry != nil {
+				if entry.Vector == nil && entry.VectorBase64 != "" {
+					entry.Vector, err = document.DecodeVector(entry.VectorBase64)
+					if err != nil {
+						return nil, err
+					}
+				}
 				queryFields[SearchField{
 					Name: entry.Field,
 					Type: "vector",

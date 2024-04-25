@@ -223,9 +223,9 @@ func ParseQueryToSearchRequest(field string, input value.Value) (
 
 	// if the input has a query field that is an object type
 	// then it is a search request
-	qf, ok1 := input.Field("query")
-	knnf, ok2 := input.Field("knn")
-	if (ok1 && qf.Type() == value.OBJECT) || (ok2 && knnf.Type() == value.ARRAY) {
+	qf, qOK := input.Field("query")
+	knnf, knnOK := input.Field("knn")
+	if (qOK && qf.Type() == value.OBJECT) || (knnOK && knnf.Type() == value.ARRAY) {
 		rv, q, err = BuildSearchRequest(field, input)
 		if err != nil {
 			return nil, nil, 0, false, err

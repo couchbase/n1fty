@@ -401,3 +401,7 @@ func (b *WrapKeyspace) Stats(ctx datastore.QueryContext,
 	which []datastore.KeyspaceStats) ([]int64, errors.Error) {
 	return []int64{}, nil
 }
+
+func (b *WrapKeyspace) MaxTTL() int64 {
+	return 0
+}

@@ -17,6 +17,7 @@ import (
 	"github.com/couchbase/n1fty/util"
 	"github.com/couchbase/query/expression"
 	"github.com/couchbase/query/expression/search"
+	"github.com/couchbase/query/value"
 )
 
 // FlexIndex represents the subset of a flexible index definition
@@ -83,21 +84,28 @@ func (fi *FlexIndex) interpretSearchFunc(s *search.Search) (
 	var sr *cbft.SearchRequest
 	var q query.Query
 	var err error
-	if _, ok := queryVal.Field("query"); ok {
+	qf, qOK := queryVal.Field("query")
+	knnf, knnOK := queryVal.Field("knn")
+	if (qOK && qf.Type() == value.OBJECT) || (knnOK && knnf.Type() == value.ARRAY) {
 		// This is a bleve SearchRequest.
 		// Continue only if it doesn't carry any other settings.
 		// This is so FLEX would not have to handle various pagination
 		// and timeout settings that could be provided within the
 		// SEARCH function for only a part of the query.
 
-		if _, ok := queryVal.Field("knn"); ok {
+		var qc int
+		if qOK {
+			qc = 1
+		}
+
+		if knnOK {
 			if _, ok := queryVal.Field("knn_operator"); ok {
-				if len(queryVal.Fields()) > 3 {
+				if len(queryVal.Fields()) > qc + 2 {
 					// only query, knn and knn_operator can exist together
 					return false, nil, nil
 				}
-			} else if len(queryVal.Fields()) > 2 {
-				// only query and kNN can exist together
+			} else if len(queryVal.Fields()) > qc + 1 {
+				// only query and knn can exist together
 				return false, nil, nil
 			}
 		} else if len(queryVal.Fields()) > 1 {
@@ -109,6 +117,7 @@ func (fi *FlexIndex) interpretSearchFunc(s *search.Search) (
 			return false, nil, nil
 		}
 	} else {
+		// This is possibly just a query.Query object/string.
 		q, err = util.BuildQuery(field, queryVal)
 		if err != nil {
 			return false, nil, nil
