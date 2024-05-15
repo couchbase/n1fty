@@ -781,6 +781,38 @@ func TestProcessIndexDef(t *testing.T) {
 			expectDefaultDateTimeParser: "dateTimeOptional",
 			expectErr:                   "",
 		},
+		{
+			about: "test that checks '_' delimiter vs scope.collection.docid_prefix",
+			indexDef:`
+			{
+				"type": "fulltext-index",
+				"params": {
+					"doc_config": {
+						"mode": "scope.collection.docid_prefix",
+						"docid_prefix_delim": "_"
+					},
+					"mapping": {
+						"default_mapping": {
+							"enabled": false
+						},
+						"types": {
+							"_default._default": {
+								"enabled": true,
+								"dynamic": true
+							}
+						}
+					}
+				}
+			}`,
+			expectSearchFields: map[SearchField]bool{
+				{Name: "", Type: "", Analyzer: "standard"}: true,
+			},
+			expectCondExpr:              "",
+			expectDynamic:               true,
+			expectDefaultAnalyzer:       "standard",
+			expectDefaultDateTimeParser: "dateTimeOptional",
+			expectErr:                   "",
+		},
 	}
 
 	for testi, test := range tests {
@@ -790,7 +822,7 @@ func TestProcessIndexDef(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		pip, err := ProcessIndexDef(indexDef, "", "")
+		pip, err := ProcessIndexDef(indexDef, "_default", "_default")
 		if (err != nil) != (test.expectErr != "") {
 			t.Fatalf("testi: %d, test: %+v,\n mismatch expectErr, got: %v",
 				testi, test, err)
