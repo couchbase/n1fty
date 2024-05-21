@@ -405,3 +405,7 @@ func (b *WrapKeyspace) Stats(ctx datastore.QueryContext,
 func (b *WrapKeyspace) MaxTTL() int64 {
 	return 0
 }
+
+func (b *WrapKeyspace) IsSystemCollection() bool {
+	return false
+}

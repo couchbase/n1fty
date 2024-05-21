@@ -309,12 +309,12 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 		var typeMappings []string
 		m, indexedCount, typeStrs, dynamicMappings, allFieldSearchable,
 			defaultAnalyzer, defaultDateTimeParser := ProcessIndexMapping(im)
+
 		var entireScopeCollIndexed bool
 		if typeStrs != nil {
 			scopeCollTypes := map[string]bool{}
 			for typeMapping, enabled := range typeStrs.S {
-				if strings.ContainsAny(typeMapping, DisallowedChars) ||
-					strings.ContainsAny(typeMapping, dc.DocIDPrefixDelim) {
+				if strings.ContainsAny(typeMapping, DisallowedChars) {
 					return
 				}
 
@@ -499,12 +499,19 @@ func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 					dynamicMappings[t] = im.DefaultAnalyzer
 				}
 			}
+
 		}
+		// Even if type mappings were disabled, we must consider them because
+		// if the default mapping is enabled - the index would index all documents
+		// except those that match this type mapping.
 		typeStrs.S[t] = tm.Enabled
 	}
 
 	if im.DefaultMapping != nil && im.DefaultMapping.Enabled {
-		// Saw both type mapping(s) & default mapping, so not-FTSIndex'able.
+		// Saw both type mapping(s) & default mapping, so not-FTSIndex'able
+		// p.s. This holds even if the type mappings were disabled because of
+		// comment right above where typeStrs.S are put together, to avoid
+		// any chance of false negatives
 		if typeStrs != nil {
 			return nil, 0, nil, nil, false, "", ""
 		}
