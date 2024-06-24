@@ -82,7 +82,7 @@ require (
 	github.com/couchbase/go_json v0.0.0-00010101000000-000000000000 // indirect
 	github.com/couchbase/gocbcore-transactions v0.0.0-20220110140047-0cfbabaea2ec // indirect
 	github.com/couchbase/gocbcore/v10 v10.0.10-0.20230606191549-ada1d11ef396 // indirect
-	github.com/couchbase/gocbcore/v9 v9.1.10 // indirect
+	github.com/couchbase/gocbcore/v9 v9.1.11 // indirect
 	github.com/couchbase/gomemcached v0.1.4 // indirect
 	github.com/couchbase/gometa v0.0.0-20200717102231-b0e38b71d711 // indirect
 	github.com/couchbase/indexing v0.0.0-00010101000000-000000000000 // indirect
