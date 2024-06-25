@@ -39,7 +39,7 @@ replace github.com/couchbase/goutils => ../goutils
 replace github.com/couchbase/godbc => ../godbc
 
 require (
-	github.com/blevesearch/bleve/v2 v2.3.4-0.20231221130059-33acfd6bfe6f
+	github.com/blevesearch/bleve/v2 v2.3.4-0.20240625181944-fdaed7be8e8a
 	github.com/blevesearch/sear v0.0.5
 	github.com/buger/jsonparser v1.1.1
 	github.com/couchbase/cbauth v0.1.1
@@ -57,7 +57,7 @@ require (
 	github.com/RoaringBitmap/roaring v0.9.4 // indirect
 	github.com/bits-and-blooms/bitset v1.2.2 // indirect
 	github.com/blevesearch/bleve-mapping-ui v0.4.0 // indirect
-	github.com/blevesearch/bleve_index_api v1.0.2 // indirect
+	github.com/blevesearch/bleve_index_api v1.0.3-0.20240624205006-07f7b7930fd5 // indirect
 	github.com/blevesearch/geo v0.1.12-0.20220606102651-aab42add3121 // indirect
 	github.com/blevesearch/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/blevesearch/go-porterstemmer v1.0.3 // indirect
