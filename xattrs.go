@@ -21,7 +21,7 @@ func init() {
 }
 
 var ParseXattrs = func(query expression.Expression) ([]string, error) {
-	fields, _, _, _, err := util.ParseQueryToSearchRequest("", query.Value())
+	fields, _, _, _, _, err := util.ParseQueryToSearchRequest("", query.Value())
 	if err != nil {
 		return nil, util.N1QLError(err, "unable to interpret query")
 	}

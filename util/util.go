@@ -205,14 +205,21 @@ func FetchKeySpace(nameAndKeyspace string) string {
 	return CleanseField(keyspace)
 }
 
+// Return parameters:
+// - query fields map
+// - cbft SearchRequest
+// - ctl timeout
+// - knn
+// - requires filtering
+// - error
 func ParseQueryToSearchRequest(field string, input value.Value) (
-	map[SearchField]struct{}, *cbft.SearchRequest, int64, bool, error) {
+	map[SearchField]struct{}, *cbft.SearchRequest, int64, bool, bool, error) {
 	field = CleanseField(field)
 
 	queryFields := map[SearchField]struct{}{}
 	if input == nil {
 		queryFields[SearchField{Name: field}] = struct{}{}
-		return queryFields, nil, 0, false, nil
+		return queryFields, nil, 0, false, false, nil
 	}
 
 	var err error
@@ -228,7 +235,7 @@ func ParseQueryToSearchRequest(field string, input value.Value) (
 	if (qOK && qf.Type() == value.OBJECT) || (knnOK && knnf.Type() == value.ARRAY) {
 		rv, q, err = BuildSearchRequest(field, input)
 		if err != nil {
-			return nil, nil, 0, false, err
+			return nil, nil, 0, false, false, err
 		}
 
 		if cf, ok := input.Field("ctl"); ok && cf.Type() == value.OBJECT {
@@ -239,11 +246,11 @@ func ParseQueryToSearchRequest(field string, input value.Value) (
 	} else {
 		q, err = BuildQuery(field, input)
 		if err != nil {
-			return nil, nil, 0, false, err
+			return nil, nil, 0, false, false, err
 		}
 		rv.Q, err = json.Marshal(q)
 		if err != nil {
-			return nil, nil, 0, false, err
+			return nil, nil, 0, false, false, err
 		}
 
 		size := math.MaxInt64
@@ -254,17 +261,21 @@ func ParseQueryToSearchRequest(field string, input value.Value) (
 
 	queryFields, err = FetchFieldsToSearchFromQuery(q)
 	if err != nil {
-		return nil, nil, 0, false, err
+		return nil, nil, 0, false, false, err
 	}
+
+	qfCount := len(queryFields)
 
 	queryFields, err = ExtractKNNQueryFields(rv, queryFields)
 	if err != nil {
-		return nil, nil, 0, false, err
+		return nil, nil, 0, false, false, err
 	}
+
+	containsKNN := len(queryFields) > qfCount
 
 	needsFiltering := queryResultsNeedFiltering(q)
 
-	return queryFields, rv, ctlTimeout, needsFiltering, nil
+	return queryFields, rv, ctlTimeout, containsKNN, needsFiltering, nil
 }
 
 func queryResultsNeedFiltering(q query.Query) bool {
