@@ -127,7 +127,7 @@ func TestCollectionIndexSargabilityEntireDefault(t *testing.T) {
 		"field": "country",
 	})
 
-	count, indexedCount, exact, _, n1qlErr := index.Sargable("", query,
+	count, indexedCount, exact, _, _, n1qlErr := index.Sargable("", query,
 		expression.NewConstant(``), nil)
 	if n1qlErr != nil {
 		t.Fatal(n1qlErr)
@@ -192,7 +192,7 @@ func TestCollectionIndexSargabilityDefaultTypeField(t *testing.T) {
 		"field": "country",
 	})
 
-	count, indexedCount, exact, _, n1qlErr := index.Sargable("", query,
+	count, indexedCount, exact, _, _, n1qlErr := index.Sargable("", query,
 		expression.NewConstant(``), nil)
 	if n1qlErr != nil {
 		t.Fatal(n1qlErr)
@@ -393,7 +393,7 @@ func TestCollectionIndexSargabilityDocidPrefix(t *testing.T) {
 		"field": "country",
 	})
 
-	count, indexedCount, exact, _, n1qlErr := index.Sargable("", query,
+	count, indexedCount, exact, _, _, n1qlErr := index.Sargable("", query,
 		expression.NewConstant(``), nil)
 	if n1qlErr != nil {
 		t.Fatal(n1qlErr)
@@ -465,7 +465,7 @@ func TestCollectionIndexSargabilityDocIDRegexp(t *testing.T) {
 		"field": "country",
 	})
 
-	count, indexedCount, exact, _, n1qlErr := index.Sargable("", query,
+	count, indexedCount, exact, _, _, n1qlErr := index.Sargable("", query,
 		expression.NewConstant(``), nil)
 	if n1qlErr != nil {
 		t.Fatal(n1qlErr)
