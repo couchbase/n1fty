@@ -172,7 +172,7 @@ func TestParseQueryToSearchRequest(t *testing.T) {
 
 	for _, test := range tests {
 		q := value.NewValue(test)
-		gotQueryFields, _, _, _, err := ParseQueryToSearchRequest("", q)
+		gotQueryFields, _, _, _, _, err := ParseQueryToSearchRequest("", q)
 		if err != nil {
 			t.Fatal(test, err)
 		}

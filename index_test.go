@@ -122,7 +122,7 @@ func TestIndexSargability(t *testing.T) {
 	field := "`reviews.review.content`"
 	query := expression.NewConstant(`countryX:"United" america reviews.id:"10"`)
 
-	count, indexedCount, exact, _, n1qlErr := index.Sargable(field, query,
+	count, indexedCount, exact, _, _, n1qlErr := index.Sargable(field, query,
 		expression.NewConstant(``), nil)
 	if n1qlErr != nil {
 		t.Fatal(n1qlErr)
@@ -165,7 +165,7 @@ func TestIndexSargabilityWithSearchRequest(t *testing.T) {
 		"From":    0,
 		"Explain": false})
 
-	count, indexedCount, exact, _, n1qlErr := index.Sargable(field, query,
+	count, indexedCount, exact, _, _, n1qlErr := index.Sargable(field, query,
 		expression.NewConstant(``), nil)
 	if n1qlErr != nil {
 		t.Fatal(n1qlErr)
@@ -196,7 +196,7 @@ func TestDynamicIndexSargabilityWithIncompatibleAnalyzer(t *testing.T) {
 		"analyzer": "keyword",
 	})
 
-	count, _, _, _, n1qlErr := index.Sargable("", query,
+	count, _, _, _, _, n1qlErr := index.Sargable("", query,
 		expression.NewConstant(``), nil)
 	if n1qlErr != nil {
 		t.Fatal(n1qlErr)
@@ -218,7 +218,7 @@ func TestDynamicDefaultIndexSargabilityNoFieldsQuery(t *testing.T) {
 		"query": "california",
 	})
 
-	count, indexedCount, exact, _, n1qlErr := index.Sargable("", query,
+	count, indexedCount, exact, _, _, n1qlErr := index.Sargable("", query,
 		expression.NewConstant(``), nil)
 	if n1qlErr != nil {
 		t.Fatal(n1qlErr)
@@ -239,7 +239,7 @@ func TestCustomIndexSargabilityNoFieldsQuery(t *testing.T) {
 		"match": "san francisco",
 	})
 
-	count, indexedCount, exact, _, n1qlErr := index.Sargable("", query,
+	count, indexedCount, exact, _, _, n1qlErr := index.Sargable("", query,
 		expression.NewConstant(``), nil)
 	if n1qlErr != nil {
 		t.Fatal(n1qlErr)
@@ -299,7 +299,7 @@ func TestIncompatibleIndexSargability(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	count, _, _, _, n1qlErr := index.Sargable("", query,
+	count, _, _, _, _, n1qlErr := index.Sargable("", query,
 		expression.NewConstant(opt), nil)
 	if n1qlErr != nil {
 		t.Fatal(n1qlErr)
@@ -360,7 +360,7 @@ func TestCompatibleIndexSargability(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	count, _, _, _, n1qlErr := index.Sargable("", query,
+	count, _, _, _, _, n1qlErr := index.Sargable("", query,
 		expression.NewConstant(opt), nil)
 	if n1qlErr != nil {
 		t.Fatal(n1qlErr)
@@ -433,7 +433,7 @@ func TestIndexSargabilityCompatibleCustomDefaultMapping(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	count, indexedCount, exact, _, n1qlErr := index.Sargable("",
+	count, indexedCount, exact, _, _, n1qlErr := index.Sargable("",
 		expression.NewConstant(que), expression.NewConstant(opt), nil)
 	if n1qlErr != nil {
 		t.Fatal(n1qlErr)
@@ -554,7 +554,7 @@ func TestIndexSargabilityOverDateTimeFields(t *testing.T) {
 		"inclusive_end":   true,
 	})
 
-	count, indexedCount, exact, _, n1qlErr := index.Sargable("", query,
+	count, indexedCount, exact, _, _, n1qlErr := index.Sargable("", query,
 		expression.NewConstant(``), nil)
 	if n1qlErr != nil {
 		t.Fatal(n1qlErr)
@@ -579,7 +579,7 @@ func TestIndexSargabilityInvalidIndexName(t *testing.T) {
 		"index": "wrong_name",
 	})
 
-	count, indexedCount, _, _, n1qlErr := index.Sargable("", query,
+	count, indexedCount, _, _, _, n1qlErr := index.Sargable("", query,
 		options, nil)
 	if n1qlErr != nil {
 		t.Fatal(n1qlErr)
@@ -603,7 +603,7 @@ func TestIndexSargabilityForQueryWithMissingAnalyzer(t *testing.T) {
 		"field":  "country",
 	})
 
-	count, indexedCount, _, _, n1qlErr := index.Sargable("", query,
+	count, indexedCount, _, _, _, n1qlErr := index.Sargable("", query,
 		expression.NewConstant(``), nil)
 	if n1qlErr != nil {
 		t.Fatal(n1qlErr)
@@ -629,7 +629,7 @@ func TestIndexSargabilityNoAllField(t *testing.T) {
 		"match": "san francisco",
 	})
 
-	count, _, _, _, n1qlErr := index.Sargable("", query,
+	count, _, _, _, _, n1qlErr := index.Sargable("", query,
 		expression.NewConstant(``), nil)
 	if n1qlErr != nil {
 		t.Fatal(n1qlErr)
@@ -1903,7 +1903,7 @@ func TestIndexSargabilityForQueriesThatNeedFiltering(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, exact, _, n1qlErr := index.Sargable("",
+	_, _, exact, _, _, n1qlErr := index.Sargable("",
 		expression.NewConstant(q1), expression.NewConstant(``), nil)
 	if n1qlErr != nil || exact {
 		t.Errorf("Expected exact: false for query: %v, err: %v", q1, n1qlErr)
@@ -1911,7 +1911,7 @@ func TestIndexSargabilityForQueriesThatNeedFiltering(t *testing.T) {
 
 	// MB-47276
 	q2 := `-country:France`
-	_, _, exact, _, n1qlErr = index.Sargable("",
+	_, _, exact, _, _, n1qlErr = index.Sargable("",
 		expression.NewConstant(q2), expression.NewConstant(``), nil)
 	if n1qlErr != nil || exact {
 		t.Errorf("Expected exact: false for query: %v, err: %v", q2, n1qlErr)
@@ -1923,7 +1923,7 @@ func TestIndexSargabilityForQueriesThatNeedFiltering(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, exact, _, n1qlErr = index.Sargable("",
+	_, _, exact, _, _, n1qlErr = index.Sargable("",
 		expression.NewConstant(q3), expression.NewConstant(``), nil)
 	if n1qlErr != nil || exact {
 		t.Errorf("Expected exact: false for query: %v, err: %v", q3, n1qlErr)

@@ -310,6 +310,7 @@ type sargableRV struct {
 	count         int
 	indexedCount  int64
 	exact         bool
+	containsKNN   bool
 	opaque        map[string]interface{}
 	searchRequest *cbft.SearchRequest
 	timeoutMS     int64
@@ -327,6 +328,7 @@ type sargableRV struct {
 //   - exact:          True if the query would produce no false positives
 //     using this FTS index.
 //     (place holder for when partial sargability is supported)
+//   - contains_knn:   True if SEARCH function contains KNN elements
 //   - opaque:         The map of certain contextual data that can be re-used
 //     as query iterates through several FTSIndexes.
 //     (in-out parameter)
@@ -341,7 +343,7 @@ type sargableRV struct {
 // and exact (if true) returned.
 func (i *FTSIndex) Sargable(field string, query,
 	options expression.Expression, opaque interface{}) (
-	int, int64, bool, interface{}, errors.Error) {
+	int, int64, bool, bool, interface{}, errors.Error) {
 	var queryVal, optionsVal value.Value
 	if query != nil {
 		queryVal = query.Value()
@@ -355,7 +357,7 @@ func (i *FTSIndex) Sargable(field string, query,
 		// not be supported for n1ql's SEARCH(..) functions to avoid the
 		// possibility of false positives, as FTS supports indexing same
 		// field names across type mappings.
-		return 0, 0, false, nil, nil
+		return 0, 0, false, false, nil, nil
 	}
 
 	var queryFields map[util.SearchField]struct{}
@@ -369,7 +371,7 @@ func (i *FTSIndex) Sargable(field string, query,
 		// this index will be sargable for the unavailable query if
 		// it has a default dynamic mapping with the _all field searchable.
 		if len(i.dynamicMappings) > 0 && i.allFieldSearchable {
-			return int(math.MaxInt64), math.MaxInt64, false, opaque, nil
+			return int(math.MaxInt64), math.MaxInt64, false, false, opaque, nil
 		}
 
 		// if the index isn't default dynamic, check if the query expression
@@ -424,7 +426,7 @@ func (i *FTSIndex) Sargable(field string, query,
 			i.indexDef.Name, field, query, options, rv)
 	}
 
-	return rv.count, rv.indexedCount, rv.exact, rv.opaque, rv.err
+	return rv.count, rv.indexedCount, rv.exact, rv.containsKNN, rv.opaque, rv.err
 }
 
 func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
@@ -441,12 +443,13 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 	var queryFields map[util.SearchField]struct{}
 	var sr *cbft.SearchRequest
 	var ctlTimeout int64
-	var needsFiltering bool
+	var containsKNN, needsFiltering bool
 
 	if queryFieldsInterface, exists := rv.opaque["query_fields"]; !exists {
 		// if opaque didn't carry a "query" entry, go ahead and
 		// process the field+query provided to retrieve queryFields.
-		queryFields, sr, ctlTimeout, needsFiltering, err = util.ParseQueryToSearchRequest(field, query)
+		queryFields, sr, ctlTimeout, containsKNN, needsFiltering, err =
+			util.ParseQueryToSearchRequest(field, query)
 		if err != nil {
 			rv.err = util.N1QLError(err, "failed to parse query to search request")
 			return rv
@@ -456,6 +459,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		rv.opaque["query_fields"] = queryFields
 		rv.opaque["search_request"] = sr
 		rv.opaque["ctl_timeout"] = ctlTimeout
+		rv.opaque["contains_knn"] = containsKNN
 		rv.opaque["needs_filtering"] = needsFiltering
 	} else {
 		queryFields, _ = queryFieldsInterface.(map[util.SearchField]struct{})
@@ -464,14 +468,15 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		// "search_request" also exists.
 		srInterface, _ := rv.opaque["search_request"]
 		sr, _ = srInterface.(*cbft.SearchRequest)
-
 		ctlTimeout, _ = rv.opaque["ctl_timeout"].(int64)
+		containsKNN, _ = rv.opaque["contains_knn"].(bool)
 		needsFiltering, _ = rv.opaque["needs_filtering"].(bool)
 	}
 
 	rv.searchRequest = sr
 	rv.timeoutMS = ctlTimeout
 	rv.exact = !needsFiltering
+	rv.containsKNN = containsKNN
 
 	if options != nil {
 		// check if an "index" entry exists and if it matches
@@ -812,11 +817,16 @@ func (i *FTSIndex) SargableFlex(requestId string,
 		"score": "none",
 	}
 
+	var containsKNN bool
+
 	if len(knnQuery) > 0 {
 		searchRequest["knn"] = knnQuery
 		if len(knnOperator) > 0 {
 			searchRequest["knn_operator"] = knnOperator
 		}
+
+		containsKNN = true
+
 		// Make search requests with kNN non-covered for now, so the
 		// query engine will be able to remove false positives.
 		// False positives can occur because of the search engine's
@@ -915,6 +925,7 @@ func (i *FTSIndex) SargableFlex(requestId string,
 	}
 
 	res.SearchQuery = stringer.Visit(expression.NewConstant(value.NewValue(searchRequest)))
+	res.ContainsKNN = containsKNN
 
 	return res, nil
 }
