@@ -144,6 +144,9 @@ func (this *Request) AdmissionWaitTime() time.Duration {
 	return 0
 }
 
+func (this *Request) Halt(err errors.Error) {
+}
+
 // ------------------------------------------------------------
 
 func ExecuteStatement(s *server.Server, stmt string,

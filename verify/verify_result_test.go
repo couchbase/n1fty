@@ -290,7 +290,6 @@ func TestMB33444(t *testing.T) {
 
 func TestDocIDQueryEvaluation(t *testing.T) {
 	item := value.NewAnnotatedValue([]byte(`{"name":"abhi","city":"san francisco"}`))
-	item.SetAttachment("meta", map[string]interface{}{"id": "key-1"})
 	item.SetId("key-1")
 
 	queryVal := value.NewValue(map[string]interface{}{
@@ -314,7 +313,6 @@ func TestDocIDQueryEvaluation(t *testing.T) {
 
 func TestMB39592(t *testing.T) {
 	item := value.NewAnnotatedValue([]byte(`{"name":"xyz","dept":"Engineering"}`))
-	item.SetAttachment("meta", map[string]interface{}{"id": "key"})
 	item.SetId("key")
 
 	indexParams := []byte(`
@@ -446,7 +444,6 @@ func TestVerifyEvalWithScopeCollectionMapping(t *testing.T) {
 		"country" : "United States",
 		"type" : "airline"
 	}`))
-	item.SetAttachment("meta", map[string]interface{}{"id": "key"})
 	item.SetId("key")
 
 	q := value.NewValue(map[string]interface{}{
@@ -691,7 +688,6 @@ func TestVerificationForVariousIndexes(t *testing.T) {
 		"fieldX" : "xyz",
 		"type": "typeX"
 	}`))
-	item.SetAttachment("meta", map[string]interface{}{"id": "key"})
 	item.SetId("key")
 
 	queries := []value.Value{
@@ -841,7 +837,6 @@ func TestMB46867(t *testing.T) {
 		"reports" : "xyz",
 		"type": "emp"
 	}`))
-	item.SetAttachment("meta", map[string]interface{}{"id": "key"})
 	item.SetId("key")
 
 	queries := []value.Value{
@@ -904,7 +899,6 @@ func TestMB46867(t *testing.T) {
 func TestMB47265(t *testing.T) {
 	// array indexing fails with sear
 	item := value.NewAnnotatedValue([]byte(`{"name":"xyz","lang": ["Quechua", "Thai", "Portuguese"]}`))
-	item.SetAttachment("meta", map[string]interface{}{"id": "key"})
 	item.SetId("key")
 
 	for _, q := range []map[string]interface{}{
@@ -931,7 +925,6 @@ func TestMB47265(t *testing.T) {
 
 func TestMB47438(t *testing.T) {
 	item := value.NewAnnotatedValue([]byte(`{"name":"xyz","dept":"Engineering"}`))
-	item.SetAttachment("meta", map[string]interface{}{"id": "key"})
 	item.SetId("key")
 
 	q := map[string]interface{}{
@@ -955,7 +948,6 @@ func TestMB47438(t *testing.T) {
 
 func TestMB47473(t *testing.T) {
 	item := value.NewAnnotatedValue([]byte(`{"name":"KÓ"}`))
-	item.SetAttachment("meta", map[string]interface{}{"id": "key"})
 	item.SetId("key")
 
 	indexParams := []byte(`
@@ -1041,7 +1033,6 @@ func TestConcurrentEval(t *testing.T) {
 		go func(ch chan struct{}) {
 			for jj := 0; jj < 100; jj++ {
 				item := value.NewAnnotatedValue([]byte(`{"name":"abhi"}`))
-				item.SetAttachment("meta", map[string]interface{}{"id": "key"})
 				item.SetId("key")
 
 				ret, err := v.Evaluate(item)
@@ -1064,7 +1055,6 @@ func TestConcurrentEval(t *testing.T) {
 
 func TestMB49888(t *testing.T) {
 	item := value.NewAnnotatedValue([]byte(`{"name":"xyz"}`))
-	item.SetAttachment("meta", map[string]interface{}{"id": "key"})
 	item.SetId("key")
 
 	qBytes := []byte(`{"query": {"query": "name:xyz"}, "fields": ["*"]}`)
@@ -1190,7 +1180,6 @@ func TestMB52263_Verify(t *testing.T) {
 			}
 		}
 	}`))
-	item.SetAttachment("meta", map[string]interface{}{"id": "key"})
 	item.SetId("key")
 
 	q := value.NewValue(map[string]interface{}{
@@ -1302,7 +1291,6 @@ func TestMB53231(t *testing.T) {
 		"field1": "ABCDEFGHIJ",
 		"field2": "0123456789"
 	}`))
-	item.SetAttachment("meta", map[string]interface{}{"id": "key"})
 	item.SetId("key")
 
 	q := value.NewValue(map[string]interface{}{

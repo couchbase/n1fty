@@ -349,7 +349,7 @@ func TestSargableWithKNNOverDynamicMappings(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		count, _, _, _, n1qlErr := index.Sargable("", searchExpr, expression.NewConstant(``), nil)
+		count, _, _, _, _, n1qlErr := index.Sargable("", searchExpr, expression.NewConstant(``), nil)
 		if n1qlErr != nil {
 			t.Fatal(n1qlErr)
 		}
