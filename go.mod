@@ -1,8 +1,10 @@
 module github.com/couchbase/n1fty
 
-go 1.21
+go 1.21.8
 
 replace golang.org/x/text => golang.org/x/text v0.4.0
+
+replace github.com/couchbase/bhive => ../bhive
 
 replace github.com/couchbase/cbauth => ../cbauth
 
@@ -96,6 +98,7 @@ require (
 	github.com/couchbase/gomemcached v0.2.2-0.20230407174933-7d7ce13da8cc // indirect
 	github.com/couchbase/gometa v0.0.0-20220803182802-05cb6b2e299f // indirect
 	github.com/couchbase/indexing v0.0.0-20220923223016-071e9308c875 // indirect
+	github.com/couchbase/logstats v1.0.0 // indirect
 	github.com/couchbase/query-ee v0.0.0-00010101000000-000000000000 // indirect
 	github.com/couchbase/tools-common/cloud v1.0.0 // indirect
 	github.com/couchbase/tools-common/core v1.0.0 // indirect
@@ -126,8 +129,8 @@ require (
 	github.com/prometheus/common v0.37.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
 	github.com/santhosh-tekuri/jsonschema v1.2.4 // indirect
-	github.com/stretchr/objx v0.5.0 // indirect
-	github.com/stretchr/testify v1.8.4 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
+	github.com/stretchr/testify v1.9.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20201027041543-1326539a0a0a // indirect
 	go.etcd.io/bbolt v1.3.7 // indirect
 	golang.org/x/crypto v0.19.0 // indirect
