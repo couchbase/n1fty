@@ -1,10 +1,12 @@
 module github.com/couchbase/n1fty
 
-go 1.21.6
+go 1.21.8
 
 toolchain go1.22.1
 
 replace golang.org/x/text => golang.org/x/text v0.4.0
+
+replace github.com/couchbase/bhive => ../bhive
 
 replace github.com/couchbase/cbauth => ../cbauth
 
