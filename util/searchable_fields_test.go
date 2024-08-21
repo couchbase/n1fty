@@ -783,7 +783,7 @@ func TestProcessIndexDef(t *testing.T) {
 		},
 		{
 			about: "test that checks '_' delimiter vs scope.collection.docid_prefix",
-			indexDef:`
+			indexDef: `
 			{
 				"type": "fulltext-index",
 				"params": {

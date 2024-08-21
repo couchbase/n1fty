@@ -100,11 +100,11 @@ func (fi *FlexIndex) interpretSearchFunc(s *search.Search) (
 
 		if knnOK {
 			if _, ok := queryVal.Field("knn_operator"); ok {
-				if len(queryVal.Fields()) > qc + 2 {
+				if len(queryVal.Fields()) > qc+2 {
 					// only query, knn and knn_operator can exist together
 					return false, nil, nil
 				}
-			} else if len(queryVal.Fields()) > qc + 1 {
+			} else if len(queryVal.Fields()) > qc+1 {
 				// only query and knn can exist together
 				return false, nil, nil
 			}
