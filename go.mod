@@ -78,7 +78,7 @@ require (
 	github.com/aws/smithy-go v1.20.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.12.0 // indirect
-	github.com/blevesearch/bleve-mapping-ui v0.5.2 // indirect
+	github.com/blevesearch/bleve-mapping-ui v0.5.3 // indirect
 	github.com/blevesearch/bleve_index_api v1.1.11 // indirect
 	github.com/blevesearch/geo v0.1.20 // indirect
 	github.com/blevesearch/go-faiss v1.0.21 // indirect
@@ -111,6 +111,7 @@ require (
 	github.com/couchbase/gomemcached v0.2.2-0.20230407174933-7d7ce13da8cc // indirect
 	github.com/couchbase/gometa v0.0.0-20220803182802-05cb6b2e299f // indirect
 	github.com/couchbase/indexing v0.0.0-20220923223016-071e9308c875 // indirect
+	github.com/couchbase/logstats v1.0.0 // indirect
 	github.com/couchbase/query-ee v0.0.0-00010101000000-000000000000 // indirect
 	github.com/couchbase/tools-common/cloud/v5 v5.0.3 // indirect
 	github.com/couchbase/tools-common/fs v1.0.2 // indirect
