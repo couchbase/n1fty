@@ -200,6 +200,7 @@ func refreshSecurityConfig(conf *datastore.ConnectionSecurityConfig) bool {
 
 	newSecurityConfig := &securityConfig{
 		tlsPreference:      &conf.TLSConfig,
+		clientAuthType:     &conf.TLSConfig.ClientAuthType,
 		encryptionEnabled:  conf.ClusterEncryptionConfig.EncryptData,
 		disableNonSSLPorts: conf.ClusterEncryptionConfig.DisableNonSSLPorts,
 	}
@@ -221,6 +222,17 @@ func refreshSecurityConfig(conf *datastore.ConnectionSecurityConfig) bool {
 	if err != nil {
 		logging.Fatalf("n1fty: Failed to load certificate file, err: %v", err)
 		return false
+	}
+
+	if newSecurityConfig.clientAuthType != nil &&
+		*newSecurityConfig.clientAuthType != tls.NoClientCert {
+		clientCertificate, err := cbtls.LoadX509KeyPair(conf.InternalClientCertFile,
+			conf.InternalClientKeyFile, conf.TLSConfig.ClientPrivateKeyPassphrase)
+		if err != nil {
+			logging.Fatalf("n1fty: Failed to generate client certificate, err: %v", err)
+			return false
+		}
+		newSecurityConfig.clientCertificate = &clientCertificate
 	}
 
 	// used to get cluster level options like bleveMaxResultWindow

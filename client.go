@@ -35,6 +35,8 @@ type securityConfig struct {
 	encryptionEnabled  bool
 	disableNonSSLPorts bool
 	certificate        *tls.Certificate
+	clientAuthType     *tls.ClientAuthType
+	clientCertificate  *tls.Certificate
 	certInBytes        []byte
 	tlsPreference      *cbauth.TLSConfig
 }
@@ -448,7 +450,18 @@ func (g *grpcOpts) updateCommonOpts() error {
 		if !ok {
 			return fmt.Errorf("client: failed to append ca certs")
 		}
-		cred := credentials.NewClientTLSFromCert(certPool, "")
+		var cred credentials.TransportCredentials
+		if secConfig.clientAuthType != nil &&
+			*secConfig.clientAuthType != tls.NoClientCert {
+			tlsConfig := &tls.Config{
+				Certificates: []tls.Certificate{*secConfig.clientCertificate},
+				ClientAuth:   *secConfig.clientAuthType,
+				RootCAs:      certPool,
+			}
+			cred = credentials.NewTLS(tlsConfig)
+		} else {
+			cred = credentials.NewClientTLSFromCert(certPool, "")
+		}
 		gRPCOpts = append(gRPCOpts, grpc.WithTransportCredentials(cred))
 	} else { // non-ssl
 		gRPCOpts = append(gRPCOpts, grpc.WithInsecure())
