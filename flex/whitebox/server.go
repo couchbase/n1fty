@@ -86,6 +86,12 @@ func (this *Request) Fail(err errors.Error) {
 	close(this.done)
 }
 
+func (this *Request) IncrementStatementCount() {
+}
+
+func (this *Request) CompletedNaturalRequest(srvr *server.Server) {
+}
+
 func (this *Request) Failed(s *server.Server) {
 }
 

@@ -1625,9 +1625,8 @@ func TestFlexPushDownSearchFunc2(t *testing.T) {
 					"index": "SampleIndexDefWithSeveralNestedFieldsUnderHotelMapping",
 				})),
 			expectQuery: `{"query":{"conjuncts":[{"field":"public_likes",` +
-				`"wildcard":"ABC"},{"must":{"conjuncts":[]},"must_not":{"disjuncts":[],` +
-				`"min": 0},"should":{"disjuncts":[{"field":"reviews.author","fuzziness":0,` +
-				`"match":"XYZ","prefix_length":0}],"min":0}}]},"score":"none"}`,
+				`"wildcard":"ABC"},{"should":{"disjuncts":[{"field":"reviews.author",` +
+				`"fuzziness":0,"match":"XYZ","prefix_length":0}],"min":0}}]},"score":"none"}`,
 			expectedSargKeys: []string{"type", "public_likes"},
 			expectSearchExpr: true,
 		},
