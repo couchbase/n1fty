@@ -248,12 +248,12 @@ func refreshSecurityConfig(conf *datastore.ConnectionSecurityConfig) bool {
 
 // Indexer agnostic
 func SetConnectionSecurityConfig(conf *datastore.ConnectionSecurityConfig) {
-	ftsClientInst.m.Lock()
-	defer ftsClientInst.m.Unlock()
-
 	if !refreshSecurityConfig(conf) {
 		return
 	}
+
+	ftsClientInst.m.Lock()
+	defer ftsClientInst.m.Unlock()
 
 	err := ftsClientInst.updateConnPoolsLOCKED(securityConfigChange)
 	if err != nil {

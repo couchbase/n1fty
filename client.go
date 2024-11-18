@@ -225,7 +225,7 @@ func (c *ftsClient) updateConnPoolsLOCKED(event connPoolUpdateEvent) error {
 }
 
 func (c *ftsClient) onSecurityConfigChange() error {
-	indexerAvail := IsIndexerAvailable()
+	indexerAvail := indexersExist()
 	logging.Infof("n1fty: onSecurityConfigChange, indexerAvail:%v", indexerAvail)
 
 	if len(c.hosts) == 0 {
@@ -259,7 +259,7 @@ func (c *ftsClient) onSecurityConfigChange() error {
 }
 
 func (c *ftsClient) onTopologyChange() error {
-	indexerAvail := IsIndexerAvailable()
+	indexerAvail := indexersExist()
 	logging.Infof("n1fty: onTopologyChange, indexerAvail:%v", indexerAvail)
 
 	// ## Fetch new topology and reconcile with existing topology
@@ -330,7 +330,7 @@ func (c *ftsClient) onTopologyChange() error {
 // function execution. This is to handle multiple concurrent indexer availability
 // change events.
 func (c *ftsClient) onIndexerAvailabilityChange() {
-	indexerAvail := (len(mr.indexers) != 0)
+	indexerAvail := indexersExist()
 	logging.Infof("n1fty: onIndexerAvailabilityChange, indexer available:%v",
 		indexerAvail)
 
@@ -576,12 +576,8 @@ func extractHosts(nodeDefs *cbgt.NodeDefs) ([]string, []string) {
 	return nonSslHosts, sslHosts
 }
 
-func IsIndexerAvailable() bool {
-	numIndexers := 0
-	mr.m.RLock()
-	numIndexers = len(mr.indexers)
-	mr.m.RUnlock()
-
+func indexersExist() bool {
+	numIndexers := mr.indexerCount()
 	return numIndexers != 0
 }
 

@@ -46,11 +46,13 @@ func (m *monitor) registerIndexer(i *FTSIndexer) {
 	if i != nil {
 		m.m.Lock()
 		m.indexers[i.BucketId()+i.ScopeId()+i.KeyspaceId()] = i
+		numIndexers := len(m.indexers)
+		m.m.Unlock()
+
 		// Update the connection pools, if indexers count goes from 0 -> 1
-		if len(m.indexers) == 1 {
+		if numIndexers == 1 {
 			ftsClientInst.updateConnPools(indexerAvailabilityChange)
 		}
-		m.m.Unlock()
 	}
 }
 
@@ -58,15 +60,24 @@ func (m *monitor) unregisterIndexer(i *FTSIndexer) {
 	if i != nil {
 		m.m.Lock()
 		delete(mr.indexers, i.BucketId()+i.ScopeId()+i.KeyspaceId())
+		numIndexers := len(m.indexers)
+		m.m.Unlock()
+
 		// Update the connection pools, if indexers count goes from 1 -> 0
-		if len(m.indexers) == 0 {
+		if numIndexers == 0 {
 			ftsClientInst.updateConnPools(indexerAvailabilityChange)
 		}
-		m.m.Unlock()
 	}
 }
 
 // ----------------------------------------------------------------------------
+
+func (m *monitor) indexerCount() int {
+	m.m.RLock()
+	defer m.m.RUnlock()
+
+	return len(m.indexers)
+}
 
 // Blocking method; To be spun off as a goroutine
 func (m *monitor) backfillMonitor() {
