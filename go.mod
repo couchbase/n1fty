@@ -1,8 +1,8 @@
 module github.com/couchbase/n1fty
 
-go 1.21.8
+go 1.23
 
-toolchain go1.22.1
+toolchain go1.23.4
 
 replace golang.org/x/text => golang.org/x/text v0.4.0
 
@@ -45,7 +45,7 @@ replace github.com/couchbase/godbc => ../godbc
 replace github.com/couchbase/regulator => ../regulator
 
 require (
-	github.com/blevesearch/bleve/v2 v2.4.4-0.20241202120754-b3c74dd88cdf
+	github.com/blevesearch/bleve/v2 v2.4.4-0.20241217181215-a8d41b3641de
 	github.com/blevesearch/sear v0.2.9
 	github.com/buger/jsonparser v1.1.1
 	github.com/couchbase/cbauth v0.1.12
@@ -96,8 +96,8 @@ require (
 	github.com/blevesearch/zapx/v12 v12.3.10 // indirect
 	github.com/blevesearch/zapx/v13 v13.3.10 // indirect
 	github.com/blevesearch/zapx/v14 v14.3.10 // indirect
-	github.com/blevesearch/zapx/v15 v15.3.16 // indirect
-	github.com/blevesearch/zapx/v16 v16.1.9-0.20241202063052-60ebc9a97954 // indirect
+	github.com/blevesearch/zapx/v15 v15.3.17 // indirect
+	github.com/blevesearch/zapx/v16 v16.1.10 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cloudfoundry/gosigar v1.3.4 // indirect
 	github.com/couchbase/blance v0.1.6 // indirect
