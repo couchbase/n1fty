@@ -45,7 +45,7 @@ replace github.com/couchbase/godbc => ../godbc
 replace github.com/couchbase/regulator => ../regulator
 
 require (
-	github.com/blevesearch/bleve/v2 v2.4.4-0.20241217181215-a8d41b3641de
+	github.com/blevesearch/bleve/v2 v2.4.4-0.20241217211714-3e63d1c9abbf
 	github.com/blevesearch/sear v0.2.9
 	github.com/buger/jsonparser v1.1.1
 	github.com/couchbase/cbauth v0.1.12
@@ -81,7 +81,7 @@ require (
 	github.com/blevesearch/bleve-mapping-ui v0.5.3 // indirect
 	github.com/blevesearch/bleve_index_api v1.1.13 // indirect
 	github.com/blevesearch/geo v0.1.20 // indirect
-	github.com/blevesearch/go-faiss v1.0.23 // indirect
+	github.com/blevesearch/go-faiss v1.0.24 // indirect
 	github.com/blevesearch/go-porterstemmer v1.0.3 // indirect
 	github.com/blevesearch/goleveldb v1.0.1 // indirect
 	github.com/blevesearch/gtreap v0.1.1 // indirect
@@ -97,7 +97,7 @@ require (
 	github.com/blevesearch/zapx/v13 v13.3.10 // indirect
 	github.com/blevesearch/zapx/v14 v14.3.10 // indirect
 	github.com/blevesearch/zapx/v15 v15.3.17 // indirect
-	github.com/blevesearch/zapx/v16 v16.1.10 // indirect
+	github.com/blevesearch/zapx/v16 v16.1.11-0.20241217210710-e1dde3e9876d // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cloudfoundry/gosigar v1.3.4 // indirect
 	github.com/couchbase/blance v0.1.6 // indirect
