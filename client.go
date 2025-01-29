@@ -452,13 +452,12 @@ func (g *grpcOpts) updateCommonOpts() error {
 		}
 		var cred credentials.TransportCredentials
 		if secConfig.clientAuthType != nil &&
-			*secConfig.clientAuthType != tls.NoClientCert {
-			tlsConfig := &tls.Config{
+			*secConfig.clientAuthType == tls.RequireAndVerifyClientCert {
+			cred = credentials.NewTLS(&tls.Config{
 				Certificates: []tls.Certificate{*secConfig.clientCertificate},
 				ClientAuth:   *secConfig.clientAuthType,
 				RootCAs:      certPool,
-			}
-			cred = credentials.NewTLS(tlsConfig)
+			})
 		} else {
 			cred = credentials.NewClientTLSFromCert(certPool, "")
 		}
