@@ -199,10 +199,11 @@ func refreshSecurityConfig(conf *datastore.ConnectionSecurityConfig) bool {
 	}
 
 	newSecurityConfig := &securityConfig{
-		tlsPreference:      &conf.TLSConfig,
-		clientAuthType:     &conf.TLSConfig.ClientAuthType,
-		encryptionEnabled:  conf.ClusterEncryptionConfig.EncryptData,
-		disableNonSSLPorts: conf.ClusterEncryptionConfig.DisableNonSSLPorts,
+		tlsPreference:              &conf.TLSConfig,
+		clientAuthType:             &conf.TLSConfig.ClientAuthType,
+		encryptionEnabled:          conf.ClusterEncryptionConfig.EncryptData,
+		disableNonSSLPorts:         conf.ClusterEncryptionConfig.DisableNonSSLPorts,
+		shouldClientsUseClientCert: conf.TLSConfig.ShouldClientsUseClientCert,
 	}
 
 	certificate, err := cbtls.LoadX509KeyPair(conf.CertFile, conf.KeyFile,
@@ -224,8 +225,7 @@ func refreshSecurityConfig(conf *datastore.ConnectionSecurityConfig) bool {
 		return false
 	}
 
-	if newSecurityConfig.clientAuthType != nil &&
-		*newSecurityConfig.clientAuthType != tls.NoClientCert {
+	if newSecurityConfig.shouldClientsUseClientCert {
 		clientCertificate, err := cbtls.LoadX509KeyPair(conf.InternalClientCertFile,
 			conf.InternalClientKeyFile, conf.TLSConfig.ClientPrivateKeyPassphrase)
 		if err != nil {

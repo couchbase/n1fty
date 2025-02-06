@@ -32,13 +32,14 @@ import (
 
 // CBAUTH security/encryption config
 type securityConfig struct {
-	encryptionEnabled  bool
-	disableNonSSLPorts bool
-	certificate        *tls.Certificate
-	clientAuthType     *tls.ClientAuthType
-	clientCertificate  *tls.Certificate
-	certInBytes        []byte
-	tlsPreference      *cbauth.TLSConfig
+	encryptionEnabled          bool
+	disableNonSSLPorts         bool
+	shouldClientsUseClientCert bool
+	certificate                *tls.Certificate
+	clientAuthType             *tls.ClientAuthType
+	clientCertificate          *tls.Certificate
+	certInBytes                []byte
+	tlsPreference              *cbauth.TLSConfig
 }
 
 var secConfig = unsafe.Pointer(new(securityConfig))
@@ -451,8 +452,7 @@ func (g *grpcOpts) updateCommonOpts() error {
 			return fmt.Errorf("client: failed to append ca certs")
 		}
 		var cred credentials.TransportCredentials
-		if secConfig.clientAuthType != nil &&
-			*secConfig.clientAuthType == tls.RequireAndVerifyClientCert {
+		if secConfig.shouldClientsUseClientCert {
 			cred = credentials.NewTLS(&tls.Config{
 				Certificates: []tls.Certificate{*secConfig.clientCertificate},
 				ClientAuth:   *secConfig.clientAuthType,
