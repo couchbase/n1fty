@@ -45,7 +45,7 @@ replace github.com/couchbase/godbc => ../godbc
 replace github.com/couchbase/regulator => ../regulator
 
 require (
-	github.com/blevesearch/bleve/v2 v2.4.4-0.20250205210342-c30d0a1a58cb
+	github.com/blevesearch/bleve/v2 v2.4.4-0.20250206175230-de678d62d95f
 	github.com/blevesearch/sear v0.3.0
 	github.com/buger/jsonparser v1.1.1
 	github.com/couchbase/cbauth v0.1.12
@@ -63,7 +63,7 @@ require (
 )
 
 require (
-	github.com/RoaringBitmap/roaring/v2 v2.4.4 // indirect
+	github.com/RoaringBitmap/roaring/v2 v2.4.5 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.30.3 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.5.4 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.15.15 // indirect
@@ -86,18 +86,18 @@ require (
 	github.com/blevesearch/goleveldb v1.0.1 // indirect
 	github.com/blevesearch/gtreap v0.1.1 // indirect
 	github.com/blevesearch/mmap-go v1.0.4 // indirect
-	github.com/blevesearch/scorch_segment_api/v2 v2.3.2 // indirect
+	github.com/blevesearch/scorch_segment_api/v2 v2.3.3 // indirect
 	github.com/blevesearch/segment v0.9.1 // indirect
 	github.com/blevesearch/snowballstem v0.9.0 // indirect
 	github.com/blevesearch/stempel v0.2.0 // indirect
 	github.com/blevesearch/upsidedown_store_api v1.0.2 // indirect
 	github.com/blevesearch/vellum v1.1.0 // indirect
-	github.com/blevesearch/zapx/v11 v11.4.0 // indirect
-	github.com/blevesearch/zapx/v12 v12.4.0 // indirect
-	github.com/blevesearch/zapx/v13 v13.4.0 // indirect
-	github.com/blevesearch/zapx/v14 v14.4.0 // indirect
-	github.com/blevesearch/zapx/v15 v15.4.0 // indirect
-	github.com/blevesearch/zapx/v16 v16.2.0 // indirect
+	github.com/blevesearch/zapx/v11 v11.4.1 // indirect
+	github.com/blevesearch/zapx/v12 v12.4.1 // indirect
+	github.com/blevesearch/zapx/v13 v13.4.1 // indirect
+	github.com/blevesearch/zapx/v14 v14.4.1 // indirect
+	github.com/blevesearch/zapx/v15 v15.4.1 // indirect
+	github.com/blevesearch/zapx/v16 v16.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cloudfoundry/gosigar v1.3.4 // indirect
 	github.com/couchbase/blance v0.1.6 // indirect
