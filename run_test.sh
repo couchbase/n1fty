@@ -14,7 +14,12 @@ export LD_LIBRARY_PATH=$CBPATH/install/lib
 export DYLD_LIBRARY_PATH=$CBPATH/install/lib
 
 echo "DIRECTORY: ."
-go test -run=$1 $2 -v
+if [ "$(uname)" == "Darwin" ]; then
+    go test -ldflags "-r $LD_LIBRARY_PATH" -run=$1 $2 -v
+else
+    go test -run=$1 $2 -v
+fi
+
 echo "+--------------------------------------------------------+"
 
 for dir in */; do
@@ -24,7 +29,11 @@ for dir in */; do
 
     cd $dir
     echo "DIRECTORY: $dir"
-    go test -run=$1 $2 -v
+    if [ "$(uname)" == "Darwin" ]; then
+        go test -ldflags "-r $LD_LIBRARY_PATH" -run=$1 $2 -v
+    else
+        go test -run=$1 $2 -v
+    fi
     echo "+--------------------------------------------------------+"
     cd ..
 done
