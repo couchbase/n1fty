@@ -761,8 +761,7 @@ func (i *FTSIndex) pageable(order []string, offset, limit int64, query,
 // -----------------------------------------------------------------------------
 
 // SargableFlex transforms N1QL predicate to Search() function request
-func (i *FTSIndex) SargableFlex(requestId string,
-	req *datastore.FTSFlexRequest) (
+func (i *FTSIndex) SargableFlex(requestId string, req *datastore.FTSFlexRequest) (
 	*datastore.FTSFlexResponse, errors.Error) {
 	if len(i.condFlexIndexes) == 0 {
 		return nil, nil
@@ -776,22 +775,74 @@ func (i *FTSIndex) SargableFlex(requestId string,
 		return nil, util.N1QLError(nil, "SargableFlex bindings")
 	}
 
-	fieldTracks, needsFiltering, flexBuild, sortDetails, err := i.condFlexIndexes.Sargable(
-		identifiers, req.Pred, req.Keyspace, nil)
-	if err != nil {
-		return nil, util.N1QLError(err, "SargableFlex Sargable")
+	var annQ map[string]interface{}
+	var annFT flex.FieldTracks
+	for x := 0; x < len(req.Order); x++ {
+		if ann, ok := req.Order[x].Expr.(*expression.Ann); ok {
+			var annFB *flex.FlexBuild
+			var err error
+			annFT, _, annFB, _, err = i.condFlexIndexes.Sargable(identifiers, ann, req.Keyspace, nil)
+			if err != nil {
+				return nil, util.N1QLError(err, "SargableFlex Sargable ANN")
+			}
+
+			annQ, err = flex.FlexBuildToBleveQuery(annFB, nil)
+			if err != nil {
+				return nil, util.N1QLError(err, "SargableFlex Sargable ANN")
+			}
+
+			if len(annQ) == 0 {
+				// if no index is Sargable for the ORDER BY ANN
+				return nil, nil
+			}
+
+			if req.Limit <= 0 {
+				return nil, util.N1QLError(err, "SargableFlex Sargable ANN, limit is 0")
+			}
+			annQ["k"] = int(req.Limit)
+
+			break
+		}
 	}
 
-	if len(fieldTracks) == 0 {
+	var fieldTracks flex.FieldTracks
+	var needsFiltering bool
+	var flexBuild *flex.FlexBuild
+	var sortDetails *flex.SortDetails
+	var err error
+
+	if req.Pred != nil {
+		fieldTracks, needsFiltering, flexBuild, sortDetails, err = i.condFlexIndexes.Sargable(
+			identifiers, req.Pred, req.Keyspace, nil)
+		if err != nil {
+			return nil, util.N1QLError(err, "SargableFlex Sargable")
+		}
+	}
+
+	if len(fieldTracks) == 0 && len(annQ) == 0 {
 		return nil, nil
 	}
 
-	bleveQuery, err := flex.FlexBuildToBleveQuery(flexBuild, nil)
-	if err != nil {
-		return nil, util.N1QLError(err, "SargableFlex Sargable")
+	var bleveQuery map[string]interface{}
+	if len(fieldTracks) > 0 {
+		bleveQuery, err = flex.FlexBuildToBleveQuery(flexBuild, nil)
+		if err != nil {
+			return nil, util.N1QLError(err, "SargableFlex Sargable")
+		}
+
+		if len(annQ) > 0 {
+			for k, v := range annFT {
+				fieldTracks[k] = v
+			}
+
+			// Embed bleveQuery within annQ
+			annQ["filter"] = bleveQuery
+		}
+	} else if len(annQ) > 0 {
+		fieldTracks = annFT
 	}
 
-	if bleveQuery == nil {
+	if len(annQ) == 0 && len(bleveQuery) == 0 {
 		return nil, nil
 	}
 
@@ -799,11 +850,12 @@ func (i *FTSIndex) SargableFlex(requestId string,
 	if err != nil {
 		return nil, util.N1QLError(err, "SargableFlex Sargable")
 	}
-	if !supported {
+	if (flexBuild != nil && !supported) || (len(knnQuery) > 0 && len(annQ) > 0) {
+		// cannot support KNN from within Search function alongside ORDER BY ANN
 		return nil, nil
 	}
 
-	if !needsFiltering {
+	if !needsFiltering && len(bleveQuery) > 0 {
 		// Overwrite needsFiltering (only if unset) to true if we need to
 		// for the query (involves match_all, negate).
 		needsFiltering, err = util.FlexQueryNeedsFiltering(bleveQuery)
@@ -812,28 +864,34 @@ func (i *FTSIndex) SargableFlex(requestId string,
 		}
 	}
 
-	searchRequest := map[string]interface{}{
-		"query": bleveQuery,
+	var searchRequest = map[string]interface{}{
 		"score": "none",
 	}
-
 	var containsKNN bool
 
-	if len(knnQuery) > 0 {
-		searchRequest["knn"] = knnQuery
-		if len(knnOperator) > 0 {
-			searchRequest["knn_operator"] = knnOperator
-		}
-
+	if len(annQ) > 0 {
+		// Pre-filtered kNN query
+		searchRequest["knn"] = []interface{}{annQ}
 		containsKNN = true
-
-		// Make search requests with kNN non-covered for now, so the
-		// query engine will be able to remove false positives.
-		// False positives can occur because of the search engine's
-		// ability to _only_ OR the kNN part with the query part.
-		// This limitation can be lifted when the operator (knn <> query)
-		// can be pushed down to the search engine.
 		needsFiltering = true
+	} else {
+		searchRequest["query"] = bleveQuery
+		if len(knnQuery) > 0 {
+			searchRequest["knn"] = knnQuery
+			if len(knnOperator) > 0 {
+				searchRequest["knn_operator"] = knnOperator
+			}
+
+			containsKNN = true
+
+			// Make search requests with kNN non-covered for now, so the
+			// query engine will be able to remove false positives.
+			// False positives can occur because of the search engine's
+			// ability to _only_ OR the kNN part with the query part.
+			// This limitation can be lifted when the operator (knn <> query)
+			// can be pushed down to the search engine.
+			needsFiltering = true
+		}
 	}
 
 	searchOptions := map[string]interface{}{
@@ -856,7 +914,7 @@ func (i *FTSIndex) SargableFlex(requestId string,
 		res.RespFlags |= datastore.FTS_FLEXINDEX_EXACT
 
 		if req.CheckPageable {
-			// Check for pageability of the index, only if EXACT
+			// Check for page-ability of the index, only if EXACT
 			// Set Offset, Limit settings only if:
 			//     - they fall within the BleveMaxResultWindow
 			//     - ORDER BY is requested over fields that are indexed

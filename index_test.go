@@ -24,6 +24,8 @@ import (
 )
 
 func setupSampleIndex(idef []byte) (*FTSIndex, error) {
+	// works over _default scope and collection
+
 	var indexDef *cbgt.IndexDef
 	err := json.Unmarshal(idef, &indexDef)
 	if err != nil {
@@ -2142,6 +2144,183 @@ func TestFlexNeedForFiltering(t *testing.T) {
 
 		if resp.RespFlags&datastore.FTS_FLEXINDEX_EXACT == 0 {
 			t.Errorf("[%d] Expecting an exact result, shouldn't be a need for filtering", i+1)
+		}
+	}
+}
+
+func TestORDERBYANNOverSargableFlex(t *testing.T) {
+	index, err := setupSampleIndex([]byte(`{
+		"type": "fulltext-index",
+		"name": "colors",
+		"sourceName": "colors",
+		"params": {
+			"doc_config": {
+				"mode": "type_field",
+				"type_field": "type"
+			},
+			"mapping": {
+				"default_mapping": {
+					"dynamic": false,
+					"enabled": true,
+					"properties": {
+						"colorvect_l2": {
+							"dynamic": false,
+							"enabled": true,
+							"fields": [{
+								"dims": 3,
+								"index": true,
+								"name": "colorvect_l2",
+								"similarity": "l2_norm",
+								"type": "vector",
+								"vector_index_optimized_for": "recall"
+							}]
+						},
+						"colorvect_l2_base64": {
+							"dynamic": false,
+							"enabled": true,
+							"fields": [{
+								"dims": 3,
+								"index": true,
+								"name": "colorvect_l2_base64",
+								"similarity": "l2_norm",
+								"type": "vector_base64",
+								"vector_index_optimized_for": "recall"
+							}]
+						},
+						"verbs": {
+							"dynamic": false,
+							"enabled": true,
+							"fields": [{
+								"index": true,
+								"name": "verbs",
+								"type": "text",
+								"analyzer": "keyword"
+							}]
+						},
+						"_$xattrs": {
+							"dynamic": false,
+							"enabled": true,
+							"properties": {
+								"colorvect": {
+									"dynamic": false,
+									"enabled": true,
+									"fields": [{
+										"dims": 3,
+										"index": true,
+										"name": "colorvect",
+										"similarity": "dot_product",
+										"type": "vector",
+										"vector_index_optimized_for": "latency"
+									}]
+								}
+							}
+						}
+					}
+				}
+
+			},
+			"store": {
+				"indexType": "scorch"
+			}
+		}
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i, test := range []struct {
+		keyspace              string
+		pred                  string
+		sort                  string
+		limit                 int64
+		expectStaticSargKeys  int
+		expectedSearchRequest string
+	}{
+		{
+			keyspace:              "c",
+			pred:                  `c.verbs = "warm"`,
+			sort:                  `APPROX_VECTOR_DISTANCE(c.colorvect_l2, [1,2,3], "L2")`, // same as ANN(..)
+			limit:                 10,
+			expectStaticSargKeys:  2,
+			expectedSearchRequest: `{"knn":[{"field":"colorvect_l2","filter":{"field":"verbs","term":"warm"},"k":10,"vector":[1,2,3]}],"score":"none"}`,
+		},
+		{
+			keyspace:              "c",
+			pred:                  ` ANY v IN c.verbs SATISFIES v = "warm" END`,
+			sort:                  `APPROX_VECTOR_DISTANCE(c.colorvect_l2, [1,2,3], "")`, // same as ANN(..)
+			limit:                 10,
+			expectStaticSargKeys:  2,
+			expectedSearchRequest: `{"knn":[{"field":"colorvect_l2","filter":{"field":"verbs","term":"warm"},"k":10,"vector":[1,2,3]}],"score":"none"}`,
+		},
+
+		{
+			keyspace:              "c",
+			pred:                  `c.verbs = "warm"`,
+			sort:                  `APPROX_VECTOR_DISTANCE(DECODE_VECTOR(c.colorvect_l2_base64), "AACAPwAAAEAAAEBA", "L2")`, // same as ANN(..)
+			limit:                 10,
+			expectStaticSargKeys:  2,
+			expectedSearchRequest: `{"knn":[{"field":"colorvect_l2_base64","filter":{"field":"verbs","term":"warm"},"k":10,"vector_base64":"AACAPwAAAEAAAEBA"}],"score":"none"}`,
+		},
+		{
+			keyspace:              "c",
+			pred:                  ``,                                                              // No predicate, only ANN
+			sort:                  `APPROX_VECTOR_DISTANCE(c.colorvect_l2, [1,2,3], "L2_SQUARED")`, // same as ANN(..)
+			limit:                 5,
+			expectStaticSargKeys:  1,
+			expectedSearchRequest: `{"knn":[{"field":"colorvect_l2","k":5,"vector":[1,2,3]}],"score":"none"}`,
+		},
+		{
+			keyspace:              "c",
+			pred:                  `c.verbs = "warm"`,
+			sort:                  `APPROX_VECTOR_DISTANCE(META(c).xattrs.colorvect, [1,2,3], "dot")`, // same as ANN(..)
+			limit:                 10,
+			expectStaticSargKeys:  2,
+			expectedSearchRequest: `{"knn":[{"field":"_$xattrs.colorvect","filter":{"field":"verbs","term":"warm"},"k":10,"vector":[1,2,3]}],"score":"none"}`,
+		},
+	} {
+		queryExpr, _ := parser.Parse(test.pred)
+		sortExpr, err := parser.Parse(test.sort)
+		if err != nil {
+			t.Fatalf("[%d] sort expr parse err: %v", i+1, err)
+		}
+
+		flexRequest := &datastore.FTSFlexRequest{
+			Keyspace: test.keyspace,
+			Pred:     queryExpr,
+			Order: []*datastore.SortTerm{
+				{
+					Expr:       sortExpr,
+					Descending: true,
+					NullsPos:   datastore.ORDER_NULLS_NONE,
+				},
+			},
+			Limit: test.limit,
+		}
+
+		resp, err := index.SargableFlex("0", flexRequest)
+		if err != nil {
+			t.Fatalf("[%d] err: %v", i+1, err)
+		}
+
+		if resp == nil {
+			t.Fatalf("[%d] Expected query to be sargable for index", i+1)
+		}
+
+		if len(resp.StaticSargKeys) != test.expectStaticSargKeys {
+			t.Fatalf("[%d] Expected request to be sargable with %d static keys, but got: %v",
+				i+1, test.expectStaticSargKeys, resp.StaticSargKeys)
+		}
+
+		var expectedSQMap, gotSQMap map[string]interface{}
+		if err = json.Unmarshal([]byte(test.expectedSearchRequest), &expectedSQMap); err != nil {
+			t.Fatalf("[%d] err: %v", i+1, err)
+		}
+		if err = json.Unmarshal([]byte(resp.SearchQuery), &gotSQMap); err != nil {
+			t.Fatalf("[%d] err: %v", i+1, err)
+		}
+
+		if !reflect.DeepEqual(expectedSQMap, gotSQMap) {
+			t.Fatalf("[%d] Expected query: %v, Got query: %v", i+1, test.expectedSearchRequest, resp.SearchQuery)
 		}
 	}
 }

@@ -292,11 +292,12 @@ func countFieldTrackTypes(path []string, typeMappingName string,
 
 // This map contains types that Bleve supports for N1QL queries.
 var BleveSupportedTypes = map[string]bool{
-	"text":     true,
-	"number":   true,
-	"boolean":  true,
-	"datetime": true,
-	"vector":   true,
+	"text":          true,
+	"number":        true,
+	"boolean":       true,
+	"datetime":      true,
+	"vector":        true,
+	"vector_base64": true,
 }
 
 // This map translates Bleve's supported types to types as identified
@@ -356,8 +357,14 @@ func BleveToFlexIndex(fi *FlexIndex, path []string, dm *mapping.DocumentMapping,
 			FieldPath: fieldPath,
 			FieldType: f.Type,
 		}
+
 		if fieldInfo.FieldType == "vector" {
 			fieldInfo.FieldDims = f.Dims
+			fieldInfo.FieldSimilarity = f.Similarity
+		} else if fieldInfo.FieldType == "vector_base64" {
+			fieldInfo.FieldType = "vector"
+			fieldInfo.FieldDims = f.Dims
+			fieldInfo.FieldSimilarity = f.Similarity
 		}
 
 		fi.IndexedFields = append(fi.IndexedFields, fieldInfo)
@@ -660,6 +667,12 @@ func FlexBuildToBleveQuery(fb *FlexBuild, prevSibling map[string]interface{}) (
 			return data, nil
 		}
 		return nil, fmt.Errorf("incorrect expression: %v", fb.Data)
+	} else if fb.Kind == "annRequest" && len(fb.KNNData) == 1 {
+		// supports only a single ANN request
+		if data, ok := fb.KNNData[0].(map[string]interface{}); ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf("incorrect expression: %v", fb.KNNData)
 	}
 
 	return nil, fmt.Errorf("FlexBuildToBleveQuery: could not convert: %+v", fb)

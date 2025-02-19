@@ -88,21 +88,34 @@ type FieldTracks map[FieldTrack]int
 // ---------------------------------------------------------------
 
 type FieldInfo struct {
-	FieldPath []string // Ex: ["name"], ["addr", "city"], [].
-	FieldType string   // Ex: "text", "number", "boolean", "datetime".
-	FieldDims int      // Applicable to FieldType "vector".
+	FieldPath       []string // Ex: ["name"], ["addr", "city"], [].
+	FieldType       string   // Ex: "text", "number", "boolean", "datetime".
+	FieldDims       int      // Applicable to FieldType "vector".
+	FieldSimilarity string   // Applicable to FieldType "vector".
+}
+
+// supported vector similarity metric equivalents
+var vectorMetricEquivalents = map[expression.VectorMetric]string{
+	expression.EUCLIDEAN:         "l2_norm",
+	expression.EUCLIDEAN_SQUARED: "l2_norm",
+	expression.L2:                "l2_norm",
+	expression.L2_SQUARED:        "l2_norm",
+	expression.COSINE:            "cosine",
+	expression.DOT:               "dot_product",
 }
 
 type FieldInfos []*FieldInfo
 
 // ---------------------------------------------------------------
 
-func (fieldInfos FieldInfos) Contains(fieldName, fieldType, analyzer string, dims int) bool {
+func (fieldInfos FieldInfos) Contains(fieldName, fieldType, analyzer string, similarity expression.VectorMetric, dims int) bool {
 	for _, fieldInfo := range fieldInfos {
 		if fieldName == strings.Join(fieldInfo.FieldPath, ".") {
 			if fieldType == fieldInfo.FieldType {
 				if fieldType == "vector" {
-					if dims == fieldInfo.FieldDims {
+					if (dims == -1 || dims == fieldInfo.FieldDims) &&
+						(similarity == expression.EMPTY_METRIC ||
+							vectorMetricEquivalents[similarity] == fieldInfo.FieldSimilarity) {
 						return true
 					}
 				} else if len(analyzer) == 0 || analyzer == "keyword" {

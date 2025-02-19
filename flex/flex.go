@@ -152,7 +152,7 @@ func (fi *FlexIndex) interpretSearchFunc(s *search.Search) (
 	for f := range queryFields {
 		// Check if the query field is either indexed or the flex index
 		// is dynamic for the query to be sargable.
-		if !fi.IndexedFields.Contains(f.Name, f.Type, f.Analyzer, f.Dims) &&
+		if !fi.IndexedFields.Contains(f.Name, f.Type, f.Analyzer, expression.EMPTY_METRIC, f.Dims) &&
 			(f.Type == "vector" || !fi.Dynamic) {
 			return false, nil, nil
 		}
@@ -169,6 +169,84 @@ func (fi *FlexIndex) interpretSearchFunc(s *search.Search) (
 		Data:        qInterface,
 		KNNData:     knnInterface,
 		KNNOperator: knnOperator,
+	}
+}
+
+func (fi *FlexIndex) interpretAnnExpr(ids Identifiers, a *expression.Ann) (
+	bool, FieldTracks, *FlexBuild) {
+	if fi.MultipleTypeStrs {
+		// Do NOT interpret a ANN(..) function for an FTS index that
+		// has multiple type mappings (to avoid any possibility of false negatives).
+		return false, nil, nil
+	}
+
+	var vector interface{}
+	var fieldName string
+	var datatype = "vector"
+	var dims int
+
+	if queryVal := a.QueryVector().Value(); queryVal == nil {
+		// no support for named parameters, as we cannot determine
+		// syntax without knowing type of the value
+		return false, nil, nil
+	} else if queryVal.Type() == value.STRING {
+		// base64 encoded vector
+		vector = queryVal.Actual().(string)
+		dims = -1 // skip dims check
+		datatype = "vector_base64"
+	} else if queryVal.Type() == value.ARRAY {
+		qvArr, _ := queryVal.Actual().([]interface{})
+		dims = len(qvArr)
+		vector = qvArr
+	} else {
+		// unsupported query vector type
+		return false, nil, nil
+	}
+
+	keyspace := ids[0].Name // first entry of Identifiers is always the keyspace
+
+	fieldExpr := a.Field()
+	if decodedFieldName, ok := fieldExpr.(*expression.DecodeVector); ok {
+		fieldExpr = decodedFieldName.Operands()[0]
+	}
+
+	// check if the field is a xattr field
+	present, names := expression.XattrsNames(expression.Expressions{fieldExpr}, keyspace)
+	if present && len(names) == 1 {
+		fieldName = "_$xattrs." + names[0]
+	} else {
+		var alias string
+		var err error
+		alias, fieldName, err = expression.PathString(fieldExpr)
+		if err != nil || alias != keyspace {
+			return false, nil, nil
+		}
+		fieldName = util.CleanseField(fieldName)
+	}
+
+	// even vector_base64 is interpreted simply as a vector for N1QL
+	if !fi.IndexedFields.Contains(fieldName, "vector", "", a.Metric(), dims) {
+		return false, nil, nil
+	}
+
+	fieldTracks := FieldTracks{
+		FieldTrack(fieldName): 1,
+	}
+
+	knndata := map[string]interface{}{
+		"field": fieldName,
+	}
+	if datatype == "vector_base64" {
+		knndata["vector_base64"] = vector
+	} else {
+		knndata["vector"] = vector
+	}
+
+	return true, fieldTracks, &FlexBuild{
+		Kind: "annRequest",
+		KNNData: []interface{}{
+			knndata,
+		},
 	}
 }
 
@@ -196,6 +274,13 @@ func (fi *FlexIndex) Sargable(ids Identifiers, e expression.Expression,
 	// Check if the expression is a Search expression.
 	if searchFunc, ok := e.(*search.Search); ok {
 		if canDo, ft, fb := fi.interpretSearchFunc(searchFunc); canDo {
+			return ft, false, fb, nil
+		}
+	}
+
+	// Check if the expression is an ANN expression.
+	if annExpr, ok := e.(*expression.Ann); ok {
+		if canDo, ft, fb := fi.interpretAnnExpr(ids, annExpr); canDo {
 			return ft, false, fb, nil
 		}
 	}
@@ -347,6 +432,6 @@ type FlexBuild struct {
 	Kind        string
 	Children    []*FlexBuild
 	Data        interface{}   // Depends on the kind.
-	KNNData     []interface{} // Optional KNN Data, available only for SEARCH(..) functions.
+	KNNData     []interface{} // Optional KNN Data, available only for SEARCH(..) & ANN(..) functions.
 	KNNOperator string        // Optional, and applicable only when KNNData is available.
 }
