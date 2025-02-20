@@ -667,8 +667,8 @@ func FlexBuildToBleveQuery(fb *FlexBuild, prevSibling map[string]interface{}) (
 			return data, nil
 		}
 		return nil, fmt.Errorf("incorrect expression: %v", fb.Data)
-	} else if fb.Kind == "annRequest" && len(fb.KNNData) == 1 {
-		// supports only a single ANN request
+	} else if fb.Kind == "approx_vector_distance" && len(fb.KNNData) == 1 {
+		// supports only a single approx_vector_distance request
 		if data, ok := fb.KNNData[0].(map[string]interface{}); ok {
 			return data, nil
 		}

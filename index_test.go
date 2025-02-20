@@ -2148,7 +2148,7 @@ func TestFlexNeedForFiltering(t *testing.T) {
 	}
 }
 
-func TestORDERBYANNOverSargableFlex(t *testing.T) {
+func TestORDERBYAPPROX_VECTOR_DISTANCEOverSargableFlex(t *testing.T) {
 	index, err := setupSampleIndex([]byte(`{
 		"type": "fulltext-index",
 		"name": "colors",
@@ -2231,7 +2231,7 @@ func TestORDERBYANNOverSargableFlex(t *testing.T) {
 	for i, test := range []struct {
 		keyspace              string
 		pred                  string
-		sort                  string
+		vecPred               string
 		limit                 int64
 		expectStaticSargKeys  int
 		expectedSearchRequest string
@@ -2239,7 +2239,7 @@ func TestORDERBYANNOverSargableFlex(t *testing.T) {
 		{
 			keyspace:              "c",
 			pred:                  `c.verbs = "warm"`,
-			sort:                  `APPROX_VECTOR_DISTANCE(c.colorvect_l2, [1,2,3], "L2")`, // same as ANN(..)
+			vecPred:               `APPROX_VECTOR_DISTANCE(c.colorvect_l2, [1,2,3], "L2")`, // same as ORDER BY APPROX_VECTOR_DISTANCE(..)
 			limit:                 10,
 			expectStaticSargKeys:  2,
 			expectedSearchRequest: `{"knn":[{"field":"colorvect_l2","filter":{"field":"verbs","term":"warm"},"k":10,"vector":[1,2,3]}],"score":"none"}`,
@@ -2247,7 +2247,7 @@ func TestORDERBYANNOverSargableFlex(t *testing.T) {
 		{
 			keyspace:              "c",
 			pred:                  ` ANY v IN c.verbs SATISFIES v = "warm" END`,
-			sort:                  `APPROX_VECTOR_DISTANCE(c.colorvect_l2, [1,2,3], "")`, // same as ANN(..)
+			vecPred:               `APPROX_VECTOR_DISTANCE(c.colorvect_l2, [1,2,3], "")`,
 			limit:                 10,
 			expectStaticSargKeys:  2,
 			expectedSearchRequest: `{"knn":[{"field":"colorvect_l2","filter":{"field":"verbs","term":"warm"},"k":10,"vector":[1,2,3]}],"score":"none"}`,
@@ -2256,15 +2256,15 @@ func TestORDERBYANNOverSargableFlex(t *testing.T) {
 		{
 			keyspace:              "c",
 			pred:                  `c.verbs = "warm"`,
-			sort:                  `APPROX_VECTOR_DISTANCE(DECODE_VECTOR(c.colorvect_l2_base64), "AACAPwAAAEAAAEBA", "L2")`, // same as ANN(..)
+			vecPred:               `APPROX_VECTOR_DISTANCE(DECODE_VECTOR(c.colorvect_l2_base64), "AACAPwAAAEAAAEBA", "L2")`,
 			limit:                 10,
 			expectStaticSargKeys:  2,
 			expectedSearchRequest: `{"knn":[{"field":"colorvect_l2_base64","filter":{"field":"verbs","term":"warm"},"k":10,"vector_base64":"AACAPwAAAEAAAEBA"}],"score":"none"}`,
 		},
 		{
 			keyspace:              "c",
-			pred:                  ``,                                                              // No predicate, only ANN
-			sort:                  `APPROX_VECTOR_DISTANCE(c.colorvect_l2, [1,2,3], "L2_SQUARED")`, // same as ANN(..)
+			pred:                  ``,                                                              // No predicate, only APPROX_VECTOR_DISTANCE
+			vecPred:               `APPROX_VECTOR_DISTANCE(c.colorvect_l2, [1,2,3], "L2_SQUARED")`,
 			limit:                 5,
 			expectStaticSargKeys:  1,
 			expectedSearchRequest: `{"knn":[{"field":"colorvect_l2","k":5,"vector":[1,2,3]}],"score":"none"}`,
@@ -2272,14 +2272,14 @@ func TestORDERBYANNOverSargableFlex(t *testing.T) {
 		{
 			keyspace:              "c",
 			pred:                  `c.verbs = "warm"`,
-			sort:                  `APPROX_VECTOR_DISTANCE(META(c).xattrs.colorvect, [1,2,3], "dot")`, // same as ANN(..)
+			vecPred:               `APPROX_VECTOR_DISTANCE(META(c).xattrs.colorvect, [1,2,3], "dot")`,
 			limit:                 10,
 			expectStaticSargKeys:  2,
 			expectedSearchRequest: `{"knn":[{"field":"_$xattrs.colorvect","filter":{"field":"verbs","term":"warm"},"k":10,"vector":[1,2,3]}],"score":"none"}`,
 		},
 	} {
 		queryExpr, _ := parser.Parse(test.pred)
-		sortExpr, err := parser.Parse(test.sort)
+		approxVectorDistanceExpr, err := parser.Parse(test.vecPred)
 		if err != nil {
 			t.Fatalf("[%d] sort expr parse err: %v", i+1, err)
 		}
@@ -2287,14 +2287,8 @@ func TestORDERBYANNOverSargableFlex(t *testing.T) {
 		flexRequest := &datastore.FTSFlexRequest{
 			Keyspace: test.keyspace,
 			Pred:     queryExpr,
-			Order: []*datastore.SortTerm{
-				{
-					Expr:       sortExpr,
-					Descending: true,
-					NullsPos:   datastore.ORDER_NULLS_NONE,
-				},
-			},
-			Limit: test.limit,
+			VecPred:  approxVectorDistanceExpr,
+			Limit:    test.limit,
 		}
 
 		resp, err := index.SargableFlex("0", flexRequest)

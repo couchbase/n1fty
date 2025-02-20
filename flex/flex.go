@@ -172,10 +172,11 @@ func (fi *FlexIndex) interpretSearchFunc(s *search.Search) (
 	}
 }
 
-func (fi *FlexIndex) interpretAnnExpr(ids Identifiers, a *expression.Ann) (
+func (fi *FlexIndex) interpretApproxVectorDistanceExpr(
+	ids Identifiers, a *expression.ApproxVectorDistance) (
 	bool, FieldTracks, *FlexBuild) {
 	if fi.MultipleTypeStrs {
-		// Do NOT interpret a ANN(..) function for an FTS index that
+		// Do NOT interpret a approx_vector_distance(..) function for an FTS index that
 		// has multiple type mappings (to avoid any possibility of false negatives).
 		return false, nil, nil
 	}
@@ -243,7 +244,7 @@ func (fi *FlexIndex) interpretAnnExpr(ids Identifiers, a *expression.Ann) (
 	}
 
 	return true, fieldTracks, &FlexBuild{
-		Kind: "annRequest",
+		Kind: "approx_vector_distance",
 		KNNData: []interface{}{
 			knndata,
 		},
@@ -278,9 +279,9 @@ func (fi *FlexIndex) Sargable(ids Identifiers, e expression.Expression,
 		}
 	}
 
-	// Check if the expression is an ANN expression.
-	if annExpr, ok := e.(*expression.Ann); ok {
-		if canDo, ft, fb := fi.interpretAnnExpr(ids, annExpr); canDo {
+	// Check if the expression is an ApproxVectorDistance expression.
+	if approxVectorDistanceExpr, ok := e.(*expression.ApproxVectorDistance); ok {
+		if canDo, ft, fb := fi.interpretApproxVectorDistanceExpr(ids, approxVectorDistanceExpr); canDo {
 			return ft, false, fb, nil
 		}
 	}
@@ -432,6 +433,6 @@ type FlexBuild struct {
 	Kind        string
 	Children    []*FlexBuild
 	Data        interface{}   // Depends on the kind.
-	KNNData     []interface{} // Optional KNN Data, available only for SEARCH(..) & ANN(..) functions.
+	KNNData     []interface{} // Optional KNN Data, available only for SEARCH(..) & ApproxVectorDistance(..) functions.
 	KNNOperator string        // Optional, and applicable only when KNNData is available.
 }

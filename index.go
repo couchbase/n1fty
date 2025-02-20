@@ -775,23 +775,23 @@ func (i *FTSIndex) SargableFlex(requestId string, req *datastore.FTSFlexRequest)
 		return nil, util.N1QLError(nil, "SargableFlex bindings")
 	}
 
-	var annQ map[string]interface{}
-	var annFT flex.FieldTracks
-	for x := 0; x < len(req.Order); x++ {
-		if ann, ok := req.Order[x].Expr.(*expression.Ann); ok {
-			var annFB *flex.FlexBuild
+	var approxVectorDistanceQ map[string]interface{}
+	var approxVectorDistanceFT flex.FieldTracks
+	if req.VecPred != nil {
+		if approxVectorDistance, ok := req.VecPred.(*expression.ApproxVectorDistance); ok {
+			var approxVectorDistanceFB *flex.FlexBuild
 			var err error
-			annFT, _, annFB, _, err = i.condFlexIndexes.Sargable(identifiers, ann, req.Keyspace, nil)
+			approxVectorDistanceFT, _, approxVectorDistanceFB, _, err = i.condFlexIndexes.Sargable(identifiers, approxVectorDistance, req.Keyspace, nil)
 			if err != nil {
 				return nil, util.N1QLError(err, "SargableFlex Sargable ANN")
 			}
 
-			annQ, err = flex.FlexBuildToBleveQuery(annFB, nil)
+			approxVectorDistanceQ, err = flex.FlexBuildToBleveQuery(approxVectorDistanceFB, nil)
 			if err != nil {
 				return nil, util.N1QLError(err, "SargableFlex Sargable ANN")
 			}
 
-			if len(annQ) == 0 {
+			if len(approxVectorDistanceQ) == 0 {
 				// if no index is Sargable for the ORDER BY ANN
 				return nil, nil
 			}
@@ -799,9 +799,7 @@ func (i *FTSIndex) SargableFlex(requestId string, req *datastore.FTSFlexRequest)
 			if req.Limit <= 0 {
 				return nil, util.N1QLError(err, "SargableFlex Sargable ANN, limit is 0")
 			}
-			annQ["k"] = int(req.Limit)
-
-			break
+			approxVectorDistanceQ["k"] = int(req.Limit)
 		}
 	}
 
@@ -819,7 +817,7 @@ func (i *FTSIndex) SargableFlex(requestId string, req *datastore.FTSFlexRequest)
 		}
 	}
 
-	if len(fieldTracks) == 0 && len(annQ) == 0 {
+	if len(fieldTracks) == 0 && len(approxVectorDistanceQ) == 0 {
 		return nil, nil
 	}
 
@@ -830,19 +828,19 @@ func (i *FTSIndex) SargableFlex(requestId string, req *datastore.FTSFlexRequest)
 			return nil, util.N1QLError(err, "SargableFlex Sargable")
 		}
 
-		if len(annQ) > 0 {
-			for k, v := range annFT {
+		if len(approxVectorDistanceQ) > 0 {
+			for k, v := range approxVectorDistanceFT {
 				fieldTracks[k] = v
 			}
 
-			// Embed bleveQuery within annQ
-			annQ["filter"] = bleveQuery
+			// Embed bleveQuery within approxVectorDistanceQ
+			approxVectorDistanceQ["filter"] = bleveQuery
 		}
-	} else if len(annQ) > 0 {
-		fieldTracks = annFT
+	} else if len(approxVectorDistanceQ) > 0 {
+		fieldTracks = approxVectorDistanceFT
 	}
 
-	if len(annQ) == 0 && len(bleveQuery) == 0 {
+	if len(approxVectorDistanceQ) == 0 && len(bleveQuery) == 0 {
 		return nil, nil
 	}
 
@@ -850,7 +848,7 @@ func (i *FTSIndex) SargableFlex(requestId string, req *datastore.FTSFlexRequest)
 	if err != nil {
 		return nil, util.N1QLError(err, "SargableFlex Sargable")
 	}
-	if (flexBuild != nil && !supported) || (len(knnQuery) > 0 && len(annQ) > 0) {
+	if (flexBuild != nil && !supported) || (len(knnQuery) > 0 && len(approxVectorDistanceQ) > 0) {
 		// cannot support KNN from within Search function alongside ORDER BY ANN
 		return nil, nil
 	}
@@ -869,9 +867,9 @@ func (i *FTSIndex) SargableFlex(requestId string, req *datastore.FTSFlexRequest)
 	}
 	var containsKNN bool
 
-	if len(annQ) > 0 {
+	if len(approxVectorDistanceQ) > 0 {
 		// Pre-filtered kNN query
-		searchRequest["knn"] = []interface{}{annQ}
+		searchRequest["knn"] = []interface{}{approxVectorDistanceQ}
 		containsKNN = true
 		needsFiltering = true
 	} else {
