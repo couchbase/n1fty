@@ -43,7 +43,7 @@ replace github.com/couchbase/godbc => ../godbc
 replace github.com/couchbase/regulator => ../regulator
 
 require (
-	github.com/blevesearch/bleve/v2 v2.4.5-0.20250224123205-a20efc18549a
+	github.com/blevesearch/bleve/v2 v2.4.5-0.20250318154321-fef722deed0d
 	github.com/blevesearch/sear v0.2.9
 	github.com/buger/jsonparser v1.1.1
 	github.com/couchbase/cbauth v0.1.12
@@ -56,7 +56,7 @@ require (
 	github.com/couchbase/query v0.0.0-00010101000000-000000000000
 	github.com/couchbase/regulator v0.0.0-00010101000000-000000000000
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475
-	golang.org/x/net v0.21.0
+	golang.org/x/net v0.25.0
 	google.golang.org/grpc v1.60.1
 )
 
