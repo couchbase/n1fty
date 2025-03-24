@@ -47,7 +47,7 @@ replace github.com/couchbase/godbc => ../godbc
 replace github.com/couchbase/regulator => ../regulator
 
 require (
-	github.com/blevesearch/bleve/v2 v2.4.4-0.20250311051258-dd102de3e3fd
+	github.com/blevesearch/bleve/v2 v2.4.4-0.20250320075922-5040e2d2092a
 	github.com/blevesearch/sear v0.3.1
 	github.com/buger/jsonparser v1.1.1
 	github.com/couchbase/cbauth v0.1.13
@@ -151,7 +151,7 @@ require (
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
-	go.etcd.io/bbolt v1.3.7 // indirect
+	go.etcd.io/bbolt v1.4.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.49.0 // indirect
 	go.opentelemetry.io/otel v1.34.0 // indirect
