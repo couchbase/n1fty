@@ -47,7 +47,7 @@ replace github.com/couchbase/godbc => ../godbc
 replace github.com/couchbase/regulator => ../regulator
 
 require (
-	github.com/blevesearch/bleve/v2 v2.4.4-0.20250402153825-821c962faa8e
+	github.com/blevesearch/bleve/v2 v2.5.0
 	github.com/blevesearch/sear v0.3.3
 	github.com/buger/jsonparser v1.1.1
 	github.com/couchbase/cbauth v0.1.13
