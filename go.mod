@@ -43,8 +43,8 @@ replace github.com/couchbase/godbc => ../godbc
 replace github.com/couchbase/regulator => ../regulator
 
 require (
-	github.com/blevesearch/bleve/v2 v2.4.5-0.20250408141756-f97cbececf08
-	github.com/blevesearch/sear v0.2.9
+	github.com/blevesearch/bleve/v2 v2.4.5-0.20250408151029-9a336c211a0f
+	github.com/blevesearch/sear v0.2.10-0.20250408144211-734aeeaa871d
 	github.com/buger/jsonparser v1.1.1
 	github.com/couchbase/cbauth v0.1.12
 	github.com/couchbase/cbft v0.0.0-00010101000000-000000000000
@@ -77,14 +77,14 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.22.0 // indirect
 	github.com/blevesearch/bleve-mapping-ui v0.5.2 // indirect
-	github.com/blevesearch/bleve_index_api v1.2.1-0.20250407171239-fd7f57705029 // indirect
+	github.com/blevesearch/bleve_index_api v1.1.13-0.20250408143424-7650bf7414fb // indirect
 	github.com/blevesearch/geo v0.1.20 // indirect
 	github.com/blevesearch/go-faiss v1.0.25 // indirect
 	github.com/blevesearch/go-porterstemmer v1.0.3 // indirect
 	github.com/blevesearch/goleveldb v1.0.1 // indirect
 	github.com/blevesearch/gtreap v0.1.1 // indirect
 	github.com/blevesearch/mmap-go v1.0.4 // indirect
-	github.com/blevesearch/scorch_segment_api/v2 v2.2.17-0.20250407171917-6fe0debd32b2 // indirect
+	github.com/blevesearch/scorch_segment_api/v2 v2.2.17-0.20250408144238-c77c8b053a92 // indirect
 	github.com/blevesearch/segment v0.9.1 // indirect
 	github.com/blevesearch/snowballstem v0.9.0 // indirect
 	github.com/blevesearch/stempel v0.2.0 // indirect
@@ -95,7 +95,7 @@ require (
 	github.com/blevesearch/zapx/v13 v13.3.10 // indirect
 	github.com/blevesearch/zapx/v14 v14.3.10 // indirect
 	github.com/blevesearch/zapx/v15 v15.3.16 // indirect
-	github.com/blevesearch/zapx/v16 v16.1.9-0.20250407172450-d7e1abd94198 // indirect
+	github.com/blevesearch/zapx/v16 v16.1.9-0.20250408145346-d000edc04c2d // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cloudfoundry/gosigar v1.3.4 // indirect
 	github.com/couchbase/blance v0.1.6 // indirect
