@@ -204,7 +204,7 @@ func (s *WrapDatastore) GetSystemCollection(bucketName string) (datastore.Keyspa
 	return nil, nil
 }
 
-func (s *WrapDatastore) CheckSystemCollection(bucketName, requestId string, forceIndex bool, randomDeley int) (bool, errors.Error) {
+func (s *WrapDatastore) CheckSystemCollection(bucketName, requestId string, forceIndex bool, randomDelay int) (bool, errors.Error) {
 	return false, nil
 }
 
