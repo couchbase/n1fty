@@ -43,7 +43,7 @@ replace github.com/couchbase/godbc => ../godbc
 replace github.com/couchbase/regulator => ../regulator
 
 require (
-	github.com/blevesearch/bleve/v2 v2.4.5-0.20250224123205-a20efc18549a
+	github.com/blevesearch/bleve/v2 v2.4.5-0.20250506223450-ab3e9605f7b8
 	github.com/blevesearch/sear v0.2.9
 	github.com/buger/jsonparser v1.1.1
 	github.com/couchbase/cbauth v0.1.12
