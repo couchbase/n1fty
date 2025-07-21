@@ -359,3 +359,98 @@ func TestSargableWithKNNOverDynamicMappings(t *testing.T) {
 		}
 	}
 }
+
+func TestSargabilityOverNamedParametersWithinHybridSearch(t *testing.T) {
+	index, err := setupSampleIndex([]byte(`{
+		"name": "test",
+		"type": "fulltext-index",
+		"sourceName": "test",
+		"params": {
+			"doc_config": {
+				"mode": "type_field",
+				"type_field": "type"
+			},
+			"mapping": {
+				"default_mapping": {
+				"dynamic": false,
+				"enabled": true,
+				"properties": {
+					"color": {
+						"enabled": true,
+						"dynamic": false,
+						"fields": [
+							{
+								"analyzer": "standard",
+								"index": true,
+								"name": "color",
+								"store": true,
+								"type": "text"
+							}
+							]
+						},
+						"colorvect_l2": {
+							"enabled": true,
+							"dynamic": false,
+							"fields": [
+							{
+								"dims": 3,
+								"index": true,
+								"name": "colorvect_l2",
+								"similarity": "l2_norm",
+								"type": "vector",
+								"vector_index_optimized_for": "recall"
+							}
+							]
+						}
+					}
+				}
+			},
+			"store": {
+				"indexType": "scorch"
+			}
+		}
+	}`))
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i, test := range []struct {
+		queryStr            string
+		expectSargableCount int
+	}{
+		{
+			queryStr:            `{"query": {"match": $x, "field": "color"}}`,
+			expectSargableCount: 1,
+		},
+		{
+			// named parameters not supported over KNN queries - because of inability to establish
+			// sargability over the vector dimensions without actual data.
+			queryStr:            `{"knn": [{"k": 3, "field": "colorvect_l2", "vector":$vec}]}`,
+			expectSargableCount: 0,
+		},
+		{
+			queryStr:            `{"query": {"match": "blue", "field": "color"}, "knn": [{"k": 3, "field": "colorvect_l2", "vector":[1,2,3]}]}`,
+			expectSargableCount: 2,
+		},
+		{
+			// MB-67744
+			queryStr:            `{"query": {"match": $x, "field": "color"}, "knn": [{"k": 3, "field": "colorvect_l2", "vector":[1,2,3]}]}`,
+			expectSargableCount: 1,
+		},
+	} {
+		queryExpr, err := parser.Parse(test.queryStr)
+		if err != nil {
+			t.Fatalf("[%d] Failed to parse query expression: %v", i, err)
+		}
+
+		count, _, _, _, _, n1qlErr := index.Sargable("", queryExpr, nil, nil)
+		if n1qlErr != nil {
+			t.Fatalf("[%d] Sargable error: %v", i, n1qlErr)
+		}
+
+		if count != test.expectSargableCount {
+			t.Fatalf("[%d] Sargable count expected to be %v, but got %v", i, test.expectSargableCount, count)
+		}
+	}
+}
