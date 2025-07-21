@@ -382,14 +382,18 @@ func (i *FTSIndex) Sargable(field string, query,
 		// now; sargability is tested for again during search time when the
 		// query becomes available.
 		queryFields = map[util.SearchField]struct{}{}
+		var containsKnn bool
 
 		var fetchFields func(expression.Expression)
 		fetchFields = func(arg expression.Expression) {
 			if oc, ok := arg.(*expression.ObjectConstruct); ok {
 				for name, val := range oc.Mapping() {
 					n := name.Value()
-					if n != nil &&
-						n.Type() == value.STRING && n.Actual().(string) == "field" {
+					if n != nil && n.Type() == value.STRING && n.Actual().(string) == "knn" {
+						if val.Value() != nil && val.Value().Type() == value.ARRAY {
+							containsKnn = true
+						}
+					} else if n != nil && n.Type() == value.STRING && n.Actual().(string) == "field" {
 						if val.Value() != nil && val.Value().Type() == value.STRING {
 							queryFields[util.SearchField{
 								Name: val.Value().Actual().(string),
@@ -414,6 +418,7 @@ func (i *FTSIndex) Sargable(field string, query,
 				opq = make(map[string]interface{})
 			}
 			opq["query_fields"] = queryFields
+			opq["contains_knn"] = containsKnn
 			opaque = opq
 		}
 	}
@@ -555,7 +560,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			var count int
 			for qf, _ := range queryFields {
 				if len(qf.Name) == 0 {
-					// if even a single sub-query doesn't have it's field set,
+					// if even a single sub-query doesn't have its field set,
 					// reset count to 0, and overwrite sargable count to the
 					// number of fields indexed.
 					count = 0

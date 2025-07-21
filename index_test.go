@@ -2263,7 +2263,7 @@ func TestORDERBYAPPROX_VECTOR_DISTANCEOverSargableFlex(t *testing.T) {
 		},
 		{
 			keyspace:              "c",
-			pred:                  ``,                                                              // No predicate, only APPROX_VECTOR_DISTANCE
+			pred:                  ``, // No predicate, only APPROX_VECTOR_DISTANCE
 			vecPred:               `APPROX_VECTOR_DISTANCE(c.colorvect_l2, [1,2,3], "L2_SQUARED")`,
 			limit:                 5,
 			expectStaticSargKeys:  1,
