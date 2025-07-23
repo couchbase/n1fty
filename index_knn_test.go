@@ -438,19 +438,33 @@ func TestSargabilityOverNamedParametersWithinHybridSearch(t *testing.T) {
 			queryStr:            `{"query": {"match": $x, "field": "color"}, "knn": [{"k": 3, "field": "colorvect_l2", "vector":[1,2,3]}]}`,
 			expectSargableCount: 1,
 		},
+		{
+			queryStr:            `{"knn": [{"filter": {"match": "blue", "field": "color"}, "k": 3, "field": "colorvect_l2", "vector":[1,2,3]}]}`,
+			expectSargableCount: 2,
+		},
+		{
+			// MB-67744
+			queryStr:            `{"knn": [{"filter": {"match": "blue", "field": "color"}, "k": 3, "field": "colorvect_l2", "vector":$vec}]}`,
+			expectSargableCount: 1,
+		},
+		{
+			// MB-67744
+			queryStr:            `{"knn": [{"filter": {"match": $x, "field": "color"}, "k": 3, "field": "colorvect_l2", "vector":[1,2,3]}]}`,
+			expectSargableCount: 1,
+		},
 	} {
 		queryExpr, err := parser.Parse(test.queryStr)
 		if err != nil {
-			t.Fatalf("[%d] Failed to parse query expression: %v", i, err)
+			t.Fatalf("[%d] Failed to parse query expression: %v", i+1, err)
 		}
 
 		count, _, _, _, _, n1qlErr := index.Sargable("", queryExpr, nil, nil)
 		if n1qlErr != nil {
-			t.Fatalf("[%d] Sargable error: %v", i, n1qlErr)
+			t.Fatalf("[%d] Sargable error: %v", i+1, n1qlErr)
 		}
 
 		if count != test.expectSargableCount {
-			t.Fatalf("[%d] Sargable count expected to be %v, but got %v", i, test.expectSargableCount, count)
+			t.Fatalf("[%d] Sargable count expected to be %v, but got %v", i+1, test.expectSargableCount, count)
 		}
 	}
 }
