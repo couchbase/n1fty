@@ -375,8 +375,7 @@ func (i *FTSIndex) Sargable(field string, query,
 		}
 
 		// if the index isn't default dynamic, check if the query expression
-		// provided is an object construct, so as to retrieve any available
-		// "field" information;
+		// provided is an object construct, to retrieve any available "field" information;
 		// use available field information to determine the sargability of
 		// this index for the field(s), ignoring the analyzer, type etc. for
 		// now; sargability is tested for again during search time when the
@@ -388,12 +387,28 @@ func (i *FTSIndex) Sargable(field string, query,
 		fetchFields = func(arg expression.Expression) {
 			if oc, ok := arg.(*expression.ObjectConstruct); ok {
 				for name, val := range oc.Mapping() {
-					n := name.Value()
-					if n != nil && n.Type() == value.STRING && n.Actual().(string) == "knn" {
-						if val.Value() != nil && val.Value().Type() == value.ARRAY {
+					if nVal := name.Value(); nVal != nil &&
+						nVal.Type() == value.STRING && nVal.Actual().(string) == "knn" {
+						if val.Type() == value.ARRAY {
 							containsKnn = true
+							// iterate over "knn" array to extract pre-filter requests
+							if knnArr, ok := val.(*expression.ArrayConstruct); ok {
+								// iterate over entries to look for "filter" field
+								for _, v := range knnArr.Operands() {
+									if vOC, ok := v.(*expression.ObjectConstruct); ok {
+										// iterate over entries to look for "filter" field
+										for n1, v1 := range vOC.Mapping() {
+											if n1Val := n1.Value(); n1Val != nil &&
+												n1Val.Type() == value.STRING &&
+												n1Val.Actual().(string) == "filter" {
+												fetchFields(v1)
+											}
+										}
+									}
+								}
+							}
 						}
-					} else if n != nil && n.Type() == value.STRING && n.Actual().(string) == "field" {
+					} else if nVal != nil && nVal.Type() == value.STRING && nVal.Actual().(string) == "field" {
 						if val.Value() != nil && val.Value().Type() == value.STRING {
 							queryFields[util.SearchField{
 								Name: val.Value().Actual().(string),
