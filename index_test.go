@@ -24,13 +24,18 @@ import (
 )
 
 func setupSampleIndex(idef []byte) (*FTSIndex, error) {
+	return setupSampleIndexOverScopeCollection("_default", "_default", idef)
+}
+
+func setupSampleIndexOverScopeCollection(scope, collection string, idef []byte) (
+	*FTSIndex, error) {
 	var indexDef *cbgt.IndexDef
 	err := json.Unmarshal(idef, &indexDef)
 	if err != nil {
 		return nil, err
 	}
 
-	pip, err := util.ProcessIndexDef(indexDef, "", "")
+	pip, err := util.ProcessIndexDef(indexDef, scope, collection)
 	if err != nil {
 		return nil, err
 	}
@@ -1625,8 +1630,8 @@ func TestFlexPushDownSearchFunc2(t *testing.T) {
 					"index": "SampleIndexDefWithSeveralNestedFieldsUnderHotelMapping",
 				})),
 			expectQuery: `{"query":{"conjuncts":[{"field":"public_likes",` +
-				`"wildcard":"ABC"},{"must":{"conjuncts":[]},"must_not":{"disjuncts":[],` +
-				`"min": 0},"should":{"disjuncts":[{"field":"reviews.author","fuzziness":0,` +
+				`"wildcard":"ABC"},{"should":{"disjuncts":` +
+				`[{"field":"reviews.author","fuzziness":0,` +
 				`"match":"XYZ","prefix_length":0}],"min":0}}]},"score":"none"}`,
 			expectedSargKeys: []string{"type", "public_likes"},
 			expectSearchExpr: true,
@@ -2145,4 +2150,95 @@ func TestFlexNeedForFiltering(t *testing.T) {
 			t.Errorf("[%d] Expecting an exact result, shouldn't be a need for filtering", i+1)
 		}
 	}
+}
+
+func TestMB68274(t *testing.T) {
+	queBytes := []byte(`{"query": {"field": "identifier.system", "match": "xyz", "analyzer": "keyword"}}`)
+	var que map[string]interface{}
+	err := json.Unmarshal(queBytes, &que)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for testi, test := range [][]byte{
+		[]byte(`{
+			"name": "temp",
+			"type": "fulltext-index",
+			"sourceName": "travel-sample",
+			"params": {
+				"doc_config": {
+					"mode": "scope.collection.type_field",
+					"type_field": "type"
+				},
+				"mapping": {
+					"default_mapping": {
+						"enabled": false
+					},
+					"types": {
+						"_default._default": {
+							"dynamic": false,
+							"enabled": true,
+							"default_analyzer": "keyword",
+							"properties": {
+								"identifier": {
+									"dynamic": true,
+									"enabled": true
+								}
+							}
+						}
+					}
+				},
+				"store": {
+					"indexType": "scorch"
+				}
+			}
+		}`),
+		[]byte(`{
+			"name": "temp",
+			"type": "fulltext-index",
+			"sourceName": "travel-sample",
+			"params": {
+				"doc_config": {
+					"mode": "type_field",
+					"type_field": "type"
+				},
+				"mapping": {
+					"default_mapping": {
+						"dynamic": false,
+						"enabled": true,
+						"default_analyzer": "keyword",
+						"properties": {
+							"identifier": {
+								"dynamic": true,
+								"enabled": true
+							}
+						}
+					}
+				},
+				"store": {
+					"indexType": "scorch"
+				}
+			}
+		}`),
+	} {
+		index, err := setupSampleIndex(test)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		count, indexedCount, _, _, _, n1qlErr := index.Sargable("",
+			expression.NewConstant(que), nil, nil)
+		if n1qlErr != nil {
+			t.Fatal(n1qlErr)
+		}
+
+		if count != 1 {
+			t.Errorf("[%d] Expected 1 results, got %d", testi, count)
+		}
+
+		if indexedCount != math.MaxInt64 {
+			t.Errorf("[%d] Expected %d results, got %d", testi, math.MaxInt64, indexedCount)
+		}
+	}
+
 }

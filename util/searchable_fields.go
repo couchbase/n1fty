@@ -610,14 +610,15 @@ func ProcessDocumentMapping(im *mapping.IndexMappingImpl,
 
 		m[searchField] = false
 
-		// Additionally include the same search field with the top-level
-		// default_analyzer as well, to allow queries without the
-		// "analyzer" setting (MB-33821)
-		m[SearchField{
-			Name:     searchField.Name,
-			Type:     searchField.Type,
-			Analyzer: im.DefaultAnalyzer,
-		}] = false
+		if searchField.Type == "text" {
+			// Additionally include the same search field with no
+			// analyzer as well, to allow queries without the
+			// "analyzer" setting (MB-33821)
+			m[SearchField{
+				Name: searchField.Name,
+				Type: searchField.Type,
+			}] = false
+		}
 	}
 
 	for prop, propDM := range dm.Properties {
@@ -637,6 +638,18 @@ func ProcessDocumentMapping(im *mapping.IndexMappingImpl,
 		searchField := SearchField{
 			Name:     strings.Join(path, "."),
 			Analyzer: defaultAnalyzer,
+		}
+
+		if _, exists := m[searchField]; !exists {
+			m[searchField] = true
+			indexedCount = math.MaxInt64
+		}
+
+		// Additionally include the same parent field with no
+		// analyzer as well, to allow queries without the "analyzer"
+		// setting (MB-68274)
+		searchField = SearchField{
+			Name: strings.Join(path, "."),
 		}
 
 		if _, exists := m[searchField]; !exists {
