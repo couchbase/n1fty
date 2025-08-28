@@ -37,10 +37,13 @@ func TestIndexDefConversion(t *testing.T) {
 
 	expect := map[SearchField]bool{}
 	expect[SearchField{Name: "reviews.review", Analyzer: "standard"}] = true
+	expect[SearchField{Name: "reviews.review", Analyzer: ""}] = true
 	expect[SearchField{Name: "reviews.review.author", Analyzer: "de", Type: "text"}] = false
-	expect[SearchField{Name: "reviews.review.author", Analyzer: "standard", Type: "text"}] = false
+	expect[SearchField{Name: "reviews.review.author", Analyzer: "", Type: "text"}] = false
 	expect[SearchField{Name: "countryX", Analyzer: "standard", Type: "text"}] = false
+	expect[SearchField{Name: "countryX", Analyzer: "", Type: "text"}] = false
 	expect[SearchField{Name: "reviews.id", Analyzer: "standard", Type: "text"}] = false
+	expect[SearchField{Name: "reviews.id", Analyzer: "", Type: "text"}] = false
 
 	if !reflect.DeepEqual(expect, pip.SearchFields) {
 		t.Fatalf("Expected: %v,\n Got: %v", expect, pip.SearchFields)
@@ -180,8 +183,8 @@ func TestProcessIndexDef(t *testing.T) {
 				}
 			}`,
 			expectSearchFields: map[SearchField]bool{
-				{Name: "country", Type: "text", Analyzer: "da"}:       false,
-				{Name: "country", Type: "text", Analyzer: "standard"}: false,
+				{Name: "country", Type: "text", Analyzer: "da"}: false,
+				{Name: "country", Type: "text", Analyzer: ""}:   false,
 			},
 			expectCondExpr:              "`type`=\"hotel\"",
 			expectDynamic:               false,
@@ -230,8 +233,8 @@ func TestProcessIndexDef(t *testing.T) {
 				}
 			}`,
 			expectSearchFields: map[SearchField]bool{
-				{Name: "country", Type: "text", Analyzer: "da"}:       false,
-				{Name: "country", Type: "text", Analyzer: "standard"}: false,
+				{Name: "country", Type: "text", Analyzer: "da"}: false,
+				{Name: "country", Type: "text", Analyzer: ""}:   false,
 			},
 			expectCondExpr:              `META().id LIKE "hotel:%"`,
 			expectDynamic:               false,
@@ -357,8 +360,8 @@ func TestProcessIndexDef(t *testing.T) {
 				}
 			}`,
 			expectSearchFields: map[SearchField]bool{
-				{Name: "country", Type: "text", Analyzer: "keyword"}:  false,
-				{Name: "country", Type: "text", Analyzer: "standard"}: false,
+				{Name: "country", Type: "text", Analyzer: "keyword"}: false,
+				{Name: "country", Type: "text", Analyzer: ""}:        false,
 			},
 			expectCondExpr:              `META().id LIKE "%hotel%"`,
 			expectDynamic:               false,
@@ -406,8 +409,8 @@ func TestProcessIndexDef(t *testing.T) {
 				}
 			}`,
 			expectSearchFields: map[SearchField]bool{
-				{Name: "country", Type: "text", Analyzer: "cjk"}:      false,
-				{Name: "country", Type: "text", Analyzer: "standard"}: false,
+				{Name: "country", Type: "text", Analyzer: "cjk"}: false,
+				{Name: "country", Type: "text", Analyzer: ""}:    false,
 			},
 			expectCondExpr:              "`type`=\"hotel\"",
 			expectDynamic:               false,
@@ -454,6 +457,7 @@ func TestProcessIndexDef(t *testing.T) {
 			}`,
 			expectSearchFields: map[SearchField]bool{
 				{Name: "country", Type: "text", Analyzer: "super"}: false,
+				{Name: "country", Type: "text", Analyzer: ""}:      false,
 			},
 			expectCondExpr:              "`type`=\"hotel\"",
 			expectDynamic:               false,
@@ -493,6 +497,7 @@ func TestProcessIndexDef(t *testing.T) {
 			}`,
 			expectSearchFields: map[SearchField]bool{
 				{Name: "country", Type: "text", Analyzer: "standard"}: false,
+				{Name: "country", Type: "text", Analyzer: ""}:         false,
 			},
 			expectCondExpr:              "`type`=\"hotel\"",
 			expectDynamic:               false,
@@ -546,6 +551,7 @@ func TestProcessIndexDef(t *testing.T) {
 				}
 			}`,
 			expectSearchFields: map[SearchField]bool{
+				{Name: "country", Type: "text", Analyzer: ""}:         false,
 				{Name: "country", Type: "text", Analyzer: "standard"}: false,
 			},
 			expectCondExpr:              "`type` IN [\"hotel\", \"locations\"]",
@@ -638,6 +644,7 @@ func TestProcessIndexDef(t *testing.T) {
 				}
 			}`,
 			expectSearchFields: map[SearchField]bool{
+				{Name: "", Type: "", Analyzer: ""}:         true,
 				{Name: "", Type: "", Analyzer: "standard"}: true,
 			},
 			expectCondExpr:              "",
@@ -666,6 +673,7 @@ func TestProcessIndexDef(t *testing.T) {
 				}
 			}`,
 			expectSearchFields: map[SearchField]bool{
+				{Name: "", Type: "", Analyzer: ""}:         true,
 				{Name: "", Type: "", Analyzer: "standard"}: true,
 			},
 			expectCondExpr:              "`type`=\"hotel\"",
@@ -697,6 +705,7 @@ func TestProcessIndexDef(t *testing.T) {
 				}
 			}`,
 			expectSearchFields: map[SearchField]bool{
+				{Name: "", Type: "", Analyzer: ""}:         true,
 				{Name: "", Type: "", Analyzer: "standard"}: true,
 			},
 			expectCondExpr:              "`type`=\"hotel\"",
@@ -774,6 +783,7 @@ func TestProcessIndexDef(t *testing.T) {
 			}`,
 			expectSearchFields: map[SearchField]bool{
 				{Name: "country", Type: "text", Analyzer: "super"}: false,
+				{Name: "country", Type: "text", Analyzer: ""}:      false,
 			},
 			expectCondExpr:              "`type`=\"hotel\"",
 			expectDynamic:               false,
@@ -806,6 +816,7 @@ func TestProcessIndexDef(t *testing.T) {
 			}`,
 			expectSearchFields: map[SearchField]bool{
 				{Name: "", Type: "", Analyzer: "standard"}: true,
+				{Name: "", Type: "", Analyzer: ""}:         true,
 			},
 			expectCondExpr:              "",
 			expectDynamic:               true,
