@@ -2327,9 +2327,9 @@ func TestMB68274(t *testing.T) {
 	queBytes := []byte(`{"query": {"field": "identifier.system", "match": "xyz", "analyzer": "keyword"}}`)
 	var que map[string]interface{}
 	err := json.Unmarshal(queBytes, &que)
-    if err != nil {
-        t.Fatal(err)
-    }
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	for testi, test := range [][]byte{
 		[]byte(`{

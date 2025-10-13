@@ -44,7 +44,7 @@ func NewServer(dir string, c *WrapCallbacks) (*server.Server, error) {
 	wds := &WrapDatastore{W: ds, C: c}
 	accountingStoreStub, _ := accounting_stub.NewAccountingStore("")
 
-	sys, err := system.NewDatastore(wds, accountingStoreStub)
+	sys, err := system.NewDatastore(wds, accountingStoreStub, true /* enterprise */)
 	if err != nil {
 		return nil, err
 	}
