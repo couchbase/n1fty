@@ -50,11 +50,11 @@ type FTSIndex struct {
 	// map of dynamic mappings to their default analyzers
 	dynamicMappings map[string]string
 
-	allFieldSearchable bool // true if _all field contains some content
-
+	allFieldSearchable    bool // true if _all field contains some content for collection
 	defaultAnalyzer       string
 	defaultDateTimeParser string
 	multipleTypeStrs      bool
+	multiCollectionIndex  bool
 
 	// flex indexes supported
 	condFlexIndexes flex.CondFlexIndexes
@@ -83,6 +83,7 @@ func newFTSIndex(indexer *FTSIndexer, indexDef *cbgt.IndexDef,
 		defaultAnalyzer:       pip.DefaultAnalyzer,
 		defaultDateTimeParser: pip.DefaultDateTimeParser,
 		multipleTypeStrs:      len(pip.TypeMappings) > 1,
+		multiCollectionIndex:  pip.MultiCollectionIndex,
 	}
 
 	condFlexIndexes, err := flex.BleveToCondFlexIndexes(
@@ -369,8 +370,10 @@ func (i *FTSIndex) Sargable(field string, query,
 
 	if queryVal == nil && len(queryFields) == 0 {
 		// this index will be sargable for the unavailable query if
-		// it has a default dynamic mapping with the _all field searchable.
-		if len(i.dynamicMappings) > 0 && i.allFieldSearchable {
+		// it has a default dynamic mapping with the _all field searchable;
+		// if _all field isn't searchable or index is multi-collection,
+		// this index isn't sargable for an unavailable query.
+		if len(i.dynamicMappings) > 0 && i.allFieldSearchable && !i.multiCollectionIndex {
 			return int(math.MaxInt64), math.MaxInt64, false, false, opaque, nil
 		}
 
@@ -522,7 +525,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 				}
 
 				searchableFields, _, _, dynamicMappings, _,
-					defaultAnalyzer, defaultDateTimeParser := util.ProcessIndexMapping(im)
+					defaultAnalyzer, defaultDateTimeParser, _ := util.ProcessIndexMapping(im, "", "")
 
 				if len(dynamicMappings) == 0 && len(i.dynamicMappings) == 0 {
 					// no dynamic mappings
@@ -637,8 +640,9 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 	for f := range queryFields {
 		if f.Name == "" {
 			// field name not provided/available
-			// check if index supports _all field, if not, this query is not sargable
-			if !i.allFieldSearchable {
+			// check if index supports _all field, if not, this query is not sargable;
+			// if _all field is searchable but index is multi-collection, not sargable
+			if !i.allFieldSearchable || i.multiCollectionIndex {
 				return rv
 			}
 
@@ -723,8 +727,9 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 		}
 
 		// if field(s) not provided or unavailable within query,
-		// index is not sargable if it does not support _all field
-		if !i.allFieldSearchable {
+		// index is not sargable if it does not support _all field;
+		// if _all is availbale but index is multi-collection, not sargable
+		if !i.allFieldSearchable || i.multiCollectionIndex {
 			return rv
 		}
 

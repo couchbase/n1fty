@@ -2240,5 +2240,222 @@ func TestMB68274(t *testing.T) {
 			t.Errorf("[%d] Expected %d results, got %d", testi, math.MaxInt64, indexedCount)
 		}
 	}
+}
 
+// MB-68969
+func TestQueryOverAllCompositeFieldFromIndexOverMultipleCollections(t *testing.T) {
+	index, err := setupSampleIndexOverScopeCollection(
+		"player-service",
+		"player-profiles",
+		[]byte(`{
+			"name": "temp",
+			"type": "fulltext-index",
+			"sourceType": "gocbcore",
+			"sourceName": "pls",
+			"planParams": {
+				"indexPartitions": 1
+			},
+			"params": {
+				"doc_config": {
+					"mode": "scope.collection.type_field",
+					"type_field": "type"
+				},
+				"mapping": {
+					"analysis": {
+						"analyzers": {
+							"WCC-customAnalyzer": {
+								"char_filters": [
+								"asciifolding"
+								],
+								"token_filters": [
+								"to_lower"
+								],
+								"tokenizer": "whitespace",
+								"type": "custom"
+							}
+						}
+					},
+					"default_analyzer": "standard",
+					"default_datetime_parser": "dateTimeOptional",
+					"default_field": "_all",
+					"default_mapping": {
+						"enabled": false
+					},
+					"default_type": "_default",
+					"types": {
+						"player-service.player-accounts": {
+							"default_analyzer": "WCC-customAnalyzer",
+							"dynamic": false,
+							"enabled": true,
+							"properties": {
+								"accountNumber": {
+									"dynamic": false,
+									"enabled": true,
+									"fields": [
+									{
+										"include_in_all": true,
+										"index": true,
+										"name": "accountNumber",
+										"type": "text"
+									}
+									]
+								},
+								"playerId": {
+									"dynamic": false,
+									"enabled": true,
+									"fields": [
+									{
+										"index": true,
+										"name": "playerId",
+										"store": true,
+										"type": "text"
+									}
+									]
+								}
+							}
+						},
+						"player-service.player-cards": {
+							"default_analyzer": "WCC-customAnalyzer",
+							"dynamic": false,
+							"enabled": true,
+							"properties": {
+								"cardNumber": {
+									"dynamic": false,
+									"enabled": true,
+									"fields": [
+									{
+										"include_in_all": true,
+										"index": true,
+										"name": "cardNumber",
+										"type": "text"
+									}
+									]
+								},
+								"playerId": {
+									"dynamic": false,
+									"enabled": true,
+									"fields": [
+									{
+										"index": true,
+										"name": "playerId",
+										"store": true,
+										"type": "text"
+									}
+									]
+								}
+							}
+						},
+						"player-service.player-profiles": {
+							"default_analyzer": "WCC-customAnalyzer",
+							"dynamic": false,
+							"enabled": true,
+							"properties": {
+								"playerId": {
+									"dynamic": false,
+									"enabled": true,
+									"fields": [
+									{
+										"include_in_all": true,
+										"index": true,
+										"name": "playerId",
+										"store": true,
+										"type": "text"
+									}
+									]
+								},
+								"playerName": {
+									"dynamic": false,
+									"enabled": true,
+									"properties": {
+										"first": {
+											"dynamic": false,
+											"enabled": true,
+											"fields": [
+											{
+												"include_in_all": true,
+												"index": true,
+												"name": "first",
+												"type": "text"
+											}
+											]
+										},
+										"last": {
+											"dynamic": false,
+											"enabled": true,
+											"fields": [
+											{
+												"include_in_all": true,
+												"index": true,
+												"name": "last",
+												"type": "text"
+											}
+											]
+										},
+										"middle": {
+											"dynamic": false,
+											"enabled": true,
+											"fields": [
+											{
+												"include_in_all": true,
+												"index": true,
+												"name": "middle",
+												"type": "text"
+											}
+											]
+										}
+									}
+								}
+							}
+						}
+					}
+				},
+				"store": {
+					"indexType": "scorch",
+					"segmentVersion": 15
+				}
+			},
+			"sourceParams": {}
+		}`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	queBytes := []byte(`{
+		"query": {
+			"disjuncts": [
+				{"match": "john"},
+				{"wildcard": "*john*"}
+			]
+		},
+		"sort": ["-_score"],
+		"size": 200,
+		"fields": ["playerId"]
+	}`)
+
+	var que map[string]interface{}
+	err = json.Unmarshal(queBytes, &que)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	optBytes := []byte(`{
+		"index": "temp"
+	}`)
+
+	var opt map[string]interface{}
+	err = json.Unmarshal(optBytes, &opt)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	count, indexedCount, _, _, _, n1qlErr := index.Sargable("",
+		expression.NewConstant(que), expression.NewConstant(opt), nil)
+	if n1qlErr != nil {
+		t.Fatal(n1qlErr)
+	}
+
+	if count > 0 || indexedCount > 0 {
+		t.Fatal("Expected index to not be sargable on account of multiple collections")
+	}
 }
