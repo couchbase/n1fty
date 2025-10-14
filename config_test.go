@@ -9,9 +9,10 @@
 package n1fty
 
 import (
+	"testing"
+
 	"github.com/couchbase/cbgt"
 	"github.com/couchbase/query/errors"
-	"testing"
 )
 
 var tconfig *ftsConfig
