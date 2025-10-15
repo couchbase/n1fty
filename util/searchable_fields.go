@@ -44,12 +44,13 @@ type ProcessedIndexParams struct {
 	IndexedCount          int64
 	CondExpr              string
 	DynamicMappings       map[string]string // Default Analyzers of enabled dynamic mappings
-	AllFieldSearchable    bool
+	AllFieldSearchable    bool              // Collection where _all field is searchable
 	DefaultAnalyzer       string
 	DefaultDateTimeParser string
 	TypeMappings          []string
 	Scope                 string
 	Collection            string
+	MultiCollectionIndex  bool // true if same index can be used for queries against multiple collections
 }
 
 // ProcessIndexDef determines if an indexDef is supportable as an
@@ -85,7 +86,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 		}
 
 		m, indexedCount, typeStrs, dynamicMappings, allFieldSearchable,
-			defaultAnalyzer, defaultDateTimeParser := ProcessIndexMapping(im)
+			defaultAnalyzer, defaultDateTimeParser, _ := ProcessIndexMapping(im, scope, collection)
 		var typeMappings []string
 		if typeStrs != nil {
 			for typeMapping, enabled := range typeStrs.S {
@@ -128,6 +129,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 			DefaultAnalyzer:       defaultAnalyzer,
 			DefaultDateTimeParser: defaultDateTimeParser,
 			TypeMappings:          typeMappings,
+			MultiCollectionIndex:  false,
 		}, nil
 
 	case "docid_prefix":
@@ -140,7 +142,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 
 		var typeMappings []string
 		m, indexedCount, typeStrs, dynamicMappings, allFieldSearchable,
-			defaultAnalyzer, defaultDateTimeParser := ProcessIndexMapping(im)
+			defaultAnalyzer, defaultDateTimeParser, _ := ProcessIndexMapping(im, scope, collection)
 		if typeStrs != nil {
 			for typeMapping, enabled := range typeStrs.S {
 				if !enabled {
@@ -173,6 +175,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 			DefaultAnalyzer:       defaultAnalyzer,
 			DefaultDateTimeParser: defaultDateTimeParser,
 			TypeMappings:          typeMappings,
+			MultiCollectionIndex:  false,
 		}, nil
 
 	case "docid_regexp":
@@ -180,7 +183,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 
 		var typeMappings []string
 		m, indexedCount, typeStrs, dynamicMappings, allFieldSearchable,
-			defaultAnalyzer, defaultDateTimeParser := ProcessIndexMapping(im)
+			defaultAnalyzer, defaultDateTimeParser, _ := ProcessIndexMapping(im, scope, collection)
 		if typeStrs != nil {
 			for typeMapping, enabled := range typeStrs.S {
 				if !enabled {
@@ -212,6 +215,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 			DefaultAnalyzer:       defaultAnalyzer,
 			DefaultDateTimeParser: defaultDateTimeParser,
 			TypeMappings:          typeMappings,
+			MultiCollectionIndex:  false,
 		}, nil
 
 	case "scope.collection.type_field":
@@ -222,8 +226,9 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 		}
 
 		var typeMappings []string
-		m, indexedCount, typeStrs, dynamicMappings, allFieldSearchable,
-			defaultAnalyzer, defaultDateTimeParser := ProcessIndexMapping(im)
+		m, indexedCount, typeStrs, dynamicMappings,
+			allFieldSearchable, defaultAnalyzer, defaultDateTimeParser,
+			multipleCollections := ProcessIndexMapping(im, scope, collection)
 		var entireScopeCollIndexed bool
 		if typeStrs != nil {
 			scopeCollTypes := map[string]bool{}
@@ -296,6 +301,7 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 			TypeMappings:          typeMappings,
 			Scope:                 scope,
 			Collection:            collection,
+			MultiCollectionIndex:  multipleCollections,
 		}, nil
 
 	case "scope.collection.docid_prefix":
@@ -307,8 +313,9 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 		}
 
 		var typeMappings []string
-		m, indexedCount, typeStrs, dynamicMappings, allFieldSearchable,
-			defaultAnalyzer, defaultDateTimeParser := ProcessIndexMapping(im)
+		m, indexedCount, typeStrs, dynamicMappings,
+			allFieldSearchable, defaultAnalyzer, defaultDateTimeParser,
+			multipleCollections := ProcessIndexMapping(im, scope, collection)
 
 		var entireScopeCollIndexed bool
 		if typeStrs != nil {
@@ -378,14 +385,16 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 			TypeMappings:          typeMappings,
 			Scope:                 scope,
 			Collection:            collection,
+			MultiCollectionIndex:  multipleCollections,
 		}, nil
 
 	case "scope.collection.docid_regexp":
 		dc := &bp.DocConfig
 
 		var typeMappings []string
-		m, indexedCount, typeStrs, dynamicMappings, allFieldSearchable,
-			defaultAnalyzer, defaultDateTimeParser := ProcessIndexMapping(im)
+		m, indexedCount, typeStrs, dynamicMappings,
+			allFieldSearchable, defaultAnalyzer, defaultDateTimeParser,
+			multipleCollections := ProcessIndexMapping(im, scope, collection)
 		var entireScopeCollIndexed bool
 		if typeStrs != nil {
 			scopeCollTypes := map[string]bool{}
@@ -454,11 +463,43 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 			TypeMappings:          typeMappings,
 			Scope:                 scope,
 			Collection:            collection,
+			MultiCollectionIndex:  multipleCollections,
 		}, nil
 
 	default:
 		return
 	}
+}
+
+func isTypeMappingApplicable(typeMappingName, scope, collection string) bool {
+	if len(scope) == 0 && len(collection) == 0 {
+		// skip scope.collection check
+		return true
+	}
+
+	if strings.HasPrefix(typeMappingName, scope+"."+collection) {
+		// type mapping is applicable to scope.collection
+		return true
+	}
+
+	// if type collection prefix does not match, check if scope and collection are _default
+	if scope == "_default" && collection == "_default" {
+		// type mapping without scope.collection prefix is applicable to _default._default
+		if !strings.Contains(typeMappingName, ".") {
+			return true
+		}
+	}
+
+	return false
+}
+
+func obtainCollectionFromTypeMapping(typeMappingName string) string {
+	parts := strings.Split(typeMappingName, ".")
+	if len(parts) >= 2 {
+		// scope.collection OR scope.collection.type
+		return parts[1]
+	}
+	return "_default"
 }
 
 // ProcessIndexMapping currently checks the index mapping for two
@@ -472,34 +513,38 @@ func ProcessIndexDef(indexDef *cbgt.IndexDef, scope, collection string) (
 //
 //	mapping is NOT enabled, where typeStrs will be for example ..
 //	&types{{"beer":true}, {"brewery":true}, ..]}
-func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
-	indexedCount int64, typeStrs *Types, dynamicMappings map[string]string,
-	allFieldSearchable bool, defaultAnalyzer string, defaultDateTimeParser string) {
+func ProcessIndexMapping(im *mapping.IndexMappingImpl, scope, collection string) (
+	m map[SearchField]bool, indexedCount int64, typeStrs *Types, dynamicMappings map[string]string,
+	allFieldSearchable bool, defaultAnalyzer string, defaultDateTimeParser string, multipleCollections bool) {
 	var ok bool
 	dynamicMappings = map[string]string{}
 
 	m = map[SearchField]bool{}
+	collections := map[string]struct{}{}
 
 	for t, tm := range im.TypeMapping {
 		if typeStrs == nil {
 			typeStrs = &Types{S: make(map[string]bool)}
 		}
 		if tm.Enabled {
-			m, indexedCount, allFieldSearchable, ok = ProcessDocumentMapping(
-				im, im.DefaultAnalyzer, im.DefaultDateTimeParser,
-				nil, tm, m, 0)
-			if !ok {
-				return nil, 0, nil, nil, false, "", ""
-			}
+			if isTypeMappingApplicable(t, scope, collection) {
+				m, indexedCount, allFieldSearchable, ok = ProcessDocumentMapping(
+					im, im.DefaultAnalyzer, im.DefaultDateTimeParser,
+					nil, tm, m, 0)
+				if !ok {
+					return nil, 0, nil, nil, false, "", "", false
+				}
 
-			if tm.Dynamic {
-				if tm.DefaultAnalyzer != "" {
-					dynamicMappings[t] = tm.DefaultAnalyzer
-				} else {
-					dynamicMappings[t] = im.DefaultAnalyzer
+				if tm.Dynamic {
+					if tm.DefaultAnalyzer != "" {
+						dynamicMappings[t] = tm.DefaultAnalyzer
+					} else {
+						dynamicMappings[t] = im.DefaultAnalyzer
+					}
 				}
 			}
 
+			collections[obtainCollectionFromTypeMapping(t)] = struct{}{}
 		}
 		// Even if type mappings were disabled, we must consider them because
 		// if the default mapping is enabled - the index would index all documents
@@ -513,14 +558,20 @@ func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 		// comment right above where typeStrs.S are put together, to avoid
 		// any chance of false negatives
 		if typeStrs != nil {
-			return nil, 0, nil, nil, false, "", ""
+			return nil, 0, nil, nil, false, "", "", false
 		}
 
+		if (len(scope) > 0 && scope != "_default") ||
+			(len(collection) > 0 && collection != "_default") {
+			// Default mapping indexes content from _default._default,
+			// so not-FTSIndex'able if scope/collection are non-default
+			return nil, 0, nil, nil, false, "", "", false
+		}
 		m, indexedCount, allFieldSearchable, ok = ProcessDocumentMapping(
 			im, im.DefaultAnalyzer, im.DefaultDateTimeParser,
 			nil, im.DefaultMapping, m, 0)
 		if !ok {
-			return nil, 0, nil, nil, false, "", ""
+			return nil, 0, nil, nil, false, "", "", false
 		}
 
 		if im.DefaultMapping.Dynamic {
@@ -530,6 +581,8 @@ func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 				dynamicMappings["default"] = im.DefaultAnalyzer
 			}
 		}
+
+		collections["_default"] = struct{}{}
 	}
 
 	if len(dynamicMappings) > 0 {
@@ -542,11 +595,12 @@ func ProcessIndexMapping(im *mapping.IndexMappingImpl) (m map[SearchField]bool,
 
 	if len(m) == 0 && len(dynamicMappings) == 0 {
 		// No indexed fields or dynamic mappings
-		return nil, 0, nil, nil, false, "", ""
+		return nil, 0, nil, nil, false, "", "", false
 	}
 
 	return m, indexedCount, typeStrs, dynamicMappings,
-		allFieldSearchable, im.DefaultAnalyzer, im.DefaultDateTimeParser
+		allFieldSearchable, im.DefaultAnalyzer, im.DefaultDateTimeParser,
+		len(collections) > 1
 }
 
 func ProcessDocumentMapping(im *mapping.IndexMappingImpl,
