@@ -200,6 +200,10 @@ func (s *WrapDatastore) HasSystemCBOStats() (bool, errors.Error) {
 	return false, nil
 }
 
+func (s *WrapDatastore) CreateQueryMetadata(requestId string) errors.Error {
+	return nil
+}
+
 func (s *WrapDatastore) GetSystemCollection(bucketName string) (datastore.Keyspace, errors.Error) {
 	return nil, nil
 }
