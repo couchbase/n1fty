@@ -43,7 +43,7 @@ replace github.com/couchbase/godbc => ../godbc
 replace github.com/couchbase/regulator => ../regulator
 
 require (
-	github.com/blevesearch/bleve/v2 v2.4.5-0.20250425150105-df801790e6e0
+	github.com/blevesearch/bleve/v2 v2.4.5-0.20251216145535-19bf4669d181
 	github.com/blevesearch/sear v0.2.10-0.20250408144211-734aeeaa871d
 	github.com/buger/jsonparser v1.1.1
 	github.com/couchbase/cbauth v0.1.12
@@ -95,7 +95,7 @@ require (
 	github.com/blevesearch/zapx/v13 v13.3.10 // indirect
 	github.com/blevesearch/zapx/v14 v14.3.10 // indirect
 	github.com/blevesearch/zapx/v15 v15.3.16 // indirect
-	github.com/blevesearch/zapx/v16 v16.1.9-0.20250408145346-d000edc04c2d // indirect
+	github.com/blevesearch/zapx/v16 v16.1.9-0.20251215174229-a406f70c703b // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudfoundry/gosigar v1.3.4 // indirect
 	github.com/couchbase/blance v0.1.6 // indirect
