@@ -204,11 +204,11 @@ func (s *WrapDatastore) CreateQueryMetadata(requestId string) errors.Error {
 	return nil
 }
 
-func (s *store) GetQueryMetadata() (datastore.Keyspace, errors.Error) {
+func (s *WrapDatastore) GetQueryMetadata() (datastore.Keyspace, errors.Error) {
 	return nil, nil
 }
 
-func (s *store) HasQueryMetadata() (bool, errors.Error) {
+func (s *WrapDatastore) HasQueryMetadata() (bool, errors.Error) {
 	return false, nil
 }
 
