@@ -46,7 +46,7 @@ replace github.com/couchbase/regulator => ../regulator
 
 require (
 	github.com/blevesearch/bleve/v2 v2.5.8-0.20260115192110-ca7d4ab6fcf2
-	github.com/blevesearch/sear v0.3.6-0.20260113065155-929a493a10e6
+	github.com/blevesearch/sear v0.4.0
 	github.com/buger/jsonparser v1.1.1
 	github.com/couchbase/cbauth v0.1.13
 	github.com/couchbase/cbft v0.0.0-00010101000000-000000000000
