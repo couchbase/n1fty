@@ -430,15 +430,13 @@ func (i *FTSIndex) Sargable(field string, query,
 
 		fetchFields(query)
 
-		if len(queryFields) > 0 {
-			opq, ok := opaque.(map[string]interface{})
-			if !ok {
-				opq = make(map[string]interface{})
-			}
-			opq["query_fields"] = queryFields
-			opq["contains_knn"] = containsKnn
-			opaque = opq
+		opq, ok := opaque.(map[string]interface{})
+		if !ok {
+			opq = make(map[string]interface{})
 		}
+		opq["query_fields"] = queryFields
+		opq["contains_knn"] = containsKnn
+		opaque = opq
 	}
 
 	rv := i.buildQueryAndCheckIfSargable(field, queryVal, optionsVal, opaque)
