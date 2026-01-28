@@ -430,13 +430,17 @@ func (i *FTSIndex) Sargable(field string, query,
 
 		fetchFields(query)
 
-		opq, ok := opaque.(map[string]interface{})
-		if !ok {
-			opq = make(map[string]interface{})
+		if len(queryFields) > 0 || containsKnn {
+			opq, ok := opaque.(map[string]interface{})
+			if !ok {
+				opq = make(map[string]interface{})
+			}
+			if len(queryFields) > 0 {
+				opq["query_fields"] = queryFields
+			}
+			opq["contains_knn"] = containsKnn
+			opaque = opq
 		}
-		opq["query_fields"] = queryFields
-		opq["contains_knn"] = containsKnn
-		opaque = opq
 	}
 
 	rv := i.buildQueryAndCheckIfSargable(field, queryVal, optionsVal, opaque)
@@ -475,6 +479,11 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			rv.err = util.N1QLError(err, "failed to parse query to search request")
 			return rv
 		}
+
+		// In case of named parameters containsKNN could return false above, so
+		// check opaque also
+		containsKnnFromOpaque, _ := rv.opaque["contains_knn"].(bool)
+		containsKNN = containsKNN || containsKnnFromOpaque
 
 		// update opaqueMap with query, search_request
 		rv.opaque["query_fields"] = queryFields
