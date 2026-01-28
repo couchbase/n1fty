@@ -218,7 +218,9 @@ func ParseQueryToSearchRequest(field string, input value.Value) (
 
 	queryFields := map[SearchField]struct{}{}
 	if input == nil {
-		queryFields[SearchField{Name: field}] = struct{}{}
+		if len(field) > 0 {
+			queryFields[SearchField{Name: field}] = struct{}{}
+		}
 		return queryFields, nil, 0, false, false, nil
 	}
 

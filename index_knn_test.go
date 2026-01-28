@@ -418,39 +418,47 @@ func TestSargabilityOverNamedParametersWithinHybridSearch(t *testing.T) {
 	for i, test := range []struct {
 		queryStr            string
 		expectSargableCount int
+		expectContainsKNN   bool
 	}{
 		{
 			queryStr:            `{"query": {"match": $x, "field": "color"}}`,
 			expectSargableCount: 1,
+			expectContainsKNN:   false,
 		},
 		{
 			// named parameters not supported over KNN queries - because of inability to establish
 			// sargability over the vector dimensions without actual data.
 			queryStr:            `{"knn": [{"k": 3, "field": "colorvect_l2", "vector":$vec}]}`,
 			expectSargableCount: 0,
+			expectContainsKNN:   true,
 		},
 		{
 			queryStr:            `{"query": {"match": "blue", "field": "color"}, "knn": [{"k": 3, "field": "colorvect_l2", "vector":[1,2,3]}]}`,
 			expectSargableCount: 2,
+			expectContainsKNN:   true,
 		},
 		{
 			// MB-67744
 			queryStr:            `{"query": {"match": $x, "field": "color"}, "knn": [{"k": 3, "field": "colorvect_l2", "vector":[1,2,3]}]}`,
 			expectSargableCount: 1,
+			expectContainsKNN:   true,
 		},
 		{
 			queryStr:            `{"knn": [{"filter": {"match": "blue", "field": "color"}, "k": 3, "field": "colorvect_l2", "vector":[1,2,3]}]}`,
 			expectSargableCount: 2,
+			expectContainsKNN:   true,
 		},
 		{
 			// MB-67744
 			queryStr:            `{"knn": [{"filter": {"match": "blue", "field": "color"}, "k": 3, "field": "colorvect_l2", "vector":$vec}]}`,
 			expectSargableCount: 1,
+			expectContainsKNN:   true,
 		},
 		{
 			// MB-67744
 			queryStr:            `{"knn": [{"filter": {"match": $x, "field": "color"}, "k": 3, "field": "colorvect_l2", "vector":[1,2,3]}]}`,
 			expectSargableCount: 1,
+			expectContainsKNN:   true,
 		},
 	} {
 		queryExpr, err := parser.Parse(test.queryStr)
@@ -458,13 +466,17 @@ func TestSargabilityOverNamedParametersWithinHybridSearch(t *testing.T) {
 			t.Fatalf("[%d] Failed to parse query expression: %v", i+1, err)
 		}
 
-		count, _, _, _, _, n1qlErr := index.Sargable("", queryExpr, nil, nil)
+		count, _, _, containsKNN, _, n1qlErr := index.Sargable("", queryExpr, nil, nil)
 		if n1qlErr != nil {
 			t.Fatalf("[%d] Sargable error: %v", i+1, n1qlErr)
 		}
 
 		if count != test.expectSargableCount {
 			t.Fatalf("[%d] Sargable count expected to be %v, but got %v", i+1, test.expectSargableCount, count)
+		}
+
+		if containsKNN != test.expectContainsKNN {
+			t.Fatalf("[%d] containsKNN expected to be %v, but go %v", i+1, test.expectContainsKNN, containsKNN)
 		}
 	}
 }
