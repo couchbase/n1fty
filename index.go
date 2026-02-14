@@ -189,12 +189,6 @@ func (i *FTSIndex) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 		return
 	}
 
-	if cons == datastore.SCAN_PLUS {
-		conn.Error(util.N1QLError(nil, "scan_plus consistency not supported"))
-		sender.Close()
-		return
-	}
-
 	field := ""
 	if searchInfo.Field != nil {
 		if fieldStr, ok := searchInfo.Field.Actual().(string); ok {

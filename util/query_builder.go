@@ -10,6 +10,7 @@ package util
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -18,6 +19,7 @@ import (
 	"github.com/blevesearch/bleve/v2/search/query"
 	"github.com/couchbase/cbft"
 	pb "github.com/couchbase/cbft/protobuf"
+	"github.com/couchbase/cbgt"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/timestamp"
 	"github.com/couchbase/query/value"
@@ -284,7 +286,7 @@ func BuildProtoSearchRequest(sr *cbft.SearchRequest,
 		vector != nil && len(vector.Entries()) > 0 {
 
 		ctlParams.Ctl.Consistency = &pb.ConsistencyParams{
-			Level:   "at_plus",
+			Level:   string(cbgt.ConsistencyLevelAtPlus),
 			Vectors: make(map[string]*pb.ConsistencyVectors, 1),
 		}
 
@@ -298,6 +300,14 @@ func BuildProtoSearchRequest(sr *cbft.SearchRequest,
 		}
 
 		ctlParams.Ctl.Consistency.Vectors[indexName] = vMap
+	} else if consistencyLevel == datastore.SCAN_PLUS {
+		if vector != nil && len(vector.Entries()) > 0 {
+			return nil, errors.New("consistency vectors are not compatible with SCAN_PLUS consistency level")
+		}
+
+		ctlParams.Ctl.Consistency = &pb.ConsistencyParams{
+			Level: string(cbgt.ConsistencyLevelScanPlus),
+		}
 	}
 
 	searchRequest.QueryCtlParams, err = json.Marshal(ctlParams)

@@ -16,9 +16,43 @@ import (
 
 	"github.com/blevesearch/bleve/v2/search/query"
 	"github.com/couchbase/cbft"
+	pb "github.com/couchbase/cbft/protobuf"
+	"github.com/couchbase/cbgt"
 	"github.com/couchbase/query/datastore"
+	"github.com/couchbase/query/timestamp"
 	"github.com/couchbase/query/value"
 )
+
+// Mock vector implementation for testing
+type mockVector struct {
+	entries []timestamp.Entry
+}
+
+func (m *mockVector) Entries() []timestamp.Entry {
+	return m.entries
+}
+
+type mockEntry struct {
+	position uint32
+	value    uint64
+	guard    string
+}
+
+func (m *mockEntry) Position() uint32 {
+	return m.position
+}
+
+func (m *mockEntry) Value() uint64 {
+	return m.value
+}
+
+func (m *mockEntry) Guard() string {
+	return m.guard
+}
+
+func newMockVector(entries []timestamp.Entry) timestamp.Vector {
+	return &mockVector{entries: entries}
+}
 
 func TestBuildQuery(t *testing.T) {
 	tests := []struct {
@@ -370,5 +404,197 @@ func TestBuildProtoSearchRequestWithSortOnScore(t *testing.T) {
 	_, err := BuildProtoSearchRequest(sr, searchInfo, nil, datastore.ScanConsistency(""), "", 0)
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestBuildProtoSearchRequestWithATPlus(t *testing.T) {
+	searchInfo := &datastore.FTSSearchInfo{
+		Query: value.NewValue(map[string]interface{}{
+			"match": "test",
+		}),
+		Options: nil,
+		Order:   []string{},
+		Offset:  0,
+		Limit:   10,
+	}
+
+	sr := &cbft.SearchRequest{
+		Q: []byte(`{"match":"test"}`),
+	}
+
+	// Create a mock vector with entries
+	vector := newMockVector([]timestamp.Entry{
+		&mockEntry{position: 1, value: 100, guard: "vb1"},
+		&mockEntry{position: 2, value: 200, guard: "vb2"},
+	})
+
+	searchReq, err := BuildProtoSearchRequest(sr, searchInfo, vector, datastore.AT_PLUS, "test_index", 5000)
+	if err != nil {
+		t.Fatalf("Expected no error for AT_PLUS, got: %v", err)
+	}
+
+	// Verify QueryCtlParams are set
+	if len(searchReq.QueryCtlParams) == 0 {
+		t.Fatal("QueryCtlParams should be set for AT_PLUS")
+	}
+
+	// Unmarshal and verify
+	var ctlParams pb.QueryCtlParams
+	err = json.Unmarshal(searchReq.QueryCtlParams, &ctlParams)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal QueryCtlParams: %v", err)
+	}
+
+	// Verify timeout is set
+	if ctlParams.Ctl == nil || ctlParams.Ctl.Timeout != 5000 {
+		t.Fatalf("Expected timeout 5000, got: %v", ctlParams.Ctl.Timeout)
+	}
+
+	// Verify consistency level
+	if ctlParams.Ctl.Consistency == nil {
+		t.Fatal("Consistency params should be set for AT_PLUS")
+	}
+
+	if ctlParams.Ctl.Consistency.Level != string(cbgt.ConsistencyLevelAtPlus) {
+		t.Fatalf("Expected consistency level %s, got: %s",
+			cbgt.ConsistencyLevelAtPlus, ctlParams.Ctl.Consistency.Level)
+	}
+
+	// Verify vectors are set
+	if ctlParams.Ctl.Consistency.Vectors == nil || len(ctlParams.Ctl.Consistency.Vectors) == 0 {
+		t.Fatal("Consistency vectors should be set for AT_PLUS")
+	}
+
+	if _, exists := ctlParams.Ctl.Consistency.Vectors["test_index"]; !exists {
+		t.Fatal("Consistency vectors should include the index")
+	}
+}
+
+func TestBuildProtoSearchRequestWithSCANPlus(t *testing.T) {
+	searchInfo := &datastore.FTSSearchInfo{
+		Query: value.NewValue(map[string]interface{}{
+			"match": "test",
+		}),
+		Options: nil,
+		Order:   []string{},
+		Offset:  0,
+		Limit:   10,
+	}
+
+	sr := &cbft.SearchRequest{
+		Q: []byte(`{"match":"test"}`),
+	}
+
+	// SCAN_PLUS without vectors should work
+	searchReq, err := BuildProtoSearchRequest(sr, searchInfo, nil, datastore.SCAN_PLUS, "test_index", 5000)
+	if err != nil {
+		t.Fatalf("Expected no error for SCAN_PLUS without vectors, got: %v", err)
+	}
+
+	// Verify QueryCtlParams are set
+	if len(searchReq.QueryCtlParams) == 0 {
+		t.Fatal("QueryCtlParams should be set for SCAN_PLUS")
+	}
+
+	// Unmarshal and verify
+	var ctlParams pb.QueryCtlParams
+	err = json.Unmarshal(searchReq.QueryCtlParams, &ctlParams)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal QueryCtlParams: %v", err)
+	}
+
+	// Verify timeout is set
+	if ctlParams.Ctl == nil || ctlParams.Ctl.Timeout != 5000 {
+		t.Fatalf("Expected timeout 5000, got: %v", ctlParams.Ctl.Timeout)
+	}
+
+	// Verify consistency level
+	if ctlParams.Ctl.Consistency == nil {
+		t.Fatal("Consistency params should be set for SCAN_PLUS")
+	}
+
+	if ctlParams.Ctl.Consistency.Level != string(cbgt.ConsistencyLevelScanPlus) {
+		t.Fatalf("Expected consistency level %s (scan_plus), got: %s",
+			cbgt.ConsistencyLevelScanPlus, ctlParams.Ctl.Consistency.Level)
+	}
+
+	// Verify vectors are NOT set for SCAN_PLUS
+	if ctlParams.Ctl.Consistency.Vectors != nil && len(ctlParams.Ctl.Consistency.Vectors) > 0 {
+		t.Fatal("Consistency vectors should NOT be set for SCAN_PLUS")
+	}
+}
+
+func TestBuildProtoSearchRequestSCANPlusWithVectorsShouldFail(t *testing.T) {
+	searchInfo := &datastore.FTSSearchInfo{
+		Query: value.NewValue(map[string]interface{}{
+			"match": "test",
+		}),
+		Options: nil,
+		Order:   []string{},
+		Offset:  0,
+		Limit:   10,
+	}
+
+	sr := &cbft.SearchRequest{
+		Q: []byte(`{"match":"test"}`),
+	}
+
+	// Create a vector with entries
+	vector := newMockVector([]timestamp.Entry{
+		&mockEntry{position: 1, value: 100, guard: "vb1"},
+	})
+
+	// SCAN_PLUS with vectors should return an error
+	_, err := BuildProtoSearchRequest(sr, searchInfo, vector, datastore.SCAN_PLUS, "test_index", 5000)
+	if err == nil {
+		t.Fatal("Expected error when providing vectors with SCAN_PLUS, but got none")
+	}
+
+	expectedErrMsg := "consistency vectors are not compatible with SCAN_PLUS consistency level"
+	if err.Error() != expectedErrMsg {
+		t.Fatalf("Expected error message '%s', got '%s'", expectedErrMsg, err.Error())
+	}
+}
+
+func TestBuildProtoSearchRequestDefaultTimeout(t *testing.T) {
+	searchInfo := &datastore.FTSSearchInfo{
+		Query: value.NewValue(map[string]interface{}{
+			"match": "test",
+		}),
+		Options: nil,
+		Order:   []string{},
+		Offset:  0,
+		Limit:   10,
+	}
+
+	sr := &cbft.SearchRequest{
+		Q: []byte(`{"match":"test"}`),
+	}
+
+	// Pass timeout of 0, should default to 120000
+	searchReq, err := BuildProtoSearchRequest(sr, searchInfo, nil, datastore.ScanConsistency(""), "test_index", 0)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify QueryCtlParams are set
+	if len(searchReq.QueryCtlParams) == 0 {
+		t.Fatal("QueryCtlParams should be set even with no consistency")
+	}
+
+	// Unmarshal and verify timeout is defaulted
+	var ctlParams pb.QueryCtlParams
+	err = json.Unmarshal(searchReq.QueryCtlParams, &ctlParams)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal QueryCtlParams: %v", err)
+	}
+
+	if ctlParams.Ctl == nil || ctlParams.Ctl.Timeout != 120000 {
+		t.Fatalf("Expected default timeout 120000, got: %v", ctlParams.Ctl.Timeout)
+	}
+
+	// Verify no consistency params are set for empty consistency level
+	if ctlParams.Ctl.Consistency != nil {
+		t.Fatal("Consistency params should NOT be set for empty consistency level")
 	}
 }
