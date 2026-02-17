@@ -18,7 +18,6 @@ import (
 	"github.com/blevesearch/bleve/v2/search/query"
 	"github.com/couchbase/cbft"
 	pb "github.com/couchbase/cbft/protobuf"
-	"github.com/couchbase/cbgt"
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/timestamp"
 	"github.com/couchbase/query/value"
@@ -198,7 +197,7 @@ func CheckForPagination(input value.Value) bool {
 func BuildProtoSearchRequest(sr *cbft.SearchRequest,
 	searchInfo *datastore.FTSSearchInfo, vector timestamp.Vector,
 	consistencyLevel datastore.ScanConsistency,
-	indexName string) (*pb.SearchRequest, error) {
+	indexName string, timeout int64) (*pb.SearchRequest, error) {
 	searchRequest := &pb.SearchRequest{
 		IndexName: indexName,
 	}
@@ -268,16 +267,24 @@ func BuildProtoSearchRequest(sr *cbft.SearchRequest,
 		return nil, err
 	}
 
+	if timeout <= 0 {
+		// If timeout specified in SearchRequest, apply it to the
+		// gRPC search request, otherwise default to 2 minutes
+		timeout = 120000 // defaults to 2min
+	}
+
+	ctlParams := &pb.QueryCtlParams{
+		Ctl: &pb.QueryCtl{
+			Timeout: timeout,
+		},
+	}
+
 	if consistencyLevel == datastore.AT_PLUS &&
 		vector != nil && len(vector.Entries()) > 0 {
-		ctlParams := &pb.QueryCtlParams{
-			Ctl: &pb.QueryCtl{
-				Timeout: cbgt.QUERY_CTL_DEFAULT_TIMEOUT_MS,
-				Consistency: &pb.ConsistencyParams{
-					Level:   "at_plus",
-					Vectors: make(map[string]*pb.ConsistencyVectors, 1),
-				},
-			},
+
+		ctlParams.Ctl.Consistency = &pb.ConsistencyParams{
+			Level:   "at_plus",
+			Vectors: make(map[string]*pb.ConsistencyVectors, 1),
 		}
 
 		vMap := &pb.ConsistencyVectors{
@@ -290,11 +297,11 @@ func BuildProtoSearchRequest(sr *cbft.SearchRequest,
 		}
 
 		ctlParams.Ctl.Consistency.Vectors[indexName] = vMap
+	}
 
-		searchRequest.QueryCtlParams, err = json.Marshal(ctlParams)
-		if err != nil {
-			return nil, err
-		}
+	searchRequest.QueryCtlParams, err = json.Marshal(ctlParams)
+	if err != nil {
+		return nil, err
 	}
 
 	return searchRequest, nil

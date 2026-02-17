@@ -330,7 +330,7 @@ func TestBuildProtoSearchRequestWithSortOnScore(t *testing.T) {
 		Q: []byte(`{"match":"France"}`),
 	}
 
-	_, err := BuildProtoSearchRequest(sr, searchInfo, nil, datastore.ScanConsistency(""), "")
+	_, err := BuildProtoSearchRequest(sr, searchInfo, nil, datastore.ScanConsistency(""), "", 0)
 	if err != nil {
 		t.Fatal(err)
 	}

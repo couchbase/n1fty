@@ -10,7 +10,6 @@ package n1fty
 
 import (
 	"context"
-	"encoding/json"
 	"math"
 	"strings"
 	"sync"
@@ -20,7 +19,6 @@ import (
 	"github.com/blevesearch/bleve/v2/mapping"
 	bq "github.com/blevesearch/bleve/v2/search/query"
 	"github.com/couchbase/cbft"
-	pb "github.com/couchbase/cbft/protobuf"
 	"github.com/couchbase/cbgt"
 	"github.com/couchbase/n1fty/flex"
 	"github.com/couchbase/n1fty/util"
@@ -255,25 +253,11 @@ func (i *FTSIndex) Search(requestID string, searchInfo *datastore.FTSSearchInfo,
 	}()
 
 	searchReq, err := util.BuildProtoSearchRequest(searchRequest, searchInfo,
-		vector, cons, i.indexDef.Name)
+		vector, cons, i.indexDef.Name, sargRV.timeoutMS)
 	if err != nil {
 		conn.Error(util.N1QLError(err, "search request parse err"))
 		return
 	}
-
-	if sargRV.timeoutMS <= 0 {
-		// If timeout specified in SearchRequest, apply it to the
-		// gRPC search request, otherwise default to 2 minutes
-		sargRV.timeoutMS = 120000 // defaults to 2min
-	}
-
-	queryCtlParams := &pb.QueryCtlParams{
-		Ctl: &pb.QueryCtl{
-			Timeout: sargRV.timeoutMS,
-		},
-	}
-
-	searchReq.QueryCtlParams, _ = json.Marshal(queryCtlParams)
 
 	ftsClient := i.indexer.getClient()
 	if ftsClient == nil {
