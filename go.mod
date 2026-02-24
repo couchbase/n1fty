@@ -2,17 +2,15 @@ module github.com/couchbase/n1fty
 
 go 1.24.0
 
-replace golang.org/x/text => golang.org/x/text v0.4.0
-
 replace github.com/couchbase/bhive => ../bhive
 
 replace github.com/couchbase/cbauth => ../cbauth
 
-replace github.com/couchbase/query => ../query
+replace github.com/couchbase/cbft => ../../../../../cbft
 
-replace github.com/couchbase/n1fty => ./empty
+replace github.com/couchbase/cbftx => ../../../../../cbftx
 
-replace github.com/couchbase/query-ee => ../query-ee
+replace github.com/couchbase/cbgt => ../../../../../cbgt
 
 replace github.com/couchbase/eventing => ../eventing
 
@@ -20,29 +18,33 @@ replace github.com/couchbase/eventing-ee => ../eventing-ee
 
 replace github.com/couchbase/go-couchbase => ../go-couchbase
 
-replace github.com/couchbase/gomemcached => ../gomemcached
-
 replace github.com/couchbase/go_json => ../go_json
 
-replace github.com/couchbase/indexing => ../indexing
-
-replace github.com/couchbase/plasma => ../plasma
-
-replace github.com/couchbase/gometa => ../gometa
-
-replace github.com/couchbase/cbft => ../../../../../cbft
-
-replace github.com/couchbase/cbftx => ../../../../../cbftx
-
-replace github.com/couchbase/hebrew => ../../../../../hebrew
-
-replace github.com/couchbase/cbgt => ../../../../../cbgt
-
-replace github.com/couchbase/goutils => ../goutils
+replace github.com/couchbase/gocbcrypto => ../gocbcrypto
 
 replace github.com/couchbase/godbc => ../godbc
 
+replace github.com/couchbase/gomemcached => ../gomemcached
+
+replace github.com/couchbase/gometa => ../gometa
+
+replace github.com/couchbase/goutils => ../goutils
+
+replace github.com/couchbase/hebrew => ../../../../../hebrew
+
+replace github.com/couchbase/indexing => ../indexing
+
+replace github.com/couchbase/n1fty => ./empty
+
+replace github.com/couchbase/plasma => ../plasma
+
+replace github.com/couchbase/query => ../query
+
+replace github.com/couchbase/query-ee => ../query-ee
+
 replace github.com/couchbase/regulator => ../regulator
+
+replace golang.org/x/text => golang.org/x/text v0.4.0
 
 require (
 	github.com/blevesearch/bleve/v2 v2.5.8-0.20260203081432-74cb8d1545d5
@@ -110,6 +112,7 @@ require (
 	github.com/couchbase/gocbcore/v10 v10.7.0 // indirect
 	github.com/couchbase/gocbcore/v9 v9.1.8 // indirect
 	github.com/couchbase/gocbcoreps v0.1.3 // indirect
+	github.com/couchbase/gocbcrypto v0.0.0-00010101000000-000000000000 // indirect
 	github.com/couchbase/gomemcached v0.3.3 // indirect
 	github.com/couchbase/gometa v0.0.0-20220803182802-05cb6b2e299f // indirect
 	github.com/couchbase/goprotostellar v1.0.2 // indirect
