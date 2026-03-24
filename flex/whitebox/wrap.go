@@ -240,6 +240,14 @@ func (s *WrapDatastore) GetUserUUID(creds *auth.Credentials) string {
 	return ""
 }
 
+func (s *WrapDatastore) EncryptionProvider() (datastore.EncryptionProvider, errors.Error) {
+	return s.W.EncryptionProvider()
+}
+
+func (s *WrapDatastore) SetEncryptionProvider(encProvider datastore.EncryptionProvider) {
+	s.W.SetEncryptionProvider(encProvider)
+}
+
 // ------------------------------------------------------------------------
 
 type WrapNamespace struct {
