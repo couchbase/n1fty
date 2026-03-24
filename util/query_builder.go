@@ -73,6 +73,7 @@ func UpdateFieldsInQuery(q query.Query, field string) {
 		UpdateFieldsInQuery(que.Must, field)
 		UpdateFieldsInQuery(que.Should, field)
 		UpdateFieldsInQuery(que.MustNot, field)
+		UpdateFieldsInQuery(que.Filter, field)
 	case *query.ConjunctionQuery:
 		for i := 0; i < len(que.Conjuncts); i++ {
 			UpdateFieldsInQuery(que.Conjuncts[i], field)

@@ -64,7 +64,30 @@ func TestBuildQuery(t *testing.T) {
 					map[string]interface{}{
 						"match": "xyz",
 						"field": "zyx",
-					}},
+					},
+				},
+			}),
+		},
+		{
+			field: "not-used",
+			query: value.NewValue(map[string]interface{}{
+				"must": map[string]interface{}{
+					"conjuncts": []interface{}{
+						map[string]interface{}{
+							"match":     "Avengers",
+							"field":     "title",
+							"fuzziness": 2,
+						},
+					},
+				},
+				"filter": map[string]interface{}{
+					"conjuncts": []interface{}{
+						map[string]interface{}{
+							"match": "marvel",
+							"field": "company",
+						},
+					},
+				},
 			}),
 		},
 	}
@@ -87,15 +110,29 @@ func TestBuildQuery(t *testing.T) {
 				t.Fatalf("Exception in boolean must query: %v, %v, %v",
 					mcq.Match, mcq.FieldVal, mcq.Fuzziness)
 			}
-			dq := qq.Should.(*query.DisjunctionQuery)
-			if len(dq.Disjuncts) != 1 {
-				t.Fatalf("Exception in boolean query, number of should clauses: %v",
-					len(dq.Disjuncts))
+			if qq.Should != nil {
+				dq := qq.Should.(*query.DisjunctionQuery)
+				if len(dq.Disjuncts) != 1 {
+					t.Fatalf("Exception in boolean query, number of should clauses: %v",
+						len(dq.Disjuncts))
+				}
+				mdq := dq.Disjuncts[0].(*query.MatchQuery)
+				if mdq.Match != "marvel" || mdq.FieldVal != "company" {
+					t.Fatalf("Exception in boolean should query: %v, %v",
+						mdq.Match, mdq.FieldVal)
+				}
 			}
-			mdq := dq.Disjuncts[0].(*query.MatchQuery)
-			if mdq.Match != "marvel" || mdq.FieldVal != "company" {
-				t.Fatalf("Exception in boolean should query: %v, %v",
-					mdq.Match, mdq.FieldVal)
+			if qq.Filter != nil {
+				fq := qq.Filter.(*query.ConjunctionQuery)
+				if len(fq.Conjuncts) != 1 {
+					t.Fatalf("Exception in boolean query, number of filter clauses: %v",
+						len(fq.Conjuncts))
+				}
+				mfq := fq.Conjuncts[0].(*query.MatchQuery)
+				if mfq.Match != "marvel" || mfq.FieldVal != "company" {
+					t.Fatalf("Exception in boolean filter query: %v, %v",
+						mfq.Match, mfq.FieldVal)
+				}
 			}
 		case *query.MatchQuery:
 			if qq.Match != "avengers" || qq.FieldVal != "title" || qq.Fuzziness != 2 {

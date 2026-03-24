@@ -728,6 +728,7 @@ func FetchFieldsToSearchFromQuery(que query.Query) (map[SearchField]struct{}, er
 			walk(qq.Must)
 			walk(qq.MustNot)
 			walk(qq.Should)
+			walk(qq.Filter)
 		case *query.ConjunctionQuery:
 			for _, childQ := range qq.Conjuncts {
 				walk(childQ)
