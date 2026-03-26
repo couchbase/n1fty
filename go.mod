@@ -1,6 +1,6 @@
 module github.com/couchbase/n1fty
 
-go 1.24.0
+go 1.24.13
 
 replace golang.org/x/text => golang.org/x/text v0.4.0
 
@@ -45,10 +45,10 @@ replace github.com/couchbase/godbc => ../godbc
 replace github.com/couchbase/regulator => ../regulator
 
 require (
-	github.com/blevesearch/bleve/v2 v2.5.4-0.20260203082807-9a207fcd6456
+	github.com/blevesearch/bleve/v2 v2.5.4-0.20260326152309-33b483630f85
 	github.com/blevesearch/sear v0.4.0
 	github.com/buger/jsonparser v1.1.1
-	github.com/couchbase/cbauth v0.1.13
+	github.com/couchbase/cbauth v0.1.18
 	github.com/couchbase/cbft v0.0.0-00010101000000-000000000000
 	github.com/couchbase/cbgt v0.0.0-00010101000000-000000000000
 	github.com/couchbase/clog v0.1.0
@@ -97,7 +97,7 @@ require (
 	github.com/blevesearch/zapx/v13 v13.4.2 // indirect
 	github.com/blevesearch/zapx/v14 v14.4.2 // indirect
 	github.com/blevesearch/zapx/v15 v15.4.2 // indirect
-	github.com/blevesearch/zapx/v16 v16.2.5-0.20260120173507-6b28cfe03ac2 // indirect
+	github.com/blevesearch/zapx/v16 v16.2.5-0.20260325143906-9c91042a4232 // indirect
 	github.com/blevesearch/zapx/v17 v17.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudfoundry/gosigar v1.3.4 // indirect
@@ -105,12 +105,12 @@ require (
 	github.com/couchbase/eventing-ee v0.0.0-00010101000000-000000000000 // indirect
 	github.com/couchbase/ghistogram v0.1.0 // indirect
 	github.com/couchbase/go-couchbase v0.1.1 // indirect
-	github.com/couchbase/go_json v0.0.0-20220330123059-4473a21887c8 // indirect
+	github.com/couchbase/go_json v0.0.0-20250803152502-4641f4ef8578 // indirect
 	github.com/couchbase/gocb/v2 v2.9.4 // indirect
 	github.com/couchbase/gocbcore/v10 v10.7.0 // indirect
-	github.com/couchbase/gocbcore/v9 v9.1.8 // indirect
+	github.com/couchbase/gocbcore/v9 v9.1.11 // indirect
 	github.com/couchbase/gocbcoreps v0.1.3 // indirect
-	github.com/couchbase/gomemcached v0.3.3 // indirect
+	github.com/couchbase/gomemcached v0.3.4 // indirect
 	github.com/couchbase/gometa v0.0.0-20220803182802-05cb6b2e299f // indirect
 	github.com/couchbase/goprotostellar v1.0.2 // indirect
 	github.com/couchbase/indexing v0.0.0-20220923223016-071e9308c875 // indirect
@@ -133,7 +133,7 @@ require (
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/flatbuffers v25.2.10+incompatible // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/gorilla/mux v1.8.0 // indirect
+	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -145,7 +145,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.23.0 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.65.0 // indirect
+	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/santhosh-tekuri/jsonschema v1.2.4 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
@@ -159,9 +159,10 @@ require (
 	go.opentelemetry.io/otel/trace v1.39.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
+	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	golang.org/x/crypto v0.46.0 // indirect
 	golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93 // indirect
-	golang.org/x/sys v0.39.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251222181119-0a764e51fe1b // indirect
