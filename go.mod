@@ -47,7 +47,7 @@ replace github.com/couchbase/regulator => ../regulator
 replace golang.org/x/text => golang.org/x/text v0.4.0
 
 require (
-	github.com/blevesearch/bleve/v2 v2.5.8-0.20260318180306-6cdc0b4809a5
+	github.com/blevesearch/bleve/v2 v2.5.8-0.20260326152045-6b72a249e566
 	github.com/blevesearch/sear v0.4.1
 	github.com/buger/jsonparser v1.1.1
 	github.com/couchbase/cbauth v0.1.18
@@ -99,8 +99,8 @@ require (
 	github.com/blevesearch/zapx/v13 v13.4.3 // indirect
 	github.com/blevesearch/zapx/v14 v14.4.3 // indirect
 	github.com/blevesearch/zapx/v15 v15.4.3 // indirect
-	github.com/blevesearch/zapx/v16 v16.3.1 // indirect
-	github.com/blevesearch/zapx/v17 v17.0.4 // indirect
+	github.com/blevesearch/zapx/v16 v16.3.2 // indirect
+	github.com/blevesearch/zapx/v17 v17.0.5 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudfoundry/gosigar v1.3.4 // indirect
 	github.com/couchbase/blance v0.1.6 // indirect
