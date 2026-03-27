@@ -66,10 +66,17 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 	var hits []byte
 	var numHits uint64
 
+	key := conn.EncryptionKey()
+	var writerCallback func(data []byte) []byte
+
 	backfill := func() {
 		var entries []byte
 		name := tmpfile.Name()
-
+		readerCallback, err := MakeReaderCallback(key.Cipher, key.Key, name)
+		if err != nil {
+			conn.Error(util.N1QLError(err, "error in creating reader callback for backfill"))
+			return
+		}
 		defer func() {
 			if readfd != nil {
 				readfd.Close()
@@ -113,6 +120,12 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 				fmsg := "%v %q decoding from backfill file: %v: err: %v"
 				err = fmt.Errorf(fmsg, logPrefix, r.requestID, name, err)
 				conn.Error(util.N1QLError(err, ""))
+				return
+			}
+
+			entries, err = readerCallback(entries)
+			if err != nil {
+				conn.Error(util.N1QLError(err, "error in reading backfill entries"))
 				return
 			}
 
@@ -225,6 +238,11 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 				conn.Error(util.N1QLError(err, "initBackFill failed, err:"))
 				return
 			}
+			writerCallback, err = MakeWriterCallback(key.Cipher, key.Key, tmpfile.Name())
+			if err != nil {
+				conn.Error(util.N1QLError(err, "error in creating writer callback for backfill"))
+				return
+			}
 			waitGroup.Add(1)
 			go backfill()
 		}
@@ -245,7 +263,8 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 				return
 			}
 
-			err := writeToBackfill(hits, enc)
+			hits = writerCallback(hits)
+			err = writeToBackfill(hits, enc)
 			if err != nil {
 				conn.Error(util.N1QLError(err, "writeToBackfill err:"))
 				return
