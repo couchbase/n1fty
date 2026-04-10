@@ -96,66 +96,6 @@ func (s *WrapDatastore) ProcessAuditUpdateStream(callb func(uid string) error) e
 	return s.W.ProcessAuditUpdateStream(callb)
 }
 
-func (s *WrapDatastore) UserInfo() (value.Value, errors.Error) {
-	return s.W.UserInfo()
-}
-
-func (s *WrapDatastore) GetUserInfoAll() ([]datastore.User, errors.Error) {
-	return s.W.GetUserInfoAll()
-}
-
-func (s *WrapDatastore) PutUserInfo(u *datastore.User) errors.Error {
-	return s.W.PutUserInfo(u)
-}
-
-func (s *WrapDatastore) GetRolesAll() ([]datastore.Role, errors.Error) {
-	return s.W.GetRolesAll()
-}
-
-func (s *WrapDatastore) DeleteUser(u *datastore.User) errors.Error {
-	return s.W.DeleteUser(u)
-}
-
-func (s *WrapDatastore) GetUserInfo(u *datastore.User) errors.Error {
-	return s.W.GetUserInfo(u)
-}
-
-func (s *WrapDatastore) GetGroupInfo(u *datastore.Group) errors.Error {
-	return s.W.GetGroupInfo(u)
-}
-
-func (s *WrapDatastore) PutGroupInfo(u *datastore.Group) errors.Error {
-	return s.W.PutGroupInfo(u)
-}
-
-func (s *WrapDatastore) DeleteGroup(u *datastore.Group) errors.Error {
-	return s.W.DeleteGroup(u)
-}
-
-func (s *WrapDatastore) GroupInfo() (value.Value, errors.Error) {
-	return s.W.GroupInfo()
-}
-
-func (s *WrapDatastore) GetGroupInfoAll() ([]datastore.Group, errors.Error) {
-	return s.W.GetGroupInfoAll()
-}
-
-func (s *WrapDatastore) CreateBucket(n string, w value.Value) errors.Error {
-	return s.W.CreateBucket(n, w)
-}
-
-func (s *WrapDatastore) AlterBucket(n string, w value.Value) errors.Error {
-	return s.W.AlterBucket(n, w)
-}
-
-func (s *WrapDatastore) DropBucket(n string) errors.Error {
-	return s.W.DropBucket(n)
-}
-
-func (s *WrapDatastore) BucketInfo() (value.Value, errors.Error) {
-	return s.W.BucketInfo()
-}
-
 func (s *WrapDatastore) StatUpdater() (datastore.StatUpdater, errors.Error) {
 	// TODO fix the place holder impl
 	return nil, nil
