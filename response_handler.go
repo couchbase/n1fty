@@ -66,13 +66,19 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 	var hits []byte
 	var numHits uint64
 
-	key := conn.EncryptionKey()
+	EaRKey := conn.EncryptionKey()
+	var cipher string
+	var key []byte
+	if EaRKey != nil {
+		cipher = EaRKey.Cipher
+		key = EaRKey.Key
+	}
 	var writerCallback func(data []byte) []byte
 
 	backfill := func() {
 		var entries []byte
 		name := tmpfile.Name()
-		readerCallback, err := MakeReaderCallback(key.Cipher, key.Key, name)
+		readerCallback, err := MakeReaderCallback(cipher, key, name)
 		if err != nil {
 			conn.Error(util.N1QLError(err, "error in creating reader callback for backfill"))
 			return
@@ -238,7 +244,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 				conn.Error(util.N1QLError(err, "initBackFill failed, err:"))
 				return
 			}
-			writerCallback, err = MakeWriterCallback(key.Cipher, key.Key, tmpfile.Name())
+			writerCallback, err = MakeWriterCallback(cipher, key, tmpfile.Name())
 			if err != nil {
 				conn.Error(util.N1QLError(err, "error in creating writer callback for backfill"))
 				return
