@@ -47,7 +47,7 @@ replace github.com/couchbase/gocbcrypto => ../gocbcrypto
 replace golang.org/x/text => golang.org/x/text v0.4.0
 
 require (
-	github.com/blevesearch/bleve/v2 v2.6.0
+	github.com/blevesearch/bleve/v2 v2.6.1-0.20260505160315-f7e4c923ae43
 	github.com/blevesearch/sear v0.4.1
 	github.com/buger/jsonparser v1.1.2
 	github.com/couchbase/cbauth v0.1.18
@@ -84,7 +84,7 @@ require (
 	github.com/blevesearch/bleve-mapping-ui v0.7.0 // indirect
 	github.com/blevesearch/bleve_index_api v1.3.11 // indirect
 	github.com/blevesearch/geo v0.2.5 // indirect
-	github.com/blevesearch/go-faiss v1.1.0 // indirect
+	github.com/blevesearch/go-faiss v1.1.1 // indirect
 	github.com/blevesearch/go-porterstemmer v1.0.3 // indirect
 	github.com/blevesearch/goleveldb v1.0.1 // indirect
 	github.com/blevesearch/gtreap v0.1.1 // indirect
@@ -101,7 +101,7 @@ require (
 	github.com/blevesearch/zapx/v14 v14.4.3 // indirect
 	github.com/blevesearch/zapx/v15 v15.4.3 // indirect
 	github.com/blevesearch/zapx/v16 v16.3.4 // indirect
-	github.com/blevesearch/zapx/v17 v17.1.2 // indirect
+	github.com/blevesearch/zapx/v17 v17.1.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudfoundry/gosigar v1.3.4 // indirect
 	github.com/couchbase/blance v0.1.6 // indirect
