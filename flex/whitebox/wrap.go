@@ -341,7 +341,7 @@ func (b *WrapKeyspace) Size(ctx datastore.QueryContext) (int64, errors.Error) {
 	return b.W.Size(ctx)
 }
 
-func (b *WrapKeyspace) Flush() errors.Error {
+func (b *WrapKeyspace) Flush(context datastore.QueryContext) errors.Error {
 	return nil
 }
 
@@ -360,4 +360,13 @@ func (b *WrapKeyspace) MaxTTL() int64 {
 
 func (b *WrapKeyspace) IsSystemCollection() bool {
 	return false
+}
+
+func (b *WrapKeyspace) IsExternalCollection() bool {
+	return false
+}
+
+func (b *WrapKeyspace) ExternalScan(params *datastore.ExternalScanParams, context datastore.QueryContext,
+	conn *datastore.IndexConnection) {
+	conn.Fatal(errors.NewDatastoreExternalCollectionError(nil, "ExternalScan not supported on whitebox keyspaces", nil))
 }

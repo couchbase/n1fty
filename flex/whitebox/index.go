@@ -19,7 +19,9 @@ import (
 	"github.com/couchbase/query/datastore"
 	"github.com/couchbase/query/errors"
 	"github.com/couchbase/query/expression"
+	"github.com/couchbase/query/expression/parser"
 	"github.com/couchbase/query/timestamp"
+	"github.com/couchbase/query/value"
 
 	"github.com/couchbase/n1fty/flex"
 	"github.com/couchbase/n1fty/util"
@@ -117,12 +119,12 @@ func (i *Index) Scan(requestID string, span *datastore.Span, distinct bool, limi
 	conn.Error(util.N1QLError(nil, "not supported"))
 }
 
-func (i *Index) Sargable(field string, query, options expression.Expression, opaque interface{}) (
-	int, int64, bool, interface{}, errors.Error) {
+func (i *Index) Sargable(field string, query, options expression.Expression, mappings interface{}) (
+	int, int64, bool, bool, interface{}, errors.Error) {
 	fmt.Printf("i.Sargable, %s, field: %s, query: %v, options: %v\n",
 		i.IdStr, field, query, options)
 
-	return 0, 0, false, opaque, nil
+	return 0, 0, false, false, mappings, nil
 }
 
 // Search performs a search/scan over this index, with provided SearchInfo settings
@@ -225,47 +227,45 @@ func (i *Index) Pageable(order []string, offset, limit int64,
 
 // -----------------------------------------------------------------
 
-func (i *Index) SargableFlex(nodeAlias string, bindings expression.Bindings,
-	where expression.Expression, opaque interface{}) (
-	sargLength int, exact bool, searchQuery, searchOptions map[string]interface{},
-	opaqueOut interface{}, err errors.Error) {
-	fmt.Printf("i.SargableFlex, nodeAlias: %s\n", nodeAlias)
-	fmt.Printf("  where: %v\n", where)
-	for _, b := range bindings {
+func (i *Index) SargableFlex(requestId string, req *datastore.FTSFlexRequest) (
+	*datastore.FTSFlexResponse, errors.Error) {
+	fmt.Printf("i.SargableFlex, keyspace: %s\n", req.Keyspace)
+	fmt.Printf("  pred: %v\n", req.Pred)
+	for _, b := range req.Bindings {
 		fmt.Printf("  binding: %+v, expr: %+v\n", b, b.Expression())
 	}
 
-	identifiers := flex.Identifiers{flex.Identifier{Name: nodeAlias}}
+	identifiers := flex.Identifiers{flex.Identifier{Name: req.Keyspace}}
 
 	var ok bool
-	identifiers, ok = identifiers.Push(bindings, -1)
+	identifiers, ok = identifiers.Push(req.Bindings, -1)
 	if !ok {
-		return 0, false, nil, nil, opaque, nil
+		return nil, nil
 	}
 
 	fmt.Printf("  identifiers: %+v\n", identifiers)
 
 	fieldTracks, needsFiltering, flexBuild, _, err0 := i.CondFlexIndexes.Sargable(
-		identifiers, where, "keyspace", nil)
+		identifiers, req.Pred, req.Keyspace, nil)
 
 	i.lastSargableFlexErr = err0
 
 	if err0 != nil {
 		fmt.Printf("   CondFlexIndexes.Sargable err0: %v\n", err0)
-		return 0, false, nil, nil, opaque, util.N1QLError(err0, "")
+		return nil, util.N1QLError(err0, "")
 	}
 
 	if len(fieldTracks) <= 0 {
 		fmt.Printf("   CondFlexIndexes.Sargable len(fieldTracks) <= 0\n")
 		j, _ := json.Marshal(i.CondFlexIndexes)
 		fmt.Printf("    CondFlexIndexes: %s\n", j)
-		return 0, false, nil, nil, opaque, nil
+		return nil, nil
 	}
 
 	bleveQuery, err1 := flex.FlexBuildToBleveQuery(flexBuild, nil)
 	if err1 != nil {
 		fmt.Printf("   flex.FlexBuildToBleveQuery err1: %v\n", err1)
-		return 0, false, nil, nil, opaque, util.N1QLError(err1, "")
+		return nil, util.N1QLError(err1, "")
 	}
 
 	bleveQueryJ, _ := json.Marshal(bleveQuery)
@@ -274,9 +274,9 @@ func (i *Index) SargableFlex(nodeAlias string, bindings expression.Bindings,
 	fmt.Printf("  fieldTracks: %v, needsFiltering: %v\n", fieldTracks, needsFiltering)
 
 	i.lastSargableFlexOk = &LastSargableFlex{
-		nodeAlias: nodeAlias,
-		bindings:  bindings,
-		where:     where,
+		nodeAlias: req.Keyspace,
+		bindings:  req.Bindings,
+		where:     req.Pred,
 
 		identifiers: identifiers,
 
@@ -287,5 +287,32 @@ func (i *Index) SargableFlex(nodeAlias string, bindings expression.Bindings,
 		bleveQuery: bleveQuery,
 	}
 
-	return len(fieldTracks), !needsFiltering, bleveQuery, nil, opaque, nil
+	searchRequest := map[string]interface{}{
+		"query": bleveQuery,
+		"score": "none",
+	}
+
+	searchOptions := map[string]interface{}{
+		"index": i.NameStr,
+	}
+
+	stringer := expression.NewStringer()
+
+	resp := &datastore.FTSFlexResponse{
+		SearchQuery:    stringer.Visit(expression.NewConstant(value.NewValue(searchRequest))),
+		SearchOptions:  stringer.Visit(expression.NewConstant(value.NewValue(searchOptions))),
+		StaticSargKeys: make(map[string]expression.Expression, len(fieldTracks)),
+		NumIndexedKeys: uint32(len(fieldTracks)),
+	}
+
+	for s := range fieldTracks {
+		e, _ := parser.Parse(string(s))
+		resp.StaticSargKeys[string(s)] = e
+	}
+
+	if !needsFiltering {
+		resp.RespFlags |= datastore.FTS_FLEXINDEX_EXACT
+	}
+
+	return resp, nil
 }
