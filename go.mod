@@ -47,7 +47,7 @@ replace github.com/couchbase/gocbcrypto => ../gocbcrypto
 replace golang.org/x/text => golang.org/x/text v0.4.0
 
 require (
-	github.com/blevesearch/bleve/v2 v2.6.1-0.20260505160315-f7e4c923ae43
+	github.com/blevesearch/bleve/v2 v2.6.1-0.20260529084126-8bc46c91118a
 	github.com/blevesearch/sear v0.4.1
 	github.com/buger/jsonparser v1.1.2
 	github.com/couchbase/cbauth v0.1.18
@@ -55,7 +55,7 @@ require (
 	github.com/couchbase/cbgt v0.0.0-00010101000000-000000000000
 	github.com/couchbase/clog v0.1.0
 	github.com/couchbase/gocbcrypto v0.0.0-00010101000000-000000000000
-	github.com/couchbase/goutils v0.1.2
+	github.com/couchbase/goutils v0.3.0
 	github.com/couchbase/hebrew v0.0.0-00010101000000-000000000000
 	github.com/couchbase/moss v0.3.0
 	github.com/couchbase/query v0.0.0-20260401214352-fd7842db0db8
@@ -118,9 +118,9 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.24.2 // indirect
 	github.com/blevesearch/bleve-mapping-ui v0.7.0 // indirect
-	github.com/blevesearch/bleve_index_api v1.3.11 // indirect
+	github.com/blevesearch/bleve_index_api v1.3.12 // indirect
 	github.com/blevesearch/geo v0.2.5 // indirect
-	github.com/blevesearch/go-faiss v1.1.1 // indirect
+	github.com/blevesearch/go-faiss v1.1.3 // indirect
 	github.com/blevesearch/go-porterstemmer v1.0.3 // indirect
 	github.com/blevesearch/goleveldb v1.0.1 // indirect
 	github.com/blevesearch/gtreap v0.1.1 // indirect
@@ -137,7 +137,7 @@ require (
 	github.com/blevesearch/zapx/v14 v14.4.3 // indirect
 	github.com/blevesearch/zapx/v15 v15.4.3 // indirect
 	github.com/blevesearch/zapx/v16 v16.3.4 // indirect
-	github.com/blevesearch/zapx/v17 v17.1.3 // indirect
+	github.com/blevesearch/zapx/v17 v17.1.5 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudfoundry/gosigar v1.3.4 // indirect
 	github.com/cncf/xds/go v0.0.0-20251210132809-ee656c7534f5 // indirect
@@ -148,13 +148,13 @@ require (
 	github.com/couchbase/ghistogram v0.1.0 // indirect
 	github.com/couchbase/go-couchbase v0.1.1 // indirect
 	github.com/couchbase/go_json v0.0.0-20250803152502-4641f4ef8578 // indirect
-	github.com/couchbase/gocb/v2 v2.12.1 // indirect
-	github.com/couchbase/gocbcore/v10 v10.9.1 // indirect
+	github.com/couchbase/gocb/v2 v2.12.3 // indirect
+	github.com/couchbase/gocbcore/v10 v10.9.3 // indirect
 	github.com/couchbase/gocbcore/v9 v9.1.11 // indirect
 	github.com/couchbase/gocbcoreps v0.1.5-0.20260107140814-1c3a03f888f8 // indirect
 	github.com/couchbase/gomemcached v0.3.4 // indirect
 	github.com/couchbase/gometa v0.0.0-20220803182802-05cb6b2e299f // indirect
-	github.com/couchbase/goprotostellar v1.0.5 // indirect
+	github.com/couchbase/goprotostellar v1.0.6-0.20260407143512-d7af25156dcc // indirect
 	github.com/couchbase/indexing v0.0.0-20220923223016-071e9308c875 // indirect
 	github.com/couchbase/logstats v1.0.0 // indirect
 	github.com/couchbase/query-ee v0.0.0-00010101000000-000000000000 // indirect
