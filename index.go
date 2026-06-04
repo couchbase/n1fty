@@ -690,7 +690,7 @@ func (i *FTSIndex) buildQueryAndCheckIfSargable(field string,
 			}
 
 			if !exists {
-				if !isParentFieldSearchable(f) {
+				if f.Type == "vector" || !isParentFieldSearchable(f) {
 					// not sargable
 					return rv
 				}
