@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/search/query"
 	"github.com/couchbase/cbft"
 	pb "github.com/couchbase/cbft/protobuf"
@@ -39,8 +40,10 @@ func unmarshalSearchRequest(field string, input []byte) (
 	}
 
 	// if both size and limit were missing, set the request size to MaxInt64,
-	// so as to stream results
-	if sr.Size == nil && sr.Limit == nil {
+	// so as to stream results. Skip this when score fusion (RRF/RSF) is
+	// requested — fusion needs a finite top-N window and cannot stream;
+	// leave size nil so cbft applies its own default.
+	if sr.Size == nil && sr.Limit == nil && !bleve.IsScoreFusionRequested(temp) {
 		size := math.MaxInt64
 		sr.Size = &size
 	}
@@ -236,6 +239,12 @@ func BuildProtoSearchRequest(sr *cbft.SearchRequest,
 	// Stream results when ..
 	// - SearchRequest: Sort method NOT provided
 	// - SearchRequest: From + Size exceeds window
+	//
+	// Score fusion (RRF/RSF) keeps the kNN hits at the coordinator and needs
+	// the bleve layer to produce an exact paginated result for fusion — its
+	// second phase cannot stream. Keep the From/Size aliasing (push N1QL
+	// Offset/Limit down) but skip the streaming transforms in that case.
+	useScoreFusion := bleve.IsScoreFusionRequested(&bleve.SearchRequest{Score: sr.Score})
 
 	if sr.From == nil || *(sr.From) < 0 {
 		from := int(searchInfo.Offset)
@@ -246,6 +255,11 @@ func BuildProtoSearchRequest(sr *cbft.SearchRequest,
 		if int(searchInfo.Limit) != math.MaxInt64 {
 			limit := int(searchInfo.Limit)
 			sr.Size = &limit
+		} else if useScoreFusion {
+			// COUNT(*)-style under fusion: no meaningful N1QL limit to push
+			// down, and streaming is incompatible. Leave sr.Size nil so cbft
+			// applies its own default (10) instead of forwarding MaxInt64.
+			sr.Size = nil
 		} else {
 			size := 0
 			sr.Size = &size
@@ -253,11 +267,12 @@ func BuildProtoSearchRequest(sr *cbft.SearchRequest,
 		}
 	}
 
-	if len(sr.Sort) == 0 && len(searchInfo.Order) == 0 {
+	if len(sr.Sort) == 0 && len(searchInfo.Order) == 0 && !useScoreFusion {
 		searchRequest.Stream = true
 	}
 
-	if (*(sr.Size) + *(sr.From)) > int(GetBleveMaxResultWindow()) {
+	if !useScoreFusion && sr.Size != nil &&
+		(*(sr.Size)+*(sr.From)) > int(GetBleveMaxResultWindow()) {
 		searchRequest.Stream = true
 		zero := 0
 		sr.From = &zero
