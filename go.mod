@@ -47,7 +47,7 @@ replace github.com/couchbase/gocbcrypto => ../gocbcrypto
 replace golang.org/x/text => golang.org/x/text v0.4.0
 
 require (
-	github.com/blevesearch/bleve/v2 v2.6.1-0.20260618145229-1e80991633fc
+	github.com/blevesearch/bleve/v2 v2.6.1-0.20260626122409-a519f25e260c
 	github.com/blevesearch/sear v0.4.1
 	github.com/buger/jsonparser v1.1.2
 	github.com/couchbase/cbauth v0.1.18
@@ -137,7 +137,7 @@ require (
 	github.com/blevesearch/zapx/v14 v14.4.3 // indirect
 	github.com/blevesearch/zapx/v15 v15.4.3 // indirect
 	github.com/blevesearch/zapx/v16 v16.3.4 // indirect
-	github.com/blevesearch/zapx/v17 v17.1.7 // indirect
+	github.com/blevesearch/zapx/v17 v17.1.9 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudfoundry/gosigar v1.3.4 // indirect
 	github.com/cncf/xds/go v0.0.0-20251210132809-ee656c7534f5 // indirect
@@ -158,7 +158,7 @@ require (
 	github.com/couchbase/indexing v0.0.0-20220923223016-071e9308c875 // indirect
 	github.com/couchbase/logstats v1.1.1 // indirect
 	github.com/couchbase/query-ee v0.0.0-00010101000000-000000000000 // indirect
-	github.com/couchbase/tools-common/cloud/v8 v8.1.3 // indirect
+	github.com/couchbase/tools-common/cloud/v8 v8.1.4 // indirect
 	github.com/couchbase/tools-common/couchbase/v4 v4.1.0 // indirect
 	github.com/couchbase/tools-common/fs v1.0.3 // indirect
 	github.com/couchbase/tools-common/strings v1.0.0 // indirect
