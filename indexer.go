@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/couchbase/cbauth"
 	cbtls "github.com/couchbase/goutils/tls"
 
 	"github.com/couchbase/cbft"
@@ -741,6 +742,14 @@ func updateHttpClient(certInBytes []byte) {
 	rootCAs := x509.NewCertPool()
 	if ok := rootCAs.AppendCertsFromPEM(certInBytes); ok {
 		transport.TLSClientConfig.RootCAs = rootCAs
+
+		// CRL enforcement for outbound (node-to-node) TLS handshakes.
+		transport.TLSClientConfig.VerifyPeerCertificate = func(rawCerts [][]byte,
+			verifiedChains [][]*x509.Certificate) error {
+			return cbauth.CRLsValidate(rawCerts, verifiedChains,
+				cbauth.CRLScopeNodeToNode)
+		}
+
 		_ = http2.ConfigureTransport(transport)
 	} else {
 		transport.TLSClientConfig.InsecureSkipVerify = true

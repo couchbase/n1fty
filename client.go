@@ -451,16 +451,22 @@ func (g *grpcOpts) updateCommonOpts() error {
 		if !ok {
 			return fmt.Errorf("client: failed to append ca certs")
 		}
-		var cred credentials.TransportCredentials
-		if secConfig.shouldClientsUseClientCert {
-			cred = credentials.NewTLS(&tls.Config{
-				Certificates: []tls.Certificate{*secConfig.clientCertificate},
-				ClientAuth:   *secConfig.clientAuthType,
-				RootCAs:      certPool,
-			})
-		} else {
-			cred = credentials.NewClientTLSFromCert(certPool, "")
+
+		tlsCfg := &tls.Config{
+			RootCAs: certPool,
+			VerifyPeerCertificate: func(rawCerts [][]byte,
+				verifiedChains [][]*x509.Certificate) error {
+				return cbauth.CRLsValidate(rawCerts, verifiedChains,
+					cbauth.CRLScopeNodeToNode)
+			},
 		}
+
+		if secConfig.shouldClientsUseClientCert {
+			tlsCfg.Certificates = []tls.Certificate{*secConfig.clientCertificate}
+			tlsCfg.ClientAuth = *secConfig.clientAuthType
+		}
+
+		cred := credentials.NewTLS(tlsCfg)
 		gRPCOpts = append(gRPCOpts, grpc.WithTransportCredentials(cred))
 	} else { // non-ssl
 		gRPCOpts = append(gRPCOpts, grpc.WithInsecure())
