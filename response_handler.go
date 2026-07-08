@@ -238,7 +238,7 @@ func (r *responseHandler) handleResponse(conn *datastore.IndexConnection,
 		if backfillLimit > 0 && tmpfile == nil &&
 			(uint64(cp-ln) < numHits) {
 			logging.Infof("n1fty: response_handler: buffer overflow [cap %d len %d],"+
-				" initiating backfill", cp, ln)
+				" initiating backfill, encrypted - %v", cp, ln, EaRKey != nil)
 			enc, dec, tmpfile, err = initBackFill(logPrefix, r.requestID, r)
 			if err != nil {
 				conn.Error(util.N1QLError(err, "initBackFill failed, err:"))
