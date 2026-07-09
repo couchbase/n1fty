@@ -47,7 +47,7 @@ replace github.com/couchbase/gocbcrypto => ../gocbcrypto
 replace golang.org/x/text => golang.org/x/text v0.4.0
 
 require (
-	github.com/blevesearch/bleve/v2 v2.6.1-0.20260709083555-97dec85e72a4
+	github.com/blevesearch/bleve/v2 v2.6.1-0.20260709151816-8fb0f1b6835b
 	github.com/blevesearch/sear v0.4.2
 	github.com/buger/jsonparser v1.1.2
 	github.com/couchbase/cbauth v0.1.20
