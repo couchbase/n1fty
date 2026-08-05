@@ -48,7 +48,7 @@ replace golang.org/x/text => golang.org/x/text v0.4.0
 
 require (
 	github.com/blevesearch/bleve/v2 v2.6.1-0.20260728180730-9d24b6bcb77f
-	github.com/blevesearch/sear v0.4.3
+	github.com/blevesearch/sear v0.4.2
 	github.com/buger/jsonparser v1.1.2
 	github.com/couchbase/cbauth v0.1.20
 	github.com/couchbase/cbft v0.0.0-00010101000000-000000000000
@@ -117,7 +117,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.24.5 // indirect
 	github.com/blevesearch/bleve-mapping-ui v0.7.0 // indirect
-	github.com/blevesearch/bleve_index_api v1.4.1 // indirect
+	github.com/blevesearch/bleve_index_api v1.4.0 // indirect
 	github.com/blevesearch/geo v0.2.5 // indirect
 	github.com/blevesearch/go-faiss v1.1.5 // indirect
 	github.com/blevesearch/go-porterstemmer v1.0.3 // indirect
