@@ -47,8 +47,8 @@ replace github.com/couchbase/gocbcrypto => ../gocbcrypto
 replace golang.org/x/text => golang.org/x/text v0.4.0
 
 require (
-	github.com/blevesearch/bleve/v2 v2.6.1-0.20260728180730-9d24b6bcb77f
-	github.com/blevesearch/sear v0.4.2
+	github.com/blevesearch/bleve/v2 v2.6.1-0.20260807085028-9d2da23a5c58
+	github.com/blevesearch/sear v0.4.3
 	github.com/buger/jsonparser v1.1.2
 	github.com/couchbase/cbauth v0.1.20
 	github.com/couchbase/cbft v0.0.0-00010101000000-000000000000
@@ -117,14 +117,14 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.24.5 // indirect
 	github.com/blevesearch/bleve-mapping-ui v0.7.0 // indirect
-	github.com/blevesearch/bleve_index_api v1.4.0 // indirect
-	github.com/blevesearch/geo v0.2.5 // indirect
+	github.com/blevesearch/bleve_index_api v1.4.1 // indirect
+	github.com/blevesearch/geo v0.2.6-0.20260805065110-a696685e93c5 // indirect
 	github.com/blevesearch/go-faiss v1.1.5 // indirect
 	github.com/blevesearch/go-porterstemmer v1.0.3 // indirect
 	github.com/blevesearch/goleveldb v1.0.1 // indirect
 	github.com/blevesearch/gtreap v0.1.1 // indirect
 	github.com/blevesearch/mmap-go v1.2.0 // indirect
-	github.com/blevesearch/scorch_segment_api/v2 v2.4.8 // indirect
+	github.com/blevesearch/scorch_segment_api/v2 v2.4.9-0.20260729090843-4313bda09bee // indirect
 	github.com/blevesearch/segment v0.9.1 // indirect
 	github.com/blevesearch/snowballstem v0.9.0 // indirect
 	github.com/blevesearch/stempel v0.2.0 // indirect
@@ -136,7 +136,7 @@ require (
 	github.com/blevesearch/zapx/v14 v14.4.3 // indirect
 	github.com/blevesearch/zapx/v15 v15.4.3 // indirect
 	github.com/blevesearch/zapx/v16 v16.3.4 // indirect
-	github.com/blevesearch/zapx/v17 v17.2.1 // indirect
+	github.com/blevesearch/zapx/v17 v17.2.2-0.20260806075952-6594f3d6bd0d // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/cloudfoundry/gosigar v1.3.4 // indirect
