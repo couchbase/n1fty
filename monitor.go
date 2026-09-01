@@ -23,17 +23,8 @@ var BackfillMonitoringIntervalMS = time.Duration(1000 * time.Millisecond)
 var StatsLoggingIntervalMS = time.Duration(60000 * time.Millisecond)
 
 // ----------------------------------------------------------------------------
-
+// Initialized within config.go since there is a dependency on srvConfig
 var mr *monitor
-
-func init() {
-	mr = &monitor{
-		indexers: make(map[string]*FTSIndexer),
-	}
-
-	go mr.backfillMonitor()
-	go mr.logStats()
-}
 
 // ----------------------------------------------------------------------------
 

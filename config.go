@@ -71,6 +71,15 @@ func init() {
 
 	srvConfig.cfg.Subscribe(cbgt.INDEX_DEFS_KEY, srvConfig.eventCh)
 	srvConfig.cfg.Subscribe(cbgt.CfgNodeDefsKey(cbgt.NODE_DEFS_KNOWN), srvConfig.eventCh)
+
+	// Initialize the monitor before starting the listner
+	mr = &monitor{
+		indexers: make(map[string]*FTSIndexer),
+	}
+
+	go mr.backfillMonitor()
+	go mr.logStats()
+
 	go srvConfig.Listen()
 }
 
