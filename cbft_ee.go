@@ -16,5 +16,5 @@
 package n1fty
 
 import (
-	_ "github.com/couchbase/hebrew"
+	_ "github.com/couchbase/cbftx/hebrew"
 )
