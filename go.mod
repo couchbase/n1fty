@@ -44,6 +44,8 @@ replace github.com/couchbase/regulator => ../regulator
 
 replace github.com/couchbase/gocbcrypto => ../gocbcrypto
 
+replace github.com/couchbase/logstats => ../logstats
+
 replace golang.org/x/text => golang.org/x/text v0.4.0
 
 require (
