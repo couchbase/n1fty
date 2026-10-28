@@ -63,7 +63,7 @@ require (
 	github.com/couchbase/query v0.0.0-20260401214352-fd7842db0db8
 	github.com/couchbase/regulator v0.0.0-00010101000000-000000000000
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475
-	golang.org/x/net v0.61.0
+	golang.org/x/net v0.62.0
 	google.golang.org/grpc v1.83.2
 )
 
