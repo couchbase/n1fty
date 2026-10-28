@@ -1,6 +1,6 @@
 module github.com/couchbase/n1fty
 
-go 1.26.2
+go 1.27
 
 replace github.com/couchbase/bhive => ../bhive
 
@@ -63,7 +63,7 @@ require (
 	github.com/couchbase/query v0.0.0-20260401214352-fd7842db0db8
 	github.com/couchbase/regulator v0.0.0-00010101000000-000000000000
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475
-	golang.org/x/net v0.61.0
+	golang.org/x/net v0.62.0
 	google.golang.org/grpc v1.83.2
 )
 
@@ -90,7 +90,7 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.55.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.55.0 // indirect
 	github.com/RoaringBitmap/roaring/v2 v2.18.0 // indirect
-	github.com/andybalholm/brotli v1.2.1 // indirect
+	github.com/andybalholm/brotli v1.2.7 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/apache/arrow-go/v18 v18.6.0 // indirect
 	github.com/apache/iceberg-go v0.6.0 // indirect
@@ -149,7 +149,7 @@ require (
 	github.com/couchbase/eventing-ee v0.0.0-00010101000000-000000000000 // indirect
 	github.com/couchbase/ghistogram v0.1.0 // indirect
 	github.com/couchbase/go-couchbase v0.1.1 // indirect
-	github.com/couchbase/go_json v0.0.0-20250803152502-4641f4ef8578 // indirect
+	github.com/couchbase/go_json v0.0.0-20261028151932-45635946e9eb // indirect
 	github.com/couchbase/gocb/v2 v2.12.4 // indirect
 	github.com/couchbase/gocbcore/v10 v10.10.0 // indirect
 	github.com/couchbase/gocbcore/v9 v9.1.11 // indirect
@@ -195,6 +195,7 @@ require (
 	github.com/gookit/color v1.6.0 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
+	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/iskorotkov/avro/v2 v2.34.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
@@ -212,14 +213,15 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/pandatix/go-abnf v0.5.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.26 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/prometheus/client_golang v1.25.0 // indirect
 	github.com/prometheus/client_model v0.6.3 // indirect
-	github.com/prometheus/common v0.72.1 // indirect
-	github.com/prometheus/procfs v0.22.0 // indirect
+	github.com/prometheus/common v0.73.0 // indirect
+	github.com/prometheus/procfs v0.23.0 // indirect
 	github.com/pterm/pterm v0.12.83 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/santhosh-tekuri/jsonschema v1.2.4 // indirect
