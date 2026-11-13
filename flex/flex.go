@@ -208,6 +208,10 @@ func (fi *FlexIndex) interpretApproxVectorDistanceExpr(
 
 	fieldExpr := a.Field()
 	if decodedFieldName, ok := fieldExpr.(*expression.DecodeVector); ok {
+		// FTS vector_base64 fields hold only little-endian dense fp32
+		if !ftsDecodeVectorFormat(decodedFieldName.Operands()) {
+			return false, nil, nil
+		}
 		fieldExpr = decodedFieldName.Operands()[0]
 	}
 
@@ -435,4 +439,36 @@ type FlexBuild struct {
 	Data        interface{}   // Depends on the kind.
 	KNNData     []interface{} // Optional KNN Data, available only for SEARCH(..) & ApproxVectorDistance(..) functions.
 	KNNOperator string        // Optional, and applicable only when KNNData is available.
+}
+
+// ftsDecodeVectorFormat reports whether DECODE_VECTOR(field, isBigEndian,
+// vectorType, elementType) decodes the format FTS uses for vector_base64:
+// little-endian, dense, fp32. Omitted arguments take those defaults.
+// Non-constant arguments cannot be checked at plan time, so they fail.
+func ftsDecodeVectorFormat(ops expression.Expressions) bool {
+	for i := 1; i < len(ops); i++ {
+		v := ops[i].Value()
+		if v == nil {
+			return false
+		}
+		switch i {
+		case 1: // isBigEndian
+			if v.Type() != value.BOOLEAN || v.Truth() {
+				return false
+			}
+		case 2: // vector type
+			if v.Type() != value.STRING ||
+				strings.ToLower(v.ToString()) != "dense" {
+				return false
+			}
+		case 3: // element type
+			if v.Type() != value.STRING ||
+				strings.ToLower(v.ToString()) != "fp32" {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
 }
