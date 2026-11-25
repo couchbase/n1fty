@@ -49,7 +49,7 @@ replace github.com/couchbase/logstats => ../logstats
 replace golang.org/x/text => golang.org/x/text v0.4.0
 
 require (
-	github.com/blevesearch/bleve/v2 v2.6.3
+	github.com/blevesearch/bleve/v2 v2.6.4
 	github.com/blevesearch/sear v0.4.3
 	github.com/buger/jsonparser v1.1.2
 	github.com/couchbase/cbauth v0.1.24
